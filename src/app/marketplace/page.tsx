@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Leaf, MapPin, Shield, CreditCard, Gift, Users } from "lucide-react";
+import { useAuth } from "@/components/auth-context";
+import { useRouter } from "next/navigation";
+import { apiGet, apiPost } from "@/lib/api";
+import useSWR from "swr";
+import { useToast } from "@/hooks/use-toast";
 
 interface CarbonCredit {
   id: number;
@@ -33,174 +38,86 @@ interface CartItem extends CarbonCredit {
   subtotal: number;
 }
 
-// Mock marketplace data
-const carbonCredits = [
-  {
-    id: 1,
-    title: "Cần Giờ Mangrove Forest Credits",
-    location: "Cần Giờ, Ho Chi Minh City, Vietnam",
-    forestType: "Mangrove",
-    credits: 4250,
-    pricePerCredit: 3.0,
-    totalPrice: 12750,
-    vintage: "2024",
-    certification: "VCS (Verified Carbon Standard)",
-    description: "Primary mangrove conservation area with high biodiversity.",
-    features: ["Biodiversity Protection", "Coastal Defense", "Community Benefits"],
-    available: 4250,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🏝️",
-  },
-  {
-    id: 2,
-    title: "Xuân Thủy National Park Credits",
-    location: "Nam Định, Vietnam",
-    forestType: "Wetland",
-    credits: 3750,
-    pricePerCredit: 3.0,
-    totalPrice: 11250,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Vietnam's first Ramsar site, important for migratory birds.",
-    features: ["Wetland Conservation", "Migratory Birds", "Community Benefits"],
-    available: 3750,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🐦",
-  },
-  {
-    id: 3,
-    title: "Cúc Phương National Park Credits",
-    location: "Ninh Bình, Vietnam",
-    forestType: "Tropical",
-    credits: 1110,
-    pricePerCredit: 3.0,
-    totalPrice: 3330,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Vietnam's oldest national park, rich in flora and fauna.",
-    features: ["Biodiversity", "Research", "Tourism"],
-    available: 1110,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🐒",
-  },
-  {
-    id: 4,
-    title: "Bạch Mã National Park Credits",
-    location: "Thừa Thiên Huế, Vietnam",
-    forestType: "Mountain",
-    credits: 1850,
-    pricePerCredit: 3.0,
-    totalPrice: 5550,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Mountainous park with cloud forests and waterfalls.",
-    features: ["Cloud Forest", "Waterfalls", "Wildlife"],
-    available: 1850,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🏔️",
-  },
-  {
-    id: 5,
-    title: "Yok Đôn National Park Credits",
-    location: "Đắk Lắk, Vietnam",
-    forestType: "Dry Forest",
-    credits: 5775,
-    pricePerCredit: 3.0,
-    totalPrice: 17325,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Largest national park in Vietnam, home to elephants and rare birds.",
-    features: ["Elephants", "Birds", "Conservation"],
-    available: 5775,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🐘",
-  },
-  {
-    id: 6,
-    title: "Tràm Chim National Park Credits",
-    location: "Đồng Tháp, Vietnam",
-    forestType: "Wetland",
-    credits: 3790,
-    pricePerCredit: 3.0,
-    totalPrice: 11370,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Wetland reserve, famous for Sarus cranes and aquatic biodiversity.",
-    features: ["Wetland", "Cranes", "Aquatic Biodiversity"],
-    available: 3790,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🦩",
-  },
-  {
-    id: 7,
-    title: "Ba Vì National Park Credits",
-    location: "Hà Nội, Vietnam",
-    forestType: "Mountain",
-    credits: 540,
-    pricePerCredit: 3.0,
-    totalPrice: 1620,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Mountainous park near Hanoi, known for diverse plant species.",
-    features: ["Plant Diversity", "Tourism", "Conservation"],
-    available: 540,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🏞️",
-  },
-  {
-    id: 8,
-    title: "Phú Quốc National Park Credits",
-    location: "Phú Quốc, Vietnam",
-    forestType: "Island",
-    credits: 1570,
-    pricePerCredit: 3.0,
-    totalPrice: 4710,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Island park with tropical forests and rich marine life.",
-    features: ["Marine Life", "Tropical Forest", "Tourism"],
-    available: 1570,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🌴",
-  },
-  {
-    id: 9,
-    title: "Tam Đảo National Park Credits",
-    location: "Vĩnh Phúc, Vietnam",
-    forestType: "Mountain",
-    credits: 1800,
-    pricePerCredit: 3.0,
-    totalPrice: 5400,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Mountainous park with cool climate and rare animal species.",
-    features: ["Cool Climate", "Rare Species", "Tourism"],
-    available: 1800,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🏔️",
-  },
-  {
-    id: 10,
-    title: "Đà Lạt Pine Forests Credits",
-    location: "Lâm Đồng, Vietnam",
-    forestType: "Pine",
-    credits: 2700,
-    pricePerCredit: 3.0,
-    totalPrice: 8100,
-    vintage: "2024",
-    certification: "VCS",
-    description: "Highland pine forests, famous for scenic beauty and cool climate.",
-    features: ["Pine Forest", "Scenic Beauty", "Cool Climate"],
-    available: 2700,
-    image: "/placeholder.svg?height=200&width=300",
-    avatar: "🌲",
-  },
-];
-
 export default function MarketplacePage() {
-  const [selectedCredit, setSelectedCredit] = useState<CarbonCredit | null>(null);
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const fetcher = (url: string) => apiGet<any[]>(url);
+  const { data: credits, error, isLoading, mutate } = useSWR("/api/credits", fetcher);
+  const { data: orders, isLoading: ordersLoading, error: ordersError, mutate: mutateOrders } = useSWR(user?.id ? `/api/orders?userId=${user.id}` : null, fetcher);
+  const [selectedCredit, setSelectedCredit] = useState<any | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/auth");
+      return;
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) return null;
+  if (isLoading) return <div className="p-8 text-center">Loading...</div>;
+  if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;
+  if (!credits?.length) return <div className="p-8 text-center">No credits available.</div>;
+
+  const addToCart = (credit: any, quantity: number) => {
+    if (quantity <= 0) {
+      toast({ title: "Validation", description: "Quantity must be greater than zero.", variant: "info" });
+      return;
+    }
+    setCart((prev) => [
+      ...prev,
+      {
+        ...credit,
+        quantity,
+        subtotal: credit.pricePerCredit * quantity,
+      },
+    ]);
+    toast({ title: "Added to cart", description: `${credit.forest?.name || credit.title} x${quantity} added to cart.`, variant: "default" });
+  };
+
+  const getTotalCartValue = () => {
+    return cart.reduce((total, item) => total + item.subtotal, 0);
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      toast({ title: "Cart empty", description: "Add items to your cart before checking out.", variant: "info" });
+      return;
+    }
+    setOrderLoading(true);
+    setOrderError(null);
+    setOrderSuccess(null);
+    try {
+      const userId = user?.id;
+      if (!userId) throw new Error("User not found");
+      const order = await apiPost<any>("/api/orders", {
+        userId,
+        status: "Pending",
+        items: cart.map((item) => ({
+          carbonCreditId: item.id,
+          quantity: item.quantity,
+          pricePerCredit: item.pricePerCredit,
+        })),
+      });
+      setOrderSuccess("Order placed successfully!");
+      setCart([]);
+      mutate(); // Refetch credits
+      mutateOrders(); // Refetch orders
+      toast({ title: "Order placed", description: `Your order #${order.id} was placed successfully.`, variant: "default" });
+    } catch (err: any) {
+      setOrderError(err.message);
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setOrderLoading(false);
+    }
+  };
+
   // Add filter state
   const [forestType, setForestType] = useState("all");
   const [certification, setCertification] = useState("all");
@@ -208,21 +125,8 @@ export default function MarketplacePage() {
   // Dialog open state
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const addToCart = (credit: CarbonCredit, quantity: number) => {
-    const cartItem: CartItem = {
-      ...credit,
-      quantity,
-      subtotal: credit.pricePerCredit * quantity,
-    };
-    setCart([...cart, cartItem]);
-  };
-
-  const getTotalCartValue = () => {
-    return cart.reduce((total, item) => total + item.subtotal, 0);
-  };
-
   // Filter and sort logic
-  let filteredCredits = carbonCredits.filter((credit) => {
+  let filteredCredits = credits.filter((credit) => {
     // Forest type filter
     const forestMatch = forestType === "all" || credit.forestType.toLowerCase().replace(" ", "").includes(forestType);
     // Certification filter (handle both "VCS" and "VCS (Verified Carbon Standard)")
@@ -334,11 +238,12 @@ export default function MarketplacePage() {
                 </div>
 
                 <div className="space-y-2">
-                  {credit.features.map((feature, index) => (
-                    <Badge key={index} variant="outline" className="mr-2 mb-1">
-                      {feature}
-                    </Badge>
-                  ))}
+                  {credit.features &&
+                    credit.features.map((feature: string, index: number) => (
+                      <Badge key={index} variant="outline" className="mr-2 mb-1">
+                        {feature}
+                      </Badge>
+                    ))}
                 </div>
 
                 <Separator />
@@ -490,6 +395,42 @@ export default function MarketplacePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* After the cart summary, show user's order history */}
+        {ordersLoading ? (
+          <div className="p-4 text-center">Loading orders...</div>
+        ) : ordersError ? (
+          <div className="p-4 text-center text-red-600">{ordersError.message}</div>
+        ) : orders && orders.length > 0 ? (
+          <div className="mt-8">
+            <h2 className="text-xl font-bold mb-2">Your Orders</h2>
+            <div className="space-y-4">
+              {orders.map((order: any) => (
+                <div key={order.id} className="border rounded p-4">
+                  <div className="font-semibold">
+                    Order #{order.id} ({order.status})
+                  </div>
+                  <div className="text-sm text-gray-500 mb-2">Placed: {new Date(order.createdAt).toLocaleString()}</div>
+                  <div className="space-y-1">
+                    {order.items.map((item: any) => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span>
+                          {item.carbonCredit?.certification} ({item.carbonCredit?.vintage})
+                        </span>
+                        <span>
+                          {item.quantity} × ${item.pricePerCredit} = ${item.subtotal.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="font-bold mt-2">Total: ${order.totalPrice.toFixed(2)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 text-center text-gray-500">No orders found.</div>
+        )}
       </div>
     </div>
   );

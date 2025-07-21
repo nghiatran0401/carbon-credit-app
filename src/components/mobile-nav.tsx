@@ -11,9 +11,11 @@ interface MobileNavProps {
     href: string;
     label: string;
   }>;
+  isAuthenticated?: boolean;
+  logout?: () => void;
 }
 
-export function MobileNav({ links }: MobileNavProps) {
+export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -36,11 +38,25 @@ export function MobileNav({ links }: MobileNavProps) {
             </Link>
           ))}
           <div className="pt-4 border-t">
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/auth" onClick={() => setOpen(false)}>
-                Get Started
-              </Link>
-            </Button>
+            {isAuthenticated ? (
+              <Button
+                variant="outline"
+                className="w-full text-red-600 border-red-300 hover:bg-red-50"
+                onClick={() => {
+                  if (logout) logout();
+                  setOpen(false);
+                  window.location.href = "/";
+                }}
+              >
+                Logout
+              </Button>
+            ) : (
+              <Button variant="outline" asChild className="w-full">
+                <Link href="/auth" onClick={() => setOpen(false)}>
+                  Get Started
+                </Link>
+              </Button>
+            )}
           </div>
         </nav>
       </SheetContent>

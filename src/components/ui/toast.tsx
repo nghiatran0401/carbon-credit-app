@@ -19,6 +19,8 @@ const toastVariants = cva(
       variant: {
         default: "border bg-background text-foreground",
         destructive: "destructive border-destructive bg-destructive text-destructive-foreground",
+        info: "border-blue-500 bg-blue-900 text-blue-100",
+        warning: "border-yellow-500 bg-yellow-900 text-yellow-100",
       },
     },
     defaultVariants: {
@@ -27,9 +29,65 @@ const toastVariants = cva(
   }
 );
 
-const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> & VariantProps<typeof toastVariants>>(({ className, variant, ...props }, ref) => {
-  return <ToastPrimitives.Root ref={ref} className={cn(toastVariants({ variant }), className)} {...props} />;
-});
+const Toast = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Root>, React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> & VariantProps<typeof toastVariants>>(
+  ({ className, variant, children, ...props }, ref) => {
+    const isDestructive = variant === "destructive";
+    const isInfo = variant === "info";
+    const isWarning = variant === "warning";
+    // Extract custom fields
+    const title = (props as any).title;
+    const description = (props as any).description;
+    const rest = { ...props };
+    delete (rest as any).title;
+    delete (rest as any).description;
+    return (
+      <ToastPrimitives.Root
+        ref={ref}
+        className={cn(
+          toastVariants({ variant }),
+          isDestructive ? "border-l-4 border-red-500" : isInfo ? "border-l-4 border-blue-500" : isWarning ? "border-l-4 border-yellow-500" : "border-l-4 border-green-500",
+          className
+        )}
+        {...rest}
+      >
+        <div className="flex items-center space-x-2">
+          {isDestructive ? (
+            <span className="text-red-500">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11V7a1 1 0 10-2 0v2a1 1 0 002 0zm-1 4a1 1 0 100 2 1 1 0 000-2z" />
+              </svg>
+            </span>
+          ) : isInfo ? (
+            <span className="text-blue-400">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 9V7a1 1 0 112 0v2a1 1 0 01-2 0zm1 2a1 1 0 100 2 1 1 0 000-2z" />
+              </svg>
+            </span>
+          ) : isWarning ? (
+            <span className="text-yellow-400">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.516 11.591c.75 1.334-.213 2.985-1.742 2.985H3.483c-1.53 0-2.492-1.651-1.742-2.985L8.257 3.1zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V9a1 1 0 112 0v2a1 1 0 01-1 1z" />
+              </svg>
+            </span>
+          ) : (
+            <span className="text-green-500">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.707a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+              </svg>
+            </span>
+          )}
+          <div className="flex flex-col">
+            <ToastTitle className={isDestructive ? "text-red-600" : isInfo ? "text-blue-400" : isWarning ? "text-yellow-500" : "text-green-700"}>
+              {title || (isDestructive ? "Error" : isInfo ? "Info" : isWarning ? "Warning" : "Success")}
+            </ToastTitle>
+            {description && <ToastDescription className="text-white/90 dark:text-white/90">{description}</ToastDescription>}
+          </div>
+        </div>
+        {children}
+      </ToastPrimitives.Root>
+    );
+  }
+);
 Toast.displayName = ToastPrimitives.Root.displayName;
 
 const ToastAction = React.forwardRef<React.ElementRef<typeof ToastPrimitives.Action>, React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>>(({ className, ...props }, ref) => (

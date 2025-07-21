@@ -66,3 +66,8 @@ Contributions are welcome! Please open issues or pull requests for improvements 
 ## License
 
 This project is licensed under the MIT License.
+
+prisma:
+
+- npx prisma db push
+- npx tsx prisma/seed.ts

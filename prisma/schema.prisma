@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  company      String?
+  role         String   @default("user")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  orders       Order[]
+}
+
+model Forest {
+  id          Int      @id @default(autoincrement())
+  name        String
+  location    String
+  type        String
+  area        Float
+  description String
+  status      String
+  lastUpdated DateTime
+  credits     CarbonCredit[]
+}
+
+model CarbonCredit {
+  id               Int          @id @default(autoincrement())
+  forestId         Int
+  vintage          Int
+  certification    String
+  totalCredits     Int
+  availableCredits Int
+  pricePerCredit   Float
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  forest           Forest   @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  orderItems       OrderItem[]
+}
+
+model Order {
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  createdAt  DateTime    @default(now())
+  status     String
+  totalPrice Float
+  user       User        @relation(fields: [userId], references: [id])
+  items      OrderItem[]
+}
+
+model OrderItem {
+  id             Int          @id @default(autoincrement())
+  orderId        Int
+  carbonCreditId Int
+  quantity       Int
+  pricePerCredit Float
+  subtotal       Float
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
+} 

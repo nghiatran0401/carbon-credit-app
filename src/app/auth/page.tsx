@@ -12,15 +12,36 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Leaf, Mail, Lock, User, Building, Globe } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/components/auth-context";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated, login } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => setIsLoading(false), 2000);
+    setError(null);
+    try {
+      await login(email, password);
+      router.replace("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -53,7 +74,7 @@ export default function AuthPage() {
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="email" type="email" placeholder="your@email.com" className="pl-10" required />
+                      <Input id="email" type="email" placeholder="your@email.com" className="pl-10" required value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
                   </div>
 
@@ -61,7 +82,7 @@ export default function AuthPage() {
                     <Label htmlFor="password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="password" type="password" placeholder="••••••••" className="pl-10" required />
+                      <Input id="password" type="password" placeholder="••••••••" className="pl-10" required value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
 
@@ -75,6 +96,7 @@ export default function AuthPage() {
                   <Button variant="outline" type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? "Signing in..." : "Sign In"}
                   </Button>
+                  {error && <div className="text-red-600 text-sm text-center">{error}</div>}
                 </form>
 
                 <div className="text-center">
