@@ -49,6 +49,30 @@ export interface CarbonCredit {
   orderItems?: OrderItem[];
 }
 
+// Payment
+export interface Payment {
+  id: number;
+  orderId: number;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  amount: number;
+  currency: string;
+  status: string;
+  failureReason?: string;
+  method?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// OrderHistory
+export interface OrderHistory {
+  id: number;
+  orderId: number;
+  event: string;
+  message?: string;
+  createdAt: string;
+}
+
 // Order
 export interface Order {
   id: number;
@@ -58,6 +82,10 @@ export interface Order {
   totalPrice: number;
   user?: User;
   items?: OrderItem[];
+  payments?: Payment[];
+  orderHistory?: OrderHistory[];
+  paidAt?: string;
+  failureReason?: string;
 }
 
 // OrderItem

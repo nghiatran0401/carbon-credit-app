@@ -16,6 +16,8 @@ export async function GET(req: Request) {
           carbonCredit: true,
         },
       },
+      payments: true,
+      orderHistory: true,
     },
     orderBy: { id: "desc" },
   });
@@ -46,6 +48,8 @@ export async function POST(req: Request) {
     include: {
       user: true,
       items: { include: { carbonCredit: true } },
+      payments: true,
+      orderHistory: true,
     },
   });
   return NextResponse.json(orderWithUser);

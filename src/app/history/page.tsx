@@ -179,6 +179,16 @@ export default function HistoryPage() {
                 </div>
                 <Separator className="my-2" />
                 <div className="font-bold text-right">Total: ${order.totalPrice.toFixed(2)}</div>
+                {/* Payment status and details */}
+                {order.payments && order.payments.length > 0 && (
+                  <div className="mt-2 text-sm">
+                    <span className="font-medium">Payment Status:</span> {order.payments[order.payments.length - 1].status}
+                    {order.payments[order.payments.length - 1].status === "failed" && order.payments[order.payments.length - 1].failureReason && (
+                      <span className="ml-2 text-red-600">({order.payments[order.payments.length - 1].failureReason})</span>
+                    )}
+                    {order.paidAt && <span className="ml-4 text-green-700">Paid at: {new Date(order.paidAt).toLocaleString()}</span>}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

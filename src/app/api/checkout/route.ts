@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       totalPrice: total,
       totalCredits,
       currency: "USD",
-      stripeSessionId: session.id,
+      // Remove stripeSessionId from Order (not in model)
       items: {
         create: cartItems.map((item: any) => ({
           carbonCreditId: item.carbonCreditId || 1, // fallback for demo
