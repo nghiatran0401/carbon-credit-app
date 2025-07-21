@@ -14,19 +14,20 @@ import { Download } from "lucide-react";
 const PAGE_SIZE = 5;
 
 function ordersToCSV(orders: any[]): string {
-  const header = ["Order ID", "Status", "Placed", "Item Certification", "Item Vintage", "Quantity", "Price Per Credit", "Subtotal", "Total"];
+  const header = ["Order ID", "User Email", "Date", "Status", "Total", "Item Certification", "Item Vintage", "Quantity", "Price Per Credit", "Subtotal"];
   const rows = orders.flatMap(
     (order) =>
       order.items?.map((item: any) => [
         order.id,
-        order.status,
+        order.user?.email ?? "",
         new Date(order.createdAt).toLocaleString(),
+        order.status,
+        order.totalPrice.toFixed(2),
         item.carbonCredit?.certification ?? "",
         item.carbonCredit?.vintage ?? "",
         item.quantity,
         item.pricePerCredit,
         item.subtotal.toFixed(2),
-        order.totalPrice.toFixed(2),
       ]) || []
   );
   return [header, ...rows].map((row) => row.join(",")).join("\n");
@@ -35,8 +36,14 @@ function ordersToCSV(orders: any[]): string {
 export default function HistoryPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
-  const fetcher = (url: string) => apiGet<any[]>(url);
-  const { data: orders, isLoading, error } = useSWR(user?.id ? `/api/orders?userId=${user.id}` : null, fetcher);
+  const { data: usersRaw } = useSWR(user?.role === "admin" ? "/api/users" : null, apiGet);
+  const users = Array.isArray(usersRaw) ? usersRaw : [];
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+
+  // For admin: fetch all orders, for user: fetch only their orders
+  const ordersUrl = user?.role === "admin" ? "/api/orders" : user?.id ? `/api/orders?userId=${user.id}` : null;
+  const { data: ordersRaw, isLoading, error } = useSWR(ordersUrl, apiGet);
+  const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -48,9 +55,13 @@ export default function HistoryPage() {
     }
   }, [isAuthenticated, router]);
 
+  // For admin: filter by selected user
   const filteredOrders = useMemo(() => {
-    if (!orders) return [];
-    return orders.filter((order: any) => {
+    let filtered = orders;
+    if (user?.role === "admin" && selectedUser !== "all") {
+      filtered = filtered.filter((order: any) => String(order.user?.id) === selectedUser);
+    }
+    return filtered.filter((order: any) => {
       const statusMatch = statusFilter === "all" || order.status === statusFilter;
       const searchMatch =
         search === "" ||
@@ -58,7 +69,7 @@ export default function HistoryPage() {
         order.items?.some((item: any) => item.carbonCredit?.certification?.toLowerCase().includes(search.toLowerCase()) || item.carbonCredit?.vintage?.toString().includes(search));
       return statusMatch && searchMatch;
     });
-  }, [orders, statusFilter, search]);
+  }, [orders, statusFilter, search, user, selectedUser]);
 
   const totalPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
   const paginatedOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -107,13 +118,36 @@ export default function HistoryPage() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={handleDownloadCSV} className="flex items-center gap-2">
-            <Download className="h-4 w-4" /> Download CSV
-          </Button>
+          {user?.role === "admin" && (
+            <Select
+              value={selectedUser}
+              onValueChange={(val) => {
+                setSelectedUser(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="User" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Users</SelectItem>
+                {users.map((u: any) => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    {u.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {user?.role === "admin" && (
+            <Button variant="outline" onClick={handleDownloadCSV} className="flex items-center gap-2">
+              <Download className="h-4 w-4" /> Download CSV
+            </Button>
+          )}
         </div>
       </div>
       {paginatedOrders.length > 0 ? (
@@ -124,7 +158,11 @@ export default function HistoryPage() {
                 <CardTitle className="text-lg">
                   Order #{order.id} <span className="text-xs font-normal text-gray-500 ml-2">({order.status})</span>
                 </CardTitle>
-                <div className="text-sm text-gray-500 mt-1 md:mt-0">Placed: {new Date(order.createdAt).toLocaleString()}</div>
+                <div className="text-sm text-gray-500 mt-1 md:mt-0">
+                  Placed: {new Date(order.createdAt).toLocaleString()}
+                  <br />
+                  {user?.role === "admin" && <span>User: {order.user?.email}</span>}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">

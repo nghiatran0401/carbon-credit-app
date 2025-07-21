@@ -3,8 +3,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const userId = url.searchParams.get("userId");
+  const where = userId ? { userId: Number(userId) } : undefined;
   const orders = await prisma.order.findMany({
+    where,
     include: {
       user: true,
       items: {

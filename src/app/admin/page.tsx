@@ -346,7 +346,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
         {/* Tabs/sections */}
+        <h2 className="text-2xl font-bold mb-4 text-green-700">Admin to manage data below</h2>
         <Tabs defaultValue={section} value={section} onValueChange={setSection} className="space-y-6">
           <TabsList>
             {SECTIONS.map((s) => (
