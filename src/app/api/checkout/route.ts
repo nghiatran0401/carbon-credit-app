@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-// You must set STRIPE_SECRET_KEY in your environment
-const stripeSecret = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder";
+const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const Stripe = require("stripe");
 const stripe = Stripe(stripeSecret);
 
@@ -22,5 +21,31 @@ export async function POST(req: NextRequest) {
     currency: "usd",
     metadata: { userId: String(userId) },
   });
-  return NextResponse.json({ clientSecret: paymentIntent.client_secret });
+
+  // Create order in DB (status: pending)
+  let totalPrice = 0;
+  const items = cart.map((item) => {
+    const subtotal = item.quantity * item.carbonCredit.pricePerCredit;
+    totalPrice += subtotal;
+    return {
+      carbonCreditId: item.carbonCreditId,
+      quantity: item.quantity,
+      pricePerCredit: item.carbonCredit.pricePerCredit,
+      subtotal,
+    };
+  });
+  const order = await prisma.order.create({
+    data: {
+      userId,
+      status: "pending",
+      totalPrice,
+      items: { create: items },
+    },
+    include: { items: true },
+  });
+
+  // Clear cart
+  await prisma.cartItem.deleteMany({ where: { userId } });
+
+  return NextResponse.json({ clientSecret: paymentIntent.client_secret, orderId: order.id });
 }

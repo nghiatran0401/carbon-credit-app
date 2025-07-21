@@ -4,6 +4,50 @@ import useSWR from "swr";
 import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import Link from "next/link";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+
+function CheckoutForm({ clientSecret, onSuccess, onError }: { clientSecret: string; onSuccess: () => void; onError: (msg: string) => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    if (!stripe || !elements) return;
+    const card = elements.getElement(CardElement);
+    if (!card) return;
+    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: { card },
+    });
+    if (error) {
+      setError(error.message || "Payment failed");
+      onError(error.message || "Payment failed");
+    } else if (paymentIntent && paymentIntent.status === "succeeded") {
+      onSuccess();
+    } else {
+      setError("Payment not completed");
+      onError("Payment not completed");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 p-4 border rounded bg-white">
+      <CardElement className="mb-4 p-2 border rounded" options={{ hidePostalCode: true }} />
+      {error && <div className="text-red-500 mb-2">{error}</div>}
+      <Button type="submit" size="lg" disabled={loading || !stripe || !elements}>
+        {loading ? "Processing..." : "Pay Now"}
+      </Button>
+    </form>
+  );
+}
 
 export default function CartPage() {
   const { user } = useAuth();
@@ -12,6 +56,9 @@ export default function CartPage() {
   const cart: any[] = Array.isArray(data) ? data : data ? [data] : [];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [orderId, setOrderId] = useState<number | null>(null);
 
   const handleRemove = async (carbonCreditId: number) => {
     setLoading(true);
@@ -29,25 +76,63 @@ export default function CartPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiPost("/api/checkout", { userId });
-      // TODO: Integrate Stripe Elements with res.clientSecret
-      alert("Stripe PaymentIntent created. Integrate Stripe Elements next.");
+      const res: any = await apiPost("/api/checkout", { userId });
+      setClientSecret(res.clientSecret);
+      setOrderId(res.orderId);
     } catch (e: any) {
       setError(e.message);
     }
     setLoading(false);
   };
 
+  const handleSuccess = async () => {
+    setSuccess(true);
+    setClientSecret(null);
+    setOrderId(null);
+    await mutate(); // Clear cart UI
+  };
+
+  const handleError = (msg: string) => {
+    setError(msg);
+  };
+
   if (!userId) return <div className="p-8">Please log in to view your cart.</div>;
   if (!cart) return <div className="p-8">Loading...</div>;
   const total = cart.reduce((sum: any, item: any) => sum + item.quantity * item.carbonCredit.pricePerCredit, 0);
 
+  if (success)
+    return (
+      <div className="container mx-auto py-8">
+        <h1 className="text-2xl font-bold mb-4">Payment Successful!</h1>
+        <div className="text-green-600 mb-4">Thank you for your purchase. Your order has been placed.</div>
+        {orderId && (
+          <div className="mb-4">
+            Order ID: <span className="font-mono">{orderId}</span>
+          </div>
+        )}
+        <Link href="/marketplace">
+          <Button size="lg">Back to Marketplace</Button>
+        </Link>
+      </div>
+    );
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-2xl font-bold mb-4">Your Cart</h1>
-      {error && <div className="text-red-500 mb-2">{error}</div>}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-2" role="alert">
+          <span className="block sm:inline">{error}</span>
+          <button className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError(null)}>
+            <span className="text-xl">&times;</span>
+          </button>
+        </div>
+      )}
       {cart.length === 0 ? (
         <div>Your cart is empty.</div>
+      ) : clientSecret ? (
+        <Elements stripe={stripePromise} options={{ clientSecret }}>
+          <CheckoutForm clientSecret={clientSecret} onSuccess={handleSuccess} onError={handleError} />
+        </Elements>
       ) : (
         <>
           <ul>
@@ -71,8 +156,8 @@ export default function CartPage() {
           </ul>
           <div className="flex justify-between items-center mt-6">
             <span className="text-lg font-bold">Total: ${total.toFixed(2)}</span>
-            <Button size="lg" onClick={handleCheckout} disabled={loading}>
-              Checkout
+            <Button size="lg" onClick={handleCheckout} disabled={loading || cart.length === 0}>
+              {loading ? "Processing..." : "Checkout"}
             </Button>
           </div>
         </>
