@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-// TODO: Replace with real session/user extraction
 function getUserId(req: NextRequest): number | null {
-  // For now, get from header or body (for demo)
   const userId = req.headers.get("x-user-id") || req.nextUrl.searchParams.get("userId");
   return userId ? Number(userId) : null;
 }

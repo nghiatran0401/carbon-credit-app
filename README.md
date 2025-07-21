@@ -10,6 +10,8 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 - User authentication (with roles: admin, user)
 - Admin panel for managing forests, credits, orders, and users
 - Full CRUD for forests, credits, and orders
+- Real-time order and payment status tracking (with audit trail)
+- Admin panel displays full order history (status changes, payment events, failures, etc.)
 - Toast notifications with variants
 - Responsive design for mobile and desktop
 - Robust API with full test coverage (Vitest)
@@ -76,11 +78,19 @@ npm start
 
 ### Running Tests
 
+To run all tests:
+
 ```bash
 npm test
 ```
 
-Vitest will run all tests in the `tests/` directory, including full CRUD API tests.
+To launch the interactive Vitest UI:
+
+```bash
+npm run test:ui
+```
+
+Vitest will run all tests in the `tests/` directory, including full CRUD API tests, payment flows, and order history/audit trail.
 
 ## Project Structure
 
@@ -111,6 +121,11 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 
 - `User`, `Forest`, `CarbonCredit`, `Order`, `OrderItem`, `ForestZone`, etc.
 
+## Features
+
+- Real-time order and payment status tracking (with audit trail)
+- Admin panel displays full order history (status changes, payment events, failures, etc.)
+
 ## Scripts
 
 - `npm run dev` — Start the development server
@@ -118,9 +133,18 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 - `npm start` — Start the production server
 - `npm run lint` — Run ESLint
 - `npm test` — Run Vitest tests
-- `npm run migrate` — Push schema to DB && Seed the database (make sure you create database "carbon_credit" first with your root account)
+- `npm run test:ui` — Launch the Vitest interactive UI for running and debugging tests
+- `npm run migrate` — Push schema to DB && Seed the database
 
 ## Testing
 
 - All API routes are covered by Vitest tests in `tests/api/`
 - Run `npm test` to execute all tests
+
+## Admin Panel
+
+- In the admin panel, each order row expands to show a real-time audit trail of all order events (created, paid, failed, etc.)
+
+## Stripe Webhook
+
+- Stripe webhook endpoint: `/api/webhook` (configure your Stripe dashboard to point to this for payment event updates)

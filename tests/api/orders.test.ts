@@ -7,10 +7,24 @@ describe("Orders API", () => {
   let orderId: number | undefined;
 
   it("GET /api/orders returns orders", async () => {
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/orders"));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(Array.isArray(data)).toBe(true);
+  });
+
+  it("GET /api/orders includes orderHistory and payments", async () => {
+    const res = await GET(new Request("http://localhost/api/orders"));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(Array.isArray(data)).toBe(true);
+    if (data.length > 0) {
+      const order = data[0];
+      expect(order).toHaveProperty("orderHistory");
+      expect(order).toHaveProperty("payments");
+      expect(Array.isArray(order.orderHistory)).toBe(true);
+      expect(Array.isArray(order.payments)).toBe(true);
+    }
   });
 
   it("POST /api/orders creates an order", async () => {
