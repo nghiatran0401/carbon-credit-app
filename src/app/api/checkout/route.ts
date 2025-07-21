@@ -10,42 +10,38 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { userId } = body;
   if (!userId) return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+
   const cart = await prisma.cartItem.findMany({
     where: { userId },
-    include: { carbonCredit: true },
+    include: { carbonCredit: { include: { forest: true } } },
   });
   if (!cart.length) return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
-  const amount = cart.reduce((sum, item) => sum + item.quantity * item.carbonCredit.pricePerCredit, 0);
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: Math.round(amount * 100), // cents
-    currency: "usd",
-    metadata: { userId: String(userId) },
-  });
 
-  // Create order in DB (status: pending)
-  let totalPrice = 0;
-  const items = cart.map((item) => {
-    const subtotal = item.quantity * item.carbonCredit.pricePerCredit;
-    totalPrice += subtotal;
-    return {
-      carbonCreditId: item.carbonCreditId,
-      quantity: item.quantity,
-      pricePerCredit: item.carbonCredit.pricePerCredit,
-      subtotal,
-    };
-  });
-  const order = await prisma.order.create({
-    data: {
-      userId,
-      status: "pending",
-      totalPrice,
-      items: { create: items },
+  // Build line items for Stripe Checkout
+  const line_items = cart.map((item) => ({
+    price_data: {
+      currency: "usd",
+      product_data: {
+        name: item.carbonCredit.forest?.name || "Carbon Credit",
+        description: `${item.carbonCredit.certification} (${item.carbonCredit.vintage})`,
+      },
+      unit_amount: Math.round(item.carbonCredit.pricePerCredit * 100),
     },
-    include: { items: true },
+    quantity: item.quantity,
+  }));
+
+  // Create Stripe Checkout Session
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ["card"],
+    line_items,
+    mode: "payment",
+    success_url: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/cart?success=1`,
+    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/cart?canceled=1`,
+    metadata: { userId: String(userId) },
   });
 
   // Clear cart
   await prisma.cartItem.deleteMany({ where: { userId } });
 
-  return NextResponse.json({ clientSecret: paymentIntent.client_secret, orderId: order.id });
+  return NextResponse.json({ checkoutUrl: session.url });
 }

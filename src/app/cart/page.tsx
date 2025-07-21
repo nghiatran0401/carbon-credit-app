@@ -6,50 +6,12 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Link from "next/link";
 import confetti from "canvas-confetti";
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-function CheckoutForm({ clientSecret, onSuccess, onError }: { clientSecret: string; onSuccess: () => void; onError: (msg: string) => void }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    if (!stripe || !elements) return;
-    const card = elements.getElement(CardElement);
-    if (!card) return;
-    const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: { card },
-    });
-    if (error) {
-      setError(error.message || "Payment failed");
-      onError(error.message || "Payment failed");
-    } else if (paymentIntent && paymentIntent.status === "succeeded") {
-      onSuccess();
-    } else {
-      setError("Payment not completed");
-      onError("Payment not completed");
-    }
-    setLoading(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 p-4 border rounded bg-white">
-      <CardElement className="mb-4 p-2 border rounded" options={{ hidePostalCode: true }} />
-      {error && <div className="text-red-500 mb-2">{error}</div>}
-      <Button type="submit" size="lg" disabled={loading || !stripe || !elements}>
-        {loading ? "Processing..." : "Pay Now"}
-      </Button>
-    </form>
-  );
-}
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ShoppingCart, Leaf, Shield, Info } from "lucide-react";
 
 export default function CartPage() {
   const { user } = useAuth();
@@ -58,9 +20,6 @@ export default function CartPage() {
   const cart: any[] = Array.isArray(data) ? data : data ? [data] : [];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [orderId, setOrderId] = useState<number | null>(null);
   const searchParams = useSearchParams();
 
   const handleRemove = async (carbonCreditId: number) => {
@@ -80,24 +39,15 @@ export default function CartPage() {
     setError(null);
     try {
       const res: any = await apiPost("/api/checkout", { userId });
-      setClientSecret(res.clientSecret);
-      setOrderId(res.orderId);
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+        return;
+      }
+      setError("Stripe checkout URL not returned.");
     } catch (e: any) {
       setError(e.message);
     }
     setLoading(false);
-  };
-
-  const handleSuccess = async () => {
-    setSuccess(true);
-    setClientSecret(null);
-    setOrderId(null);
-    confetti({
-      particleCount: 120,
-      spread: 80,
-      origin: { y: 0.6 },
-    });
-    await mutate(); // Clear cart UI
   };
 
   const handleError = (msg: string) => {
@@ -106,7 +56,7 @@ export default function CartPage() {
 
   // Auto-open checkout if ?checkout=1
   useEffect(() => {
-    if (searchParams.get("checkout") === "1" && !clientSecret && cart.length > 0) {
+    if (searchParams.get("checkout") === "1" && cart.length > 0) {
       handleCheckout();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,72 +66,91 @@ export default function CartPage() {
   if (!cart) return <div className="p-8">Loading...</div>;
   const total = cart.reduce((sum: any, item: any) => sum + item.quantity * item.carbonCredit.pricePerCredit, 0);
 
-  if (success)
-    return (
-      <div className="container mx-auto py-8">
-        <h1 className="text-2xl font-bold mb-4">Payment Successful!</h1>
-        <div className="text-green-600 mb-4">Thank you for your purchase. Your order has been placed.</div>
-        {orderId && (
-          <div className="mb-4">
-            Order ID: <span className="font-mono">{orderId}</span>
+  return (
+    <div className="container mx-auto py-8 min-h-[70vh] flex flex-col md:flex-row gap-8">
+      <div className="flex-1">
+        <h1 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <ShoppingCart className="h-7 w-7 text-green-600" /> Your Cart
+        </h1>
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-2 flex items-center justify-between" role="alert">
+            <span className="block sm:inline">{error}</span>
+            <button className="ml-4 text-xl" onClick={() => setError(null)}>
+              &times;
+            </button>
           </div>
         )}
-        <Link href="/marketplace">
-          <Button size="lg">Back to Marketplace</Button>
-        </Link>
-      </div>
-    );
-
-  return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-4">Your Cart</h1>
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-2" role="alert">
-          <span className="block sm:inline">{error}</span>
-          <button className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError(null)}>
-            <span className="text-xl">&times;</span>
-          </button>
-        </div>
-      )}
-      {cart.length === 0 ? (
-        <div>Your cart is empty.</div>
-      ) : clientSecret ? (
-        <>
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
-            <b>Test Card:</b> 4242 4242 4242 4242 &nbsp; Exp: 04/24 &nbsp; CVC: 242 &nbsp; Any ZIP
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="bg-gray-100 rounded-full p-6 mb-4">
+              <ShoppingCart className="h-12 w-12 text-gray-400" />
+            </div>
+            <div className="text-lg text-gray-500 mb-2">Your cart is empty.</div>
+            <Link href="/marketplace">
+              <Button size="lg" variant="outline" className="mt-2">
+                Browse Marketplace
+              </Button>
+            </Link>
           </div>
-          <Elements stripe={stripePromise} options={{ clientSecret }}>
-            <CheckoutForm clientSecret={clientSecret} onSuccess={handleSuccess} onError={handleError} />
-          </Elements>
-        </>
-      ) : (
-        <>
-          <ul>
+        ) : (
+          <div className="space-y-4">
             {cart.map((item: any) => (
-              <li key={item.id} className="flex justify-between items-center border-b py-2">
-                <div>
-                  <div className="font-semibold">{item.carbonCredit.forest?.name}</div>
-                  <div className="text-sm text-gray-500">
-                    {item.carbonCredit.certification} ({item.carbonCredit.vintage})
-                  </div>
-                  <div className="text-sm">Qty: {item.quantity}</div>
+              <Card key={item.id} className="flex flex-col md:flex-row items-center md:items-stretch gap-4 p-4 transition-all duration-300 shadow-sm hover:shadow-md group">
+                <div className="flex flex-col items-center justify-center w-20 h-20 bg-gradient-to-tr from-green-100 to-blue-100 rounded-full">
+                  <Leaf className="h-8 w-8 text-green-700" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold">${item.carbonCredit.pricePerCredit}</span>
-                  <Button size="sm" variant="outline" onClick={() => handleRemove(item.carbonCreditId)} disabled={loading}>
+                <CardContent className="flex-1 flex flex-col gap-1 p-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-lg text-gray-900 truncate" title={item.carbonCredit.forest?.name}>
+                      {item.carbonCredit.forest?.name}
+                    </span>
+                    <Badge className="bg-blue-100 text-blue-800 border-blue-300 ml-1" variant="outline">
+                      <Shield className="h-3 w-3 mr-1 inline" /> {item.carbonCredit.certification}
+                    </Badge>
+                    <Badge className="bg-green-100 text-green-800 border-green-300 ml-1" variant="outline">
+                      {item.carbonCredit.vintage}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-gray-500 mb-1">Qty: {item.quantity}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-green-700 text-lg">${item.carbonCredit.pricePerCredit}</span>
+                    <span className="text-xs text-gray-500">each</span>
+                  </div>
+                </CardContent>
+                <div className="flex flex-col items-end gap-2">
+                  <span className="font-bold text-lg text-gray-900">${(item.quantity * item.carbonCredit.pricePerCredit).toFixed(2)}</span>
+                  <Button size="sm" variant="outline" onClick={() => handleRemove(item.carbonCreditId)} disabled={loading} className="transition-all duration-200 hover:bg-red-50 hover:text-red-600">
                     Remove
                   </Button>
                 </div>
-              </li>
+              </Card>
             ))}
-          </ul>
-          <div className="flex justify-between items-center mt-6">
-            <span className="text-lg font-bold">Total: ${total.toFixed(2)}</span>
-            <Button size="lg" onClick={handleCheckout} disabled={loading || cart.length === 0}>
-              {loading ? "Processing..." : "Checkout"}
-            </Button>
           </div>
-        </>
+        )}
+      </div>
+      {/* Sticky Cart Summary on Desktop */}
+      {cart.length > 0 && (
+        <div className="w-full md:w-80 md:sticky md:top-24 h-fit">
+          <Card className="shadow-lg border-green-200">
+            <CardHeader>
+              <CardTitle className="text-xl text-green-800">Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Separator />
+              <div className="flex justify-between items-center text-lg">
+                <span>Total</span>
+                <span className="font-bold text-green-700 text-2xl">${total.toFixed(2)}</span>
+              </div>
+              <Separator />
+              <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white font-semibold" onClick={handleCheckout} disabled={loading || cart.length === 0}>
+                {loading ? "Processing..." : "Checkout"}
+              </Button>
+              <Link href="/marketplace" className="text-center text-green-700 hover:underline text-sm mt-2">
+                Continue Shopping
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
