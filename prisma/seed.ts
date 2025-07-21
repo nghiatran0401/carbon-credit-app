@@ -3,10 +3,17 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+function randomBetween(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 async function main() {
   // Clean up all tables in correct order
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
+  await prisma.cartItem.deleteMany();
+  await prisma.bookmark.deleteMany();
+  await prisma.exchangeRate.deleteMany();
   await prisma.carbonCredit.deleteMany();
   await prisma.forest.deleteMany();
   await prisma.user.deleteMany();
@@ -133,18 +140,63 @@ async function main() {
   const credits = [];
   for (const forest of forests) {
     for (let year = 2021; year <= 2024; year++) {
+      let totalCredits = 1000 + randomBetween(0, 5000);
+      let availableCredits;
+      // Randomly assign status for each credit
+      const statusType = randomBetween(1, 3);
+      if (statusType === 1) {
+        availableCredits = totalCredits; // Fully available
+      } else if (statusType === 2) {
+        availableCredits = Math.floor((totalCredits * randomBetween(10, 80)) / 100); // Partially available (10-80%)
+      } else {
+        availableCredits = 0; // Sold out
+      }
       const credit = await prisma.carbonCredit.create({
         data: {
           forestId: forest.id,
           vintage: year,
           certification: ["VCS", "Gold Standard", "CCB"][year % 3],
-          totalCredits: 1000 + Math.floor(Math.random() * 5000),
-          availableCredits: 500 + Math.floor(Math.random() * 2000),
-          pricePerCredit: Math.floor(Math.random() * 10) + 1,
+          totalCredits,
+          availableCredits,
+          pricePerCredit: randomBetween(5, 15),
         },
       });
       credits.push(credit);
     }
+  }
+
+  // Create exchange rates for each carbon credit (simulate rate changes over time)
+  const exchangeRates: any = [];
+  for (const credit of credits) {
+    // 3 rates: 2023-01-01, 2023-07-01, 2024-01-01
+    const rate1 = await prisma.exchangeRate.create({
+      data: {
+        carbonCreditId: credit.id,
+        rate: randomBetween(5, 10) + Math.random(),
+        currency: "USD",
+        effectiveFrom: new Date("2023-01-01"),
+        effectiveTo: new Date("2023-06-30"),
+      },
+    });
+    const rate2 = await prisma.exchangeRate.create({
+      data: {
+        carbonCreditId: credit.id,
+        rate: randomBetween(8, 15) + Math.random(),
+        currency: "USD",
+        effectiveFrom: new Date("2023-07-01"),
+        effectiveTo: new Date("2023-12-31"),
+      },
+    });
+    const rate3 = await prisma.exchangeRate.create({
+      data: {
+        carbonCreditId: credit.id,
+        rate: randomBetween(10, 20) + Math.random(),
+        currency: "USD",
+        effectiveFrom: new Date("2024-01-01"),
+        effectiveTo: null,
+      },
+    });
+    exchangeRates.push(rate1, rate2, rate3);
   }
 
   // Seed bookmarks for users
@@ -180,11 +232,20 @@ async function main() {
     }
   }
 
+  // Helper to get the exchange rate for a credit at a given date
+  function getExchangeRateForDate(creditId: number, date: Date) {
+    // Find all rates for this credit
+    const rates = exchangeRates.filter((r: any) => r.carbonCreditId === creditId);
+    // Find the rate where effectiveFrom <= date && (effectiveTo is null or date <= effectiveTo)
+    return rates.find((r: any) => r.effectiveFrom <= date && (!r.effectiveTo || date <= r.effectiveTo));
+  }
+
   // Create orders for users
-  const years = [2023, 2024, 2025];
+  const years = [2023, 2024];
   for (const user of users) {
     for (const year of years) {
-      for (let month = 0; month < 12; month++) {
+      for (let month = 0; month < 3; month++) {
+        // Fewer orders for demo
         // Create 1-2 orders per month
         const numOrders = 1 + Math.floor(Math.random() * 2);
         for (let o = 0; o < numOrders; o++) {
@@ -194,16 +255,23 @@ async function main() {
               userId: user.id,
               status: ["Pending", "Completed", "Cancelled"][Math.floor(Math.random() * 3)],
               totalPrice: 0, // will update after items
+              totalCredits: 0,
+              totalUsd: 0,
+              currency: "USD",
               createdAt: orderDate,
             },
           });
           let total = 0;
-          // Add 2-4 items per order
-          for (let j = 0; j < 2 + Math.floor(Math.random() * 3); j++) {
+          let totalCredits = 0;
+          let totalUsd = 0;
+          // Add 2-3 items per order
+          for (let j = 0; j < 2 + Math.floor(Math.random() * 2); j++) {
             const credit = credits[Math.floor(Math.random() * credits.length)];
             const quantity = 10 + Math.floor(Math.random() * 50);
             const price = credit.pricePerCredit;
             const subtotal = quantity * price;
+            const rate = getExchangeRateForDate(credit.id, orderDate);
+            const usdAmount = quantity * (rate ? rate.rate : price);
             await prisma.orderItem.create({
               data: {
                 orderId: order.id,
@@ -211,13 +279,17 @@ async function main() {
                 quantity,
                 pricePerCredit: price,
                 subtotal,
+                usdAmount,
+                exchangeRateId: rate ? rate.id : null,
               },
             });
             total += subtotal;
+            totalCredits += quantity;
+            totalUsd += usdAmount;
           }
           await prisma.order.update({
             where: { id: order.id },
-            data: { totalPrice: total },
+            data: { totalPrice: total, totalCredits, totalUsd },
           });
         }
       }
@@ -230,6 +302,9 @@ async function main() {
       userId: users[1].id,
       status: "Completed",
       totalPrice: 0,
+      totalCredits: 0,
+      totalUsd: 0,
+      currency: "USD",
       paymentIntentId: "pi_test_12345",
       paidAt: new Date(),
       createdAt: new Date(),
@@ -237,11 +312,15 @@ async function main() {
     },
   });
   let paidTotal = 0;
+  let paidCredits = 0;
+  let paidUsd = 0;
   for (let i = 0; i < 2; i++) {
     const credit = credits[Math.floor(Math.random() * credits.length)];
     const quantity = 5 + Math.floor(Math.random() * 10);
     const price = credit.pricePerCredit;
     const subtotal = quantity * price;
+    const rate = getExchangeRateForDate(credit.id, new Date());
+    const usdAmount = quantity * (rate ? rate.rate : price);
     await prisma.orderItem.create({
       data: {
         orderId: paidOrder.id,
@@ -249,14 +328,18 @@ async function main() {
         quantity,
         pricePerCredit: price,
         subtotal,
+        usdAmount,
+        exchangeRateId: rate ? rate.id : null,
         retired: i === 0, // Mark one item as retired
       },
     });
     paidTotal += subtotal;
+    paidCredits += quantity;
+    paidUsd += usdAmount;
   }
   await prisma.order.update({
     where: { id: paidOrder.id },
-    data: { totalPrice: paidTotal },
+    data: { totalPrice: paidTotal, totalCredits: paidCredits, totalUsd: paidUsd },
   });
 
   console.log("Seed complete!");

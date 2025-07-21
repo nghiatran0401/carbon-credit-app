@@ -2,9 +2,15 @@
 import Link from "next/link";
 import { useAuth } from "@/components/auth-context";
 import { MobileNav } from "@/components/mobile-nav";
+import { ShoppingCart } from "lucide-react";
+import useSWR from "swr";
+import { apiGet } from "@/lib/api";
 
 export function DesktopNav() {
   const { isAuthenticated, user, logout } = useAuth();
+  const userId = user?.id;
+  const { data: cartData } = useSWR(userId ? `/api/cart?userId=${userId}` : null, apiGet);
+  const cartCount = Array.isArray(cartData) ? cartData.length : cartData ? 1 : 0;
   return (
     <div className="hidden md:flex items-center space-x-6">
       <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
@@ -20,6 +26,13 @@ export function DesktopNav() {
       {isAuthenticated && user?.role === "admin" && (
         <Link href="/admin" className="text-gray-600 hover:text-green-600">
           Admin
+        </Link>
+      )}
+      {/* Cart Icon */}
+      {isAuthenticated && (
+        <Link href="/cart" className="relative text-gray-600 hover:text-green-600">
+          <ShoppingCart className="h-6 w-6" />
+          {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-green-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">{cartCount}</span>}
         </Link>
       )}
       {isAuthenticated ? (

@@ -61,6 +61,18 @@ model CarbonCredit {
   cartItems        CartItem[]
   symbol           String    @default("tCO₂")
   retiredCredits   Int       @default(0)
+  exchangeRates    ExchangeRate[]
+}
+
+model ExchangeRate {
+  id             Int          @id @default(autoincrement())
+  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
+  carbonCreditId Int
+  rate           Float        // USD per CC
+  currency       String       @default("USD")
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  orderItems     OrderItem[]
 }
 
 model Order {
@@ -69,6 +81,9 @@ model Order {
   createdAt  DateTime    @default(now())
   status     String
   totalPrice Float
+  totalCredits Int      @default(0)
+  currency   String     @default("USD")
+  totalUsd   Float      @default(0)
   user       User        @relation(fields: [userId], references: [id])
   items      OrderItem[]
   paymentIntentId String?
@@ -83,6 +98,9 @@ model OrderItem {
   quantity       Int
   pricePerCredit Float
   subtotal       Float
+  usdAmount      Float      @default(0)
+  exchangeRate   ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
+  exchangeRateId Int?
   order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   retired        Boolean      @default(false)

@@ -3,10 +3,12 @@ import { useAuth } from "@/components/auth-context";
 import useSWR from "swr";
 import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import Link from "next/link";
+import confetti from "canvas-confetti";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -59,6 +61,7 @@ export default function CartPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState<number | null>(null);
+  const searchParams = useSearchParams();
 
   const handleRemove = async (carbonCreditId: number) => {
     setLoading(true);
@@ -89,12 +92,25 @@ export default function CartPage() {
     setSuccess(true);
     setClientSecret(null);
     setOrderId(null);
+    confetti({
+      particleCount: 120,
+      spread: 80,
+      origin: { y: 0.6 },
+    });
     await mutate(); // Clear cart UI
   };
 
   const handleError = (msg: string) => {
     setError(msg);
   };
+
+  // Auto-open checkout if ?checkout=1
+  useEffect(() => {
+    if (searchParams.get("checkout") === "1" && !clientSecret && cart.length > 0) {
+      handleCheckout();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, cart.length]);
 
   if (!userId) return <div className="p-8">Please log in to view your cart.</div>;
   if (!cart) return <div className="p-8">Loading...</div>;
@@ -130,9 +146,14 @@ export default function CartPage() {
       {cart.length === 0 ? (
         <div>Your cart is empty.</div>
       ) : clientSecret ? (
-        <Elements stripe={stripePromise} options={{ clientSecret }}>
-          <CheckoutForm clientSecret={clientSecret} onSuccess={handleSuccess} onError={handleError} />
-        </Elements>
+        <>
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-700 text-sm">
+            <b>Test Card:</b> 4242 4242 4242 4242 &nbsp; Exp: 04/24 &nbsp; CVC: 242 &nbsp; Any ZIP
+          </div>
+          <Elements stripe={stripePromise} options={{ clientSecret }}>
+            <CheckoutForm clientSecret={clientSecret} onSuccess={handleSuccess} onError={handleError} />
+          </Elements>
+        </>
       ) : (
         <>
           <ul>

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ShoppingCart, Leaf, MapPin, Shield, CreditCard, Gift, Users } from "lucide-react";
+import { ShoppingCart, Leaf, MapPin, Shield, CreditCard, Gift, Users, Info } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
@@ -25,7 +25,12 @@ export default function MarketplacePage() {
   // All hooks at the top
   const fetcher = (url: string) => apiGet<any[]>(url);
   const { data: credits, error, isLoading, mutate } = useSWR("/api/credits", fetcher);
-  const { data: orders, isLoading: ordersLoading, error: ordersError, mutate: mutateOrders } = useSWR(user?.id ? `/api/orders?userId=${user.id}` : null, fetcher);
+  // Fetch forests for details modal
+  const { data: forests } = useSWR("/api/forests", fetcher);
+  // Fetch exchange rates for all credits
+  const { data: exchangeRates } = useSWR("/api/exchange-rates", fetcher);
+  // Fetch orders for purchase history
+  const { data: orders } = useSWR("/api/orders", fetcher);
   const [selectedCredit, setSelectedCredit] = useState<any | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [cart, setCart] = useState<any[]>([]);
@@ -36,6 +41,7 @@ export default function MarketplacePage() {
   const [certification, setCertification] = useState("all");
   const [sortBy, setSortBy] = useState("price-low");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [availability, setAvailability] = useState("all");
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -51,20 +57,33 @@ export default function MarketplacePage() {
   if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;
   if (!credits?.length) return <div className="p-8 text-center">No credits available.</div>;
 
-  const addToCart = (credit: any, quantity: number) => {
+  const addToCart = async (credit: any, quantity: number) => {
+    if (!user) {
+      toast({ title: "Not logged in", description: "Please log in to add items to your cart.", variant: "info" });
+      return;
+    }
     if (quantity <= 0) {
       toast({ title: "Validation", description: "Quantity must be greater than zero.", variant: "info" });
       return;
     }
-    setCart((prev) => [
-      ...prev,
-      {
-        ...credit,
+    try {
+      await apiPost("/api/cart", {
+        userId: user.id,
+        carbonCreditId: credit.id,
         quantity,
-        subtotal: credit.pricePerCredit * quantity,
-      },
-    ]);
-    toast({ title: "Added to cart", description: `${credit.forest?.name || credit.title} x${quantity} added to cart.`, variant: "default" });
+      });
+      toast({ title: "Added to cart", description: `${credit.forest?.name || credit.title} x${quantity} added to cart.`, variant: "default" });
+      // Immediately update cart badge in navbar
+      if (user?.id) {
+        const cartKey = `/api/cart?userId=${user.id}`;
+        try {
+          const { mutate } = await import("swr");
+          mutate(cartKey);
+        } catch {}
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
   };
 
   const getTotalCartValue = () => {
@@ -94,7 +113,6 @@ export default function MarketplacePage() {
       setOrderSuccess("Order placed successfully!");
       setCart([]);
       mutate(); // Refetch credits
-      mutateOrders(); // Refetch orders
       toast({ title: "Order placed", description: `Your order #${order.id} was placed successfully.`, variant: "default" });
     } catch (err: any) {
       setOrderError(err.message);
@@ -104,6 +122,16 @@ export default function MarketplacePage() {
     }
   };
 
+  // Helper to get latest exchange rate for a credit
+  function getLatestExchangeRate(creditId: number) {
+    if (!exchangeRates) return null;
+    const rates = exchangeRates.filter((r: any) => r.carbonCreditId === creditId);
+    if (!rates.length) return null;
+    // Sort by effectiveFrom descending
+    rates.sort((a: any, b: any) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime());
+    return rates[0];
+  }
+
   // Filter and sort logic
   let filteredCredits = credits.filter((credit) => {
     // Forest type filter
@@ -112,7 +140,10 @@ export default function MarketplacePage() {
     // Certification filter (handle both "VCS" and "VCS (Verified Carbon Standard)")
     const certValue = credit.certification ?? "";
     const certMatch = certification === "all" || (typeof certValue === "string" && certValue.toLowerCase().includes(certification.replace("-", " ")));
-    return forestMatch && certMatch;
+    // Availability filter
+    const isAvailable = typeof credit.availableCredits === "number" && credit.availableCredits > 0;
+    const availabilityMatch = availability === "all" || (availability === "available" && isAvailable) || (availability === "unavailable" && !isAvailable);
+    return forestMatch && certMatch && availabilityMatch;
   });
 
   if (sortBy === "price-low") {
@@ -120,7 +151,7 @@ export default function MarketplacePage() {
   } else if (sortBy === "price-high") {
     filteredCredits.sort((a, b) => b.pricePerCredit - a.pricePerCredit);
   } else if (sortBy === "quantity") {
-    filteredCredits.sort((a, b) => (a.available ?? 0) - (b.available ?? 0));
+    filteredCredits.sort((a, b) => (a.availableCredits ?? 0) - (b.availableCredits ?? 0));
   } else if (sortBy === "vintage") {
     filteredCredits.sort((a, b) => {
       const va = a.vintage ? String(a.vintage) : "";
@@ -128,6 +159,8 @@ export default function MarketplacePage() {
       return vb.localeCompare(va);
     });
   }
+
+  const isAvailableDialog = selectedCredit && typeof selectedCredit.availableCredits === "number" && selectedCredit.availableCredits > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -164,8 +197,25 @@ export default function MarketplacePage() {
           </CardContent>
         </Card>
 
+        {/* User Info Alert */}
+        <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded">
+          <b>Note:</b> You can only purchase credits that are <b>available</b> (quantity &gt; 0). Unavailable credits cannot be added to cart or purchased.
+        </div>
+
         {/* Filters */}
+        <div className="mb-2 font-semibold text-gray-800 text-lg">Filter Credits</div>
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
+          <Select value={availability} onValueChange={setAvailability}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Availability" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="unavailable">Unavailable</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={forestType} onValueChange={setForestType}>
             <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Forest Type" />
@@ -211,138 +261,267 @@ export default function MarketplacePage() {
 
         {/* Credit Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {filteredCredits.map((credit) => (
-            <Card key={credit.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="h-48 bg-green-100 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-8xl">{credit.avatar}</div>
-                </div>
-              </div>
-
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{credit.title}</CardTitle>
-                    <CardDescription className="flex items-center mt-1">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      {credit.location}
-                    </CardDescription>
+          {filteredCredits.map((credit) => {
+            const isAvailable = typeof credit.availableCredits === "number" && credit.availableCredits > 0;
+            const latestRate = getLatestExchangeRate(credit.id);
+            const usdValue = latestRate ? (credit.pricePerCredit * latestRate.rate).toFixed(2) : null;
+            const forest = forests?.find((f: any) => f.id === credit.forestId);
+            // Purchase history for this credit
+            const creditOrders = orders ? orders.filter((o: any) => o.items.some((item: any) => item.carbonCreditId === credit.id)) : [];
+            return (
+              <div className="relative" key={credit.id}>
+                {/* Sold Out Overlay */}
+                {!isAvailable && (
+                  <div className="absolute inset-0 bg-white bg-opacity-80 z-20 flex flex-col items-center justify-center rounded-2xl">
+                    <span className="text-2xl font-bold text-red-600">Sold Out</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary">{credit.vintage}</Badge>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Price per credit</span>
-                  <span className="text-lg font-bold text-green-600">${credit.pricePerCredit}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Available</span>
-                  <span className="text-sm font-medium">{typeof credit.available === "number" ? credit.available.toLocaleString() : "N/A"} credits</span>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Shield className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-blue-600">{credit.certification}</span>
-                </div>
-
-                <div className="space-y-2">
-                  {credit.features &&
-                    credit.features.map((feature: string, index: number) => (
-                      <Badge key={index} variant="outline" className="mr-2 mb-1">
-                        {feature}
-                      </Badge>
-                    ))}
-                </div>
-
-                <Separator />
-
-                <Dialog
-                  open={dialogOpen}
-                  onOpenChange={(open) => {
-                    setDialogOpen(open);
-                    if (!open) {
-                      setSelectedCredit(null);
-                    }
-                  }}
+                )}
+                <Card
+                  className={`overflow-hidden transition-shadow rounded-2xl shadow-sm border border-gray-200 bg-white relative group ${!isAvailable ? "opacity-60 grayscale pointer-events-none" : "hover:shadow-xl"}`}
+                  style={{ minHeight: 340, maxWidth: 350, margin: "0 auto" }}
                 >
-                  <DialogTrigger asChild>
+                  {/* Spotlight Icon and Certification */}
+                  <div className="flex items-center gap-3 p-3 pb-0">
+                    <div className="rounded-full bg-gradient-to-tr from-green-200 to-blue-200 p-3 shadow flex items-center justify-center">{credit.avatar || <Leaf className="h-8 w-8 text-green-700" />}</div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-lg font-bold text-gray-900 truncate" title={credit.title}>
+                        {credit.title}
+                      </span>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Badge className="bg-blue-100 text-blue-800 border-blue-300" variant="outline">
+                          <Shield className="h-3 w-3 mr-1 inline" /> {credit.certification}
+                        </Badge>
+                        {forest?.type && (
+                          <Badge className="bg-green-100 text-green-800 border-green-300" variant="outline">
+                            <Leaf className="h-3 w-3 mr-1 inline" /> {forest.type}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Quick Stats */}
+                  <div className="grid grid-cols-3 gap-2 text-center px-3 pt-2">
+                    <div className="flex flex-col items-center">
+                      <CreditCard className="h-5 w-5 text-green-600 mb-0.5" />
+                      <span className="font-semibold text-base">${credit.pricePerCredit}</span>
+                      <span className="text-xs text-gray-500">Price</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <Gift className="h-5 w-5 text-blue-600 mb-0.5" />
+                      <span className="font-semibold text-base">{credit.availableCredits}</span>
+                      <span className="text-xs text-gray-500">Available</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <Info className="h-5 w-5 text-purple-600 mb-0.5" />
+                      <span className="font-semibold text-base">{credit.vintage}</span>
+                      <span className="text-xs text-gray-500">Vintage</span>
+                    </div>
+                  </div>
+                  {/* Forest Details */}
+                  {forest && (
+                    <div className="bg-green-50 rounded-lg p-2 m-3 flex flex-col gap-1">
+                      <div className="flex items-center gap-1 font-semibold text-green-900 text-sm">
+                        <MapPin className="h-4 w-4" /> {forest.name}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-green-800">
+                        <span>
+                          <Leaf className="h-3 w-3 inline" /> {forest.type}
+                        </span>
+                        <span>• {forest.area} ha</span>
+                        <span>• {forest.status}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Impact & Benefits */}
+                  <div className="bg-blue-50 rounded-lg p-2 m-3 flex flex-col gap-1 border border-blue-100">
+                    <div className="flex items-center gap-1 font-semibold text-blue-900 text-sm">
+                      <Users className="h-4 w-4" /> Why buy?
+                    </div>
+                    <div className="flex flex-col gap-0.5 text-xs text-blue-800">
+                      <span>
+                        <Shield className="h-3 w-3 inline mr-1" /> Verified
+                      </span>
+                      <span>
+                        <Leaf className="h-3 w-3 inline mr-1" /> Real impact
+                      </span>
+                      <span>
+                        <Gift className="h-3 w-3 inline mr-1" /> Certificate
+                      </span>
+                      <span>
+                        <Users className="h-3 w-3 inline mr-1" /> Community
+                      </span>
+                    </div>
+                  </div>
+                  {/* Call to Action */}
+                  <div className="flex flex-col items-center mt-2 mb-3">
                     <Button
-                      className="w-full"
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white text-base px-6 py-2 rounded-full shadow flex items-center gap-2"
+                      disabled={!isAvailable}
                       onClick={() => {
                         setSelectedCredit(credit);
                         setPurchaseQuantity(1);
                         setDialogOpen(true);
                       }}
                     >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Purchase Credits
+                      <ShoppingCart className="h-5 w-5 mr-1" /> Purchase
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Purchase Carbon Credits</DialogTitle>
-                      <DialogDescription>{selectedCredit?.title}</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="quantity">Quantity (credits)</Label>
-                        <Input id="quantity" type="number" value={purchaseQuantity} onChange={(e) => setPurchaseQuantity(Number.parseInt(e.target.value) || 1)} min="1" max={selectedCredit?.available} />
-                      </div>
-
-                      <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                        <div className="flex justify-between">
-                          <span>Price per credit:</span>
-                          <span>${selectedCredit?.pricePerCredit}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Quantity:</span>
-                          <span>{purchaseQuantity} credits</span>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between font-bold">
-                          <span>Total:</span>
-                          <span>${((selectedCredit?.pricePerCredit || 0) * purchaseQuantity).toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      <div className="text-sm text-gray-600">
-                        <p className="mb-2">✓ Verified carbon credits</p>
-                        <p className="mb-2">✓ Certificate of purchase included</p>
-                        <p>✓ Funds support forest conservation</p>
-                      </div>
-                    </div>
-
-                    <DialogFooter className="flex-col sm:flex-row gap-2">
-                      <Button
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        disabled={!selectedCredit || purchaseQuantity < 1 || purchaseQuantity > (selectedCredit?.available || 0)}
-                        onClick={() => {
-                          if (selectedCredit && purchaseQuantity > 0 && purchaseQuantity <= (selectedCredit.available || 0)) {
-                            addToCart(selectedCredit, purchaseQuantity);
-                            setDialogOpen(false);
+                    {/* Purchase Dialog (only render once per page, outside the card map) */}
+                    {selectedCredit && dialogOpen && selectedCredit.id === credit.id && (
+                      <Dialog
+                        open={dialogOpen}
+                        onOpenChange={(open) => {
+                          setDialogOpen(open);
+                          if (!open) {
                             setSelectedCredit(null);
+                            if (document.activeElement instanceof HTMLElement) {
+                              document.activeElement.blur();
+                            }
                           }
                         }}
                       >
-                        Add to Cart
-                      </Button>
-                      <Button variant="outline" className="w-full sm:w-auto">
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Buy Now
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </CardContent>
-            </Card>
-          ))}
+                        <DialogContent
+                          onCloseAutoFocus={(e) => {
+                            e.preventDefault();
+                          }}
+                          className="sm:max-w-md p-0"
+                        >
+                          {/* Spotlight Icon and Title */}
+                          <div className="flex items-center gap-3 bg-gradient-to-tr from-green-100 to-blue-100 p-4 rounded-t-lg">
+                            <div className="rounded-full bg-white p-3 shadow flex items-center justify-center">{selectedCredit.avatar || <Leaf className="h-8 w-8 text-green-700" />}</div>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-lg font-bold text-gray-900 truncate" title={selectedCredit.title}>
+                                {selectedCredit.title}
+                              </span>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <Badge className="bg-blue-100 text-blue-800 border-blue-300" variant="outline">
+                                  <Shield className="h-3 w-3 mr-1 inline" /> {selectedCredit.certification}
+                                </Badge>
+                                {selectedCredit.forestType && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-300" variant="outline">
+                                    <Leaf className="h-3 w-3 mr-1 inline" /> {selectedCredit.forestType}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {/* Quick Stats */}
+                          <div className="grid grid-cols-3 gap-2 text-center px-4 pt-3">
+                            <div className="flex flex-col items-center">
+                              <CreditCard className="h-5 w-5 text-green-600 mb-0.5" />
+                              <span className="font-semibold text-base">${selectedCredit.pricePerCredit}</span>
+                              <span className="text-xs text-gray-500">Price</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                              <Gift className="h-5 w-5 text-blue-600 mb-0.5" />
+                              <span className="font-semibold text-base">{selectedCredit.availableCredits}</span>
+                              <span className="text-xs text-gray-500">Available</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                              <Info className="h-5 w-5 text-purple-600 mb-0.5" />
+                              <span className="font-semibold text-base">{selectedCredit.vintage}</span>
+                              <span className="text-xs text-gray-500">Vintage</span>
+                            </div>
+                          </div>
+                          {/* Purchase Form */}
+                          <div className="p-4 space-y-3">
+                            <div>
+                              <Label htmlFor="quantity" className="font-semibold">
+                                Quantity
+                              </Label>
+                              <span className="ml-2 text-xs text-gray-500">Available: {selectedCredit?.availableCredits ?? 0}</span>
+                              <Input
+                                id="quantity"
+                                type="number"
+                                className="mt-1 border-2 border-green-200 focus:border-green-500 focus:ring-green-200 rounded-lg text-lg px-3 py-2"
+                                value={purchaseQuantity}
+                                onChange={(e) => {
+                                  const max = selectedCredit?.availableCredits ?? 1;
+                                  let val = Number.parseInt(e.target.value) || 1;
+                                  if (val > max) val = max;
+                                  if (val < 1) val = 1;
+                                  setPurchaseQuantity(val);
+                                }}
+                                min="1"
+                                max={selectedCredit?.availableCredits ?? 1}
+                              />
+                              {selectedCredit && purchaseQuantity > selectedCredit.availableCredits && (
+                                <div className="text-xs text-red-600 mt-1">Cannot purchase more than {selectedCredit.availableCredits} credits.</div>
+                              )}
+                            </div>
+                            {/* Purchase Summary Card */}
+                            <div className="bg-gray-50 p-4 rounded-lg space-y-2 border border-gray-100">
+                              <div className="flex justify-between">
+                                <span>Price per credit:</span>
+                                <span className="font-semibold">${selectedCredit?.pricePerCredit}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Quantity:</span>
+                                <span className="font-semibold">{purchaseQuantity} credits</span>
+                              </div>
+                              <Separator />
+                              <div className="flex justify-between font-bold text-lg">
+                                <span>Total:</span>
+                                <span className="text-green-700">${((selectedCredit?.pricePerCredit || 0) * purchaseQuantity).toFixed(2)}</span>
+                              </div>
+                            </div>
+                            {/* Benefits Row */}
+                            <div className="flex flex-wrap gap-2 text-xs text-green-800 mt-2">
+                              <span className="flex items-center gap-1">
+                                <Shield className="h-3 w-3" /> Verified
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Leaf className="h-3 w-3" /> Real impact
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Gift className="h-3 w-3" /> Certificate
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" /> Community
+                              </span>
+                            </div>
+                          </div>
+                          {/* CTA Buttons */}
+                          <DialogFooter className="flex-col sm:flex-row gap-2 p-4 pt-0">
+                            <Button
+                              variant="outline"
+                              className="w-full sm:w-auto border-green-600 text-green-700 hover:bg-green-50"
+                              disabled={!selectedCredit || !isAvailableDialog || typeof selectedCredit.availableCredits !== "number" || purchaseQuantity < 1 || purchaseQuantity > selectedCredit.availableCredits}
+                              onClick={() => {
+                                if (selectedCredit && isAvailableDialog && typeof selectedCredit.availableCredits === "number" && purchaseQuantity > 0 && purchaseQuantity <= selectedCredit.availableCredits) {
+                                  addToCart(selectedCredit, purchaseQuantity);
+                                  setDialogOpen(false);
+                                  setSelectedCredit(null);
+                                }
+                              }}
+                            >
+                              Add to Cart
+                            </Button>
+                            <Button
+                              variant="default"
+                              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold"
+                              disabled={!selectedCredit || !isAvailableDialog || typeof selectedCredit.availableCredits !== "number" || purchaseQuantity < 1 || purchaseQuantity > selectedCredit.availableCredits}
+                              onClick={async () => {
+                                if (selectedCredit && isAvailableDialog && typeof selectedCredit.availableCredits === "number" && purchaseQuantity > 0 && purchaseQuantity <= selectedCredit.availableCredits) {
+                                  await addToCart(selectedCredit, purchaseQuantity);
+                                  setDialogOpen(false);
+                                  setSelectedCredit(null);
+                                  router.push("/cart?checkout=1");
+                                }
+                              }}
+                            >
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Pay Now
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
