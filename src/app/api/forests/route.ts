@@ -53,5 +53,3 @@ export async function DELETE(req: Request) {
   await prisma.forest.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }
-
-export { GET, POST, PUT, DELETE };
