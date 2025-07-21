@@ -1,17 +1,9 @@
+import type { ForestZone } from "@/types";
+
 export const CARBON_CREDIT_PER_M2 = 0.0002; // 1 m² = 0.0002 tCO₂
 export const USD_PER_CREDIT = 3.0; // 1 tCO₂ = $3
 
 // Forest zone data for Cần Giờ mangrove forests
-export interface ForestZone {
-  name: string;
-  coordinates: number[][];
-  color: string;
-  credits: number;
-  area: number;
-  description?: string;
-  status?: string;
-}
-
 export const FOREST_ZONES: Record<string, ForestZone> = (() => {
   // Helper to scale polygon coordinates outward from center
   function scalePolygon(coords: number[][], scale: number): number[][] {

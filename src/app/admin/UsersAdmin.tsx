@@ -2,10 +2,11 @@
 import useSWR from "swr";
 import { useState } from "react";
 import { apiGet } from "@/lib/api";
+import type { User } from "@/types";
 import { Button } from "@/components/ui/button";
 
 export default function UsersAdmin() {
-  const fetcher = (url: string) => apiGet<any[]>(url);
+  const fetcher = (url: string) => apiGet<User[]>(url);
   const { data: users, error, isLoading } = useSWR("/api/users", fetcher);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
 
@@ -14,7 +15,7 @@ export default function UsersAdmin() {
   if (!users?.length) return <div className="p-8 text-center">No users found.</div>;
 
   const totalUsers = users.length;
-  const totalAdmins = users.filter((u) => u.isAdmin).length;
+  const totalAdmins = users.filter((u) => u.role === "admin").length;
 
   const handleSelect = (id: number) => {
     setSelectedUsers((prev) => (prev.includes(id) ? prev.filter((uid) => uid !== id) : [...prev, id]));
@@ -63,7 +64,7 @@ export default function UsersAdmin() {
                   {user.firstName} {user.lastName}
                 </td>
                 <td>{user.company || "-"}</td>
-                <td>{user.isAdmin ? "Yes" : "No"}</td>
+                <td>{user.role === "admin" ? "Yes" : "No"}</td>
                 <td>{new Date(user.createdAt).toLocaleDateString()}</td>
                 <td>
                   <Button size="sm" variant="outline" disabled>

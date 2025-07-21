@@ -1,22 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-
-interface User {
-  id: number;
-  email: string;
-  firstName: string;
-  lastName: string;
-  company?: string | null;
-  role?: string; // Add role property
-}
-
-interface AuthContextType {
-  isAuthenticated: boolean;
-  user: User | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-}
+import type { User, AuthContextType } from "@/types";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 

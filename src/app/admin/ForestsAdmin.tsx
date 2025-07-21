@@ -6,14 +6,28 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
+import type { Forest, CarbonCredit } from "@/types";
+
+// Define a ForestForm type for form state
+interface ForestForm {
+  id?: number;
+  name: string;
+  location: string;
+  type: string;
+  area: string;
+  description: string;
+  status: string;
+  lastUpdated: string;
+}
 
 export default function ForestsAdmin() {
-  const fetcher = (url: string) => apiGet<any[]>(url);
+  const fetcher = (url: string) => apiGet<Forest[]>(url);
   const { data: forests, error, isLoading, mutate } = useSWR("/api/forests", fetcher);
-  const [selectedForest, setSelectedForest] = useState<any | null>(null);
+  const [selectedForest, setSelectedForest] = useState<Forest | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState<any>({ name: "", location: "", type: "", area: "", description: "", status: "Active", lastUpdated: new Date().toISOString().slice(0, 10) });
+  // Use ForestForm for form state
+  const [form, setForm] = useState<ForestForm>({ name: "", location: "", type: "", area: "", description: "", status: "Active", lastUpdated: new Date().toISOString().slice(0, 10) });
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -33,16 +47,20 @@ export default function ForestsAdmin() {
     setForm({ name: "", location: "", type: "", area: "", description: "", status: "Active", lastUpdated: new Date().toISOString().slice(0, 10) });
     setShowModal(true);
   };
-  const openEditModal = (forest: any) => {
+  const openEditModal = (forest: Forest) => {
     setEditMode(true);
-    setForm({ ...forest, lastUpdated: forest.lastUpdated?.slice(0, 10) });
+    setForm({
+      ...forest,
+      area: String(forest.area),
+      lastUpdated: forest.lastUpdated?.slice(0, 10),
+    });
     setShowModal(true);
   };
   const closeModal = () => {
     setShowModal(false);
     setFormError(null);
   };
-  const handleFormChange = (e: React.ChangeEvent<any>) => {
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -64,10 +82,10 @@ export default function ForestsAdmin() {
     }
     try {
       if (editMode) {
-        await apiPut("/api/forests", { ...form, id: form.id });
+        await apiPut("/api/forests", { ...form, area: Number(form.area), id: form.id });
         toast({ title: "Forest updated", description: `${form.name} was updated successfully.`, variant: "default" });
       } else {
-        await apiPost("/api/forests", form);
+        await apiPost("/api/forests", { ...form, area: Number(form.area) });
         toast({ title: "Forest created", description: `${form.name} was created successfully.`, variant: "default" });
       }
       setShowModal(false);

@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import { useState } from "react";
 import { apiGet, apiDelete } from "@/lib/api";
+import type { CarbonCredit, Forest } from "@/types";
 import { Button } from "@/components/ui/button";
 
 export default function CreditsAdmin() {
@@ -42,7 +43,7 @@ export default function CreditsAdmin() {
           </label>
           <select id="forestFilter" value={selectedForest} onChange={(e) => setSelectedForest(e.target.value)} className="border rounded p-1">
             <option value="">All</option>
-            {forests?.map((f: any) => (
+            {forests?.map((f: Forest) => (
               <option key={f.id} value={f.id}>
                 {f.name}
               </option>

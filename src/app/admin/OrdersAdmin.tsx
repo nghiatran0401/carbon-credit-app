@@ -2,10 +2,11 @@
 import useSWR from "swr";
 import { useState } from "react";
 import { apiGet, apiDelete } from "@/lib/api";
+import type { Order, OrderItem } from "@/types";
 import { Button } from "@/components/ui/button";
 
 export default function OrdersAdmin() {
-  const fetcher = (url: string) => apiGet<any[]>(url);
+  const fetcher = (url: string) => apiGet<Order[]>(url);
   const { data: orders, error, isLoading, mutate } = useSWR("/api/orders", fetcher);
   const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
 

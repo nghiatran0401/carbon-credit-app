@@ -15,34 +15,14 @@ import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import useSWR from "swr";
 import { useToast } from "@/hooks/use-toast";
-
-interface CarbonCredit {
-  id: number;
-  title: string;
-  location: string;
-  forestType: string;
-  credits: number;
-  pricePerCredit: number;
-  totalPrice: number;
-  vintage: string;
-  certification: string;
-  description: string;
-  features: string[];
-  available: number;
-  image: string;
-  avatar: string;
-}
-
-interface CartItem extends CarbonCredit {
-  quantity: number;
-  subtotal: number;
-}
+import type { CarbonCredit, Order, OrderItem } from "@/types";
 
 export default function MarketplacePage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
+  // All hooks at the top
   const fetcher = (url: string) => apiGet<any[]>(url);
   const { data: credits, error, isLoading, mutate } = useSWR("/api/credits", fetcher);
   const { data: orders, isLoading: ordersLoading, error: ordersError, mutate: mutateOrders } = useSWR(user?.id ? `/api/orders?userId=${user.id}` : null, fetcher);
@@ -52,15 +32,21 @@ export default function MarketplacePage() {
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  const [forestType, setForestType] = useState("all");
+  const [certification, setCertification] = useState("all");
+  const [sortBy, setSortBy] = useState("price-low");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace("/auth");
-      return;
     }
   }, [isAuthenticated, router]);
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated) {
+    // Instead of returning null, render a loading or redirecting state
+    return <div className="p-8 text-center">Redirecting to login...</div>;
+  }
   if (isLoading) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;
   if (!credits?.length) return <div className="p-8 text-center">No credits available.</div>;
@@ -118,19 +104,14 @@ export default function MarketplacePage() {
     }
   };
 
-  // Add filter state
-  const [forestType, setForestType] = useState("all");
-  const [certification, setCertification] = useState("all");
-  const [sortBy, setSortBy] = useState("price-low");
-  // Dialog open state
-  const [dialogOpen, setDialogOpen] = useState(false);
-
   // Filter and sort logic
   let filteredCredits = credits.filter((credit) => {
     // Forest type filter
-    const forestMatch = forestType === "all" || credit.forestType.toLowerCase().replace(" ", "").includes(forestType);
+    const forestTypeValue = credit.forestType ?? "";
+    const forestMatch = forestType === "all" || (typeof forestTypeValue === "string" && forestTypeValue.toLowerCase().replace(" ", "").includes(forestType));
     // Certification filter (handle both "VCS" and "VCS (Verified Carbon Standard)")
-    const certMatch = certification === "all" || credit.certification.toLowerCase().includes(certification.replace("-", " "));
+    const certValue = credit.certification ?? "";
+    const certMatch = certification === "all" || (typeof certValue === "string" && certValue.toLowerCase().includes(certification.replace("-", " ")));
     return forestMatch && certMatch;
   });
 
@@ -139,9 +120,13 @@ export default function MarketplacePage() {
   } else if (sortBy === "price-high") {
     filteredCredits.sort((a, b) => b.pricePerCredit - a.pricePerCredit);
   } else if (sortBy === "quantity") {
-    filteredCredits.sort((a, b) => b.available - a.available);
+    filteredCredits.sort((a, b) => (a.available ?? 0) - (b.available ?? 0));
   } else if (sortBy === "vintage") {
-    filteredCredits.sort((a, b) => b.vintage.localeCompare(a.vintage));
+    filteredCredits.sort((a, b) => {
+      const va = a.vintage ? String(a.vintage) : "";
+      const vb = b.vintage ? String(b.vintage) : "";
+      return vb.localeCompare(va);
+    });
   }
 
   return (
@@ -229,7 +214,7 @@ export default function MarketplacePage() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Available</span>
-                  <span className="text-sm font-medium">{credit.available.toLocaleString()} credits</span>
+                  <span className="text-sm font-medium">{typeof credit.available === "number" ? credit.available.toLocaleString() : "N/A"} credits</span>
                 </div>
 
                 <div className="flex items-center space-x-2">
