@@ -4,8 +4,14 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  // Clean up all tables in correct order
+  await prisma.orderItem.deleteMany();
+  await prisma.order.deleteMany();
+  await prisma.carbonCredit.deleteMany();
+  await prisma.forest.deleteMany();
+  await prisma.user.deleteMany();
+
   // Create users
-  await prisma.user.deleteMany(); // Clean up users table first
   const users = [];
   users.push(
     await prisma.user.create({
@@ -135,37 +141,46 @@ async function main() {
   }
 
   // Create orders for users
+  const years = [2023, 2024, 2025];
   for (const user of users) {
-    for (let i = 0; i < 3; i++) {
-      const order = await prisma.order.create({
-        data: {
-          userId: user.id,
-          status: ["Pending", "Completed", "Cancelled"][i % 3],
-          totalPrice: 0, // will update after items
-        },
-      });
-      let total = 0;
-      // Add 2-4 items per order
-      for (let j = 0; j < 2 + Math.floor(Math.random() * 3); j++) {
-        const credit = credits[Math.floor(Math.random() * credits.length)];
-        const quantity = 10 + Math.floor(Math.random() * 50);
-        const price = credit.pricePerCredit;
-        const subtotal = quantity * price;
-        await prisma.orderItem.create({
-          data: {
-            orderId: order.id,
-            carbonCreditId: credit.id,
-            quantity,
-            pricePerCredit: price,
-            subtotal,
-          },
-        });
-        total += subtotal;
+    for (const year of years) {
+      for (let month = 0; month < 12; month++) {
+        // Create 1-2 orders per month
+        const numOrders = 1 + Math.floor(Math.random() * 2);
+        for (let o = 0; o < numOrders; o++) {
+          const orderDate = new Date(year, month, 1 + Math.floor(Math.random() * 28));
+          const order = await prisma.order.create({
+            data: {
+              userId: user.id,
+              status: ["Pending", "Completed", "Cancelled"][Math.floor(Math.random() * 3)],
+              totalPrice: 0, // will update after items
+              createdAt: orderDate,
+            },
+          });
+          let total = 0;
+          // Add 2-4 items per order
+          for (let j = 0; j < 2 + Math.floor(Math.random() * 3); j++) {
+            const credit = credits[Math.floor(Math.random() * credits.length)];
+            const quantity = 10 + Math.floor(Math.random() * 50);
+            const price = credit.pricePerCredit;
+            const subtotal = quantity * price;
+            await prisma.orderItem.create({
+              data: {
+                orderId: order.id,
+                carbonCreditId: credit.id,
+                quantity,
+                pricePerCredit: price,
+                subtotal,
+              },
+            });
+            total += subtotal;
+          }
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { totalPrice: total },
+          });
+        }
       }
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { totalPrice: total },
-      });
     }
   }
 

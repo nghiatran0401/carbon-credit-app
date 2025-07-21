@@ -13,9 +13,7 @@ export function DesktopNav() {
       <Link href="/marketplace" className="text-gray-600 hover:text-green-600">
         Marketplace
       </Link>
-      <Link href="/analytics" className="text-gray-600 hover:text-green-600">
-        Analytics
-      </Link>
+
       <Link href="/history" className="text-gray-600 hover:text-green-600">
         History
       </Link>
@@ -48,7 +46,6 @@ export function MobileNavWrapper() {
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/marketplace", label: "Marketplace" },
-    { href: "/analytics", label: "Analytics" },
     { href: "/history", label: "History" },
     { href: "/about", label: "About" },
   ];

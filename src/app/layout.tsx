@@ -70,9 +70,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       <li>
                         <Link href="/marketplace">Marketplace</Link>
                       </li>
-                      <li>
-                        <Link href="/analytics">Analytics</Link>
-                      </li>
                     </ul>
                   </div>
                   <div>
