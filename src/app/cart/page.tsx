@@ -46,7 +46,7 @@ function CartPageContent() {
     setLoading(true);
     setError(null);
     try {
-      const res: any = await apiPost("/api/checkout", { userId });
+      const res: any = await apiPost("/api/checkout", { userId, cartItems: cart });
       if (res.checkoutUrl) {
         window.location.href = res.checkoutUrl;
         return;
