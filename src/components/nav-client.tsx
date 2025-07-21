@@ -13,6 +13,12 @@ export function DesktopNav() {
       <Link href="/marketplace" className="text-gray-600 hover:text-green-600">
         Marketplace
       </Link>
+      <Link href="/analytics" className="text-gray-600 hover:text-green-600">
+        Analytics
+      </Link>
+      <Link href="/history" className="text-gray-600 hover:text-green-600">
+        History
+      </Link>
       {isAuthenticated && user?.role === "admin" && (
         <Link href="/admin" className="text-gray-600 hover:text-green-600">
           Admin
@@ -42,11 +48,13 @@ export function MobileNavWrapper() {
   const links = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/marketplace", label: "Marketplace" },
+    { href: "/analytics", label: "Analytics" },
+    { href: "/history", label: "History" },
+    { href: "/about", label: "About" },
   ];
   if (isAuthenticated && user?.role === "admin") {
     links.push({ href: "/admin", label: "Admin" });
   }
-  links.push({ href: "/about", label: "About" });
   links.push({ href: "/auth", label: isAuthenticated ? "Logout" : "Login/Register" });
   return <MobileNav links={links} isAuthenticated={isAuthenticated} logout={logout} />;
 }

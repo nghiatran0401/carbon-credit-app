@@ -388,7 +388,7 @@ export default function MarketplacePage() {
           <div className="p-4 text-center text-red-600">{ordersError.message}</div>
         ) : orders && orders.length > 0 ? (
           <div className="mt-8">
-            <h2 className="text-xl font-bold mb-2">Your Orders</h2>
+            <h2 className="text-xl font-bold mb-2">History</h2>
             <div className="space-y-4">
               {orders.map((order: any) => (
                 <div key={order.id} className="border rounded p-4">
