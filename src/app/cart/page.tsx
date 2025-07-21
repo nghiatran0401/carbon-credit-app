@@ -3,7 +3,7 @@ import { useAuth } from "@/components/auth-context";
 import useSWR from "swr";
 import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import Link from "next/link";
@@ -14,6 +14,14 @@ import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Leaf, Shield, Info } from "lucide-react";
 
 export default function CartPage() {
+  return (
+    <Suspense fallback={<div>Loading cart...</div>}>
+      <CartPageContent />
+    </Suspense>
+  );
+}
+
+function CartPageContent() {
   const { user } = useAuth();
   const userId = user?.id;
   const { data, mutate } = useSWR(userId ? `/api/cart?userId=${userId}` : null, apiGet);

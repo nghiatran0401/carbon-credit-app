@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -99,9 +101,3 @@ export async function POST(req: Request) {
 
   return new NextResponse(null, { status: 200 });
 }
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
