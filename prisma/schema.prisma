@@ -89,6 +89,11 @@ model Order {
   paymentIntentId String?
   paidAt     DateTime?
   shippingAddress String?
+  stripeSessionId String? @unique
+  failureReason String?
+  payments   Payment[]
+  orderHistory OrderHistory[]
+  @@index([stripeSessionId])
 }
 
 model OrderItem {
@@ -117,4 +122,28 @@ model CartItem {
   updatedAt      DateTime      @updatedAt
   addedAt        DateTime      @default(now())
   @@unique([userId, carbonCreditId])
+}
+
+model Payment {
+  id                    Int      @id @default(autoincrement())
+  orderId               Int
+  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripeSessionId       String?  @unique
+  stripePaymentIntentId String?
+  amount                Float
+  currency              String   @default("USD")
+  status                String   // e.g. "pending", "succeeded", "failed", "canceled", "refunded"
+  failureReason         String?
+  method                String?  // e.g. "card"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model OrderHistory {
+  id        Int      @id @default(autoincrement())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   Int
+  event     String   // e.g. "created", "paid", "failed", "refunded"
+  message   String?
+  createdAt DateTime @default(now())
 } 

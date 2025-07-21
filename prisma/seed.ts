@@ -250,10 +250,12 @@ async function main() {
         const numOrders = 1 + Math.floor(Math.random() * 2);
         for (let o = 0; o < numOrders; o++) {
           const orderDate = new Date(year, month, 1 + Math.floor(Math.random() * 28));
+          const statusOptions = ["Pending", "Completed", "Cancelled"];
+          const status = statusOptions[Math.floor(Math.random() * statusOptions.length)];
           const order = await prisma.order.create({
             data: {
               userId: user.id,
-              status: ["Pending", "Completed", "Cancelled"][Math.floor(Math.random() * 3)],
+              status,
               totalPrice: 0, // will update after items
               totalCredits: 0,
               totalUsd: 0,
@@ -291,6 +293,55 @@ async function main() {
             where: { id: order.id },
             data: { totalPrice: total, totalCredits, totalUsd },
           });
+
+          // Create Payment for the order
+          const paymentStatus = status === "Completed" ? "succeeded" : status === "Cancelled" ? "failed" : "pending";
+          await prisma.payment.create({
+            data: {
+              orderId: order.id,
+              stripeSessionId: `cs_test_${order.id}_${Math.floor(Math.random() * 10000)}`,
+              stripePaymentIntentId: `pi_test_${order.id}_${Math.floor(Math.random() * 10000)}`,
+              amount: total,
+              currency: "USD",
+              status: paymentStatus,
+              failureReason: paymentStatus === "failed" ? "Card declined" : null,
+              method: "card",
+            },
+          });
+
+          // Create OrderHistory events
+          await prisma.orderHistory.create({
+            data: {
+              orderId: order.id,
+              event: "created",
+              message: `Order created on ${orderDate.toISOString()}`,
+            },
+          });
+          if (paymentStatus === "succeeded") {
+            await prisma.orderHistory.create({
+              data: {
+                orderId: order.id,
+                event: "paid",
+                message: `Order paid successfully via Stripe.`,
+              },
+            });
+          } else if (paymentStatus === "failed") {
+            await prisma.orderHistory.create({
+              data: {
+                orderId: order.id,
+                event: "failed",
+                message: `Payment failed: Card declined.`,
+              },
+            });
+          } else {
+            await prisma.orderHistory.create({
+              data: {
+                orderId: order.id,
+                event: "pending",
+                message: `Awaiting payment confirmation.`,
+              },
+            });
+          }
         }
       }
     }
