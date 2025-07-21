@@ -1,7 +1,6 @@
 import type React from "react";
 import type { Metadata } from "next";
 import { Quicksand } from "next/font/google";
-import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { MobileNav } from "@/components/mobile-nav";
 import Link from "next/link";
@@ -32,82 +31,80 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
       <body className={quicksand.variable}>
         <AuthProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            {/* Header */}
-            <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-[10000]">
-              <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-                <Link href="/">
-                  <div className="flex items-center space-x-2">
-                    <Leaf className="h-8 w-8 text-green-600" />
-                    <span className="text-2xl font-bold text-green-800">EcoCredit</span>
-                  </div>
-                </Link>
-                <DesktopNav />
-                <MobileNavWrapper />
-              </div>
-            </nav>
-
-            {/* Main Content */}
-            {children}
-
-            {/* Footer */}
-            <footer className="bg-gray-900 text-white py-12">
-              <div className="container mx-auto px-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                  <div>
-                    <div className="flex items-center space-x-2 mb-4">
-                      <Leaf className="h-6 w-6 text-green-400" />
-                      <span className="text-xl font-bold">EcoCredit</span>
-                    </div>
-                    <p className="text-gray-400">Connecting forests with the future through verified carbon credit trading.</p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-4">Platform</h3>
-                    <ul className="space-y-2 text-gray-400">
-                      <li>
-                        <Link href="/dashboard">Dashboard</Link>
-                      </li>
-                      <li>
-                        <Link href="/marketplace">Marketplace</Link>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-4">Company</h3>
-                    <ul className="space-y-2 text-gray-400">
-                      <li>
-                        <Link href="/about">About</Link>
-                      </li>
-                      <li>
-                        <Link href="/team">Team</Link>
-                      </li>
-                      <li>
-                        <Link href="/contact">Contact</Link>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-4">Support</h3>
-                    <ul className="space-y-2 text-gray-400">
-                      <li>
-                        <Link href="/help">Help Center</Link>
-                      </li>
-                      <li>
-                        <Link href="/docs">Documentation</Link>
-                      </li>
-                      <li>
-                        <Link href="/api">API</Link>
-                      </li>
-                    </ul>
-                  </div>
+          {/* Header */}
+          <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-[10000]">
+            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+              <Link href="/">
+                <div className="flex items-center space-x-2">
+                  <Leaf className="h-8 w-8 text-green-600" />
+                  <span className="text-2xl font-bold text-green-800">EcoCredit</span>
                 </div>
-                <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-                  <p>&copy; 2024 EcoCredit. All rights reserved.</p>
+              </Link>
+              <DesktopNav />
+              <MobileNavWrapper />
+            </div>
+          </nav>
+
+          {/* Main Content */}
+          {children}
+
+          {/* Footer */}
+          <footer className="bg-gray-900 text-white py-12">
+            <div className="container mx-auto px-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Leaf className="h-6 w-6 text-green-400" />
+                    <span className="text-xl font-bold">EcoCredit</span>
+                  </div>
+                  <p className="text-gray-400">Connecting forests with the future through verified carbon credit trading.</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-4">Platform</h3>
+                  <ul className="space-y-2 text-gray-400">
+                    <li>
+                      <Link href="/dashboard">Dashboard</Link>
+                    </li>
+                    <li>
+                      <Link href="/marketplace">Marketplace</Link>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-4">Company</h3>
+                  <ul className="space-y-2 text-gray-400">
+                    <li>
+                      <Link href="/about">About</Link>
+                    </li>
+                    <li>
+                      <Link href="/team">Team</Link>
+                    </li>
+                    <li>
+                      <Link href="/contact">Contact</Link>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-4">Support</h3>
+                  <ul className="space-y-2 text-gray-400">
+                    <li>
+                      <Link href="/help">Help Center</Link>
+                    </li>
+                    <li>
+                      <Link href="/docs">Documentation</Link>
+                    </li>
+                    <li>
+                      <Link href="/api">API</Link>
+                    </li>
+                  </ul>
                 </div>
               </div>
-            </footer>
-            <Toaster />
-          </ThemeProvider>
+              <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2024 EcoCredit. All rights reserved.</p>
+              </div>
+            </div>
+          </footer>
+          <Toaster />
         </AuthProvider>
       </body>
     </html>

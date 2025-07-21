@@ -103,7 +103,7 @@ export default function HistoryPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            className="max-w-xs"
+            // className="max-w-xs"
           />
           <Select
             value={statusFilter}
@@ -112,7 +112,7 @@ export default function HistoryPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-80">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
