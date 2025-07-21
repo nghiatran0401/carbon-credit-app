@@ -13,14 +13,14 @@ const ToastViewport = React.forwardRef<React.ElementRef<typeof ToastPrimitives.V
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full bg-white",
   {
     variants: {
       variant: {
-        default: "border bg-background text-foreground",
-        destructive: "destructive border-destructive bg-destructive text-destructive-foreground",
-        info: "border-blue-500 bg-blue-900 text-blue-100",
-        warning: "border-yellow-500 bg-yellow-900 text-yellow-100",
+        default: "border bg-white text-foreground",
+        destructive: "destructive border-destructive bg-white text-destructive-foreground",
+        info: "border-blue-500 bg-white text-blue-900",
+        warning: "border-yellow-500 bg-white text-yellow-900",
       },
     },
     defaultVariants: {

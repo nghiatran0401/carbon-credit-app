@@ -140,6 +140,19 @@ async function main() {
     }
   }
 
+  // Seed bookmarks for users
+  for (const user of users) {
+    const shuffled = forests.slice().sort(() => 0.5 - Math.random());
+    for (let i = 0; i < 2 + Math.floor(Math.random() * 2); i++) {
+      await prisma.bookmark.create({
+        data: {
+          userId: user.id,
+          forestId: shuffled[i].id,
+        },
+      });
+    }
+  }
+
   // Create orders for users
   const years = [2023, 2024, 2025];
   for (const user of users) {

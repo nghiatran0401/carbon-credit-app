@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {/* Header */}
-            <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+            <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-[10000]">
               <div className="container mx-auto px-4 py-4 flex items-center justify-between">
                 <Link href="/">
                   <div className="flex items-center space-x-2">

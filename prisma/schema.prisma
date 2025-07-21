@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Bookmark {
+  id        Int    @id @default(autoincrement())
+  userId    Int
+  forestId  Int
+  createdAt DateTime @default(now())
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  forest    Forest @relation(fields: [forestId], references: [id], onDelete: Cascade)
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
@@ -18,6 +27,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   orders       Order[]
+  bookmarks    Bookmark[]
 }
 
 model Forest {
@@ -30,6 +40,7 @@ model Forest {
   status      String
   lastUpdated DateTime
   credits     CarbonCredit[]
+  bookmarks   Bookmark[]
 }
 
 model CarbonCredit {

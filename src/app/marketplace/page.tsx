@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Leaf, MapPin, Shield, CreditCard, Gift, Users } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import useSWR from "swr";
 import { useToast } from "@/hooks/use-toast";
 import type { CarbonCredit, Order, OrderItem } from "@/types";
@@ -133,10 +133,36 @@ export default function MarketplacePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Carbon Credit Marketplace</h1>
           <p className="text-gray-600">Purchase verified carbon credits from Cần Giờ mangrove forests</p>
         </div>
+
+        {/* Info Section */}
+        <Card className="my-8">
+          <CardHeader>
+            <CardTitle>Why Choose Our Carbon Credits?</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <Shield className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">Verified & Certified</h3>
+                <p className="text-sm text-gray-600">All credits are verified by international standards (VCS, Gold Standard)</p>
+              </div>
+              <div className="text-center">
+                <Leaf className="h-12 w-12 text-green-600 mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">Real Impact</h3>
+                <p className="text-sm text-gray-600">Direct support for mangrove conservation and biodiversity protection</p>
+              </div>
+              <div className="text-center">
+                <Users className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">Community Benefits</h3>
+                <p className="text-sm text-gray-600">Supporting local communities and sustainable livelihoods</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -202,7 +228,9 @@ export default function MarketplacePage() {
                       {credit.location}
                     </CardDescription>
                   </div>
-                  <Badge variant="secondary">{credit.vintage}</Badge>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary">{credit.vintage}</Badge>
+                  </div>
                 </div>
               </CardHeader>
 
@@ -316,106 +344,6 @@ export default function MarketplacePage() {
             </Card>
           ))}
         </div>
-
-        {/* Shopping Cart Summary */}
-        {cart.length > 0 && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Shopping Cart ({cart.length} items)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {cart.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium">{item.title}</p>
-                      <p className="text-sm text-gray-600">
-                        {item.quantity} credits × ${item.pricePerCredit}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold">${item.subtotal.toFixed(2)}</p>
-                    </div>
-                  </div>
-                ))}
-                <Separator />
-                <div className="flex items-center justify-between text-lg font-bold">
-                  <span>Total:</span>
-                  <span>${getTotalCartValue().toFixed(2)}</span>
-                </div>
-                <Button variant="outline" className="w-full" size="lg">
-                  <CreditCard className="h-5 w-5 mr-2" />
-                  Proceed to Checkout
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Info Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Why Choose Our Carbon Credits?</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center">
-                <Shield className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">Verified & Certified</h3>
-                <p className="text-sm text-gray-600">All credits are verified by international standards (VCS, Gold Standard)</p>
-              </div>
-              <div className="text-center">
-                <Leaf className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">Real Impact</h3>
-                <p className="text-sm text-gray-600">Direct support for mangrove conservation and biodiversity protection</p>
-              </div>
-              <div className="text-center">
-                <Users className="h-12 w-12 text-purple-600 mx-auto mb-4" />
-                <h3 className="font-semibold mb-2">Community Benefits</h3>
-                <p className="text-sm text-gray-600">Supporting local communities and sustainable livelihoods</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* After the cart summary, show user's order history */}
-        {ordersLoading ? (
-          <div className="p-4 text-center">Loading orders...</div>
-        ) : ordersError ? (
-          <div className="p-4 text-center text-red-600">{ordersError.message}</div>
-        ) : orders && orders.length > 0 ? (
-          <div className="mt-8">
-            <h2 className="text-xl font-bold mb-2">History</h2>
-            <div className="space-y-4">
-              {orders.map((order: any) => (
-                <div key={order.id} className="border rounded p-4">
-                  <div className="font-semibold">
-                    Order #{order.id} ({order.status})
-                  </div>
-                  <div className="text-sm text-gray-500 mb-2">Placed: {new Date(order.createdAt).toLocaleString()}</div>
-                  <div className="space-y-1">
-                    {order.items.map((item: any) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span>
-                          {item.carbonCredit?.certification} ({item.carbonCredit?.vintage})
-                        </span>
-                        <span>
-                          {item.quantity} × ${item.pricePerCredit} = ${item.subtotal.toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="font-bold mt-2">Total: ${order.totalPrice.toFixed(2)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 text-center text-gray-500">No orders found.</div>
-        )}
       </div>
     </div>
   );
