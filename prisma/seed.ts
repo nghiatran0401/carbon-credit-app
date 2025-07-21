@@ -22,6 +22,8 @@ async function main() {
         lastName: "User",
         company: null,
         role: "admin",
+        emailVerified: true,
+        stripeCustomerId: "cus_admin_001",
       },
     })
   );
@@ -30,10 +32,12 @@ async function main() {
       data: {
         email: "user1@gmail.com",
         passwordHash: await bcrypt.hash("cos20031", 10),
-        firstName: "User",
-        lastName: "One",
-        company: null,
+        firstName: "Alice",
+        lastName: "Nguyen",
+        company: "GreenTech",
         role: "user",
+        emailVerified: true,
+        stripeCustomerId: "cus_user1_001",
       },
     })
   );
@@ -42,10 +46,26 @@ async function main() {
       data: {
         email: "user2@gmail.com",
         passwordHash: await bcrypt.hash("cos20031", 10),
-        firstName: "User",
-        lastName: "Two",
-        company: null,
+        firstName: "Bob",
+        lastName: "Tran",
+        company: "EcoWorks",
         role: "user",
+        emailVerified: false,
+        stripeCustomerId: "cus_user2_001",
+      },
+    })
+  );
+  users.push(
+    await prisma.user.create({
+      data: {
+        email: "climatehero@gmail.com",
+        passwordHash: await bcrypt.hash("climatehero", 10),
+        firstName: "Climate",
+        lastName: "Hero",
+        company: "EarthGuardians",
+        role: "user",
+        emailVerified: true,
+        stripeCustomerId: "cus_climatehero_001",
       },
     })
   );
@@ -107,19 +127,6 @@ async function main() {
         lastUpdated: new Date("2024-01-08"),
       },
     }),
-    ...Array.from({ length: 10 }).map((_, i) =>
-      prisma.forest.create({
-        data: {
-          name: `Test Forest ${i + 1}`,
-          location: `Test Location ${i + 1}`,
-          type: ["Mangrove", "Wetland", "Tropical", "Pine", "Mountain"][i % 5],
-          area: 100 + i * 10,
-          description: `Test forest description ${i + 1}`,
-          status: i % 2 === 0 ? "Active" : "Monitoring",
-          lastUpdated: new Date(`2024-01-${10 + i}`),
-        },
-      })
-    ),
   ]);
 
   // Create carbon credits for each forest
@@ -133,7 +140,7 @@ async function main() {
           certification: ["VCS", "Gold Standard", "CCB"][year % 3],
           totalCredits: 1000 + Math.floor(Math.random() * 5000),
           availableCredits: 500 + Math.floor(Math.random() * 2000),
-          pricePerCredit: 2.5 + Math.random() * 2,
+          pricePerCredit: Math.floor(Math.random() * 10) + 1,
         },
       });
       credits.push(credit);
@@ -148,6 +155,26 @@ async function main() {
         data: {
           userId: user.id,
           forestId: shuffled[i].id,
+        },
+      });
+    }
+  }
+
+  // Seed cart items for each user (1-3 items per user)
+  for (const user of users) {
+    const usedCreditIds = new Set();
+    const numItems = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < numItems; i++) {
+      let credit;
+      do {
+        credit = credits[Math.floor(Math.random() * credits.length)];
+      } while (usedCreditIds.has(credit.id));
+      usedCreditIds.add(credit.id);
+      await prisma.cartItem.create({
+        data: {
+          userId: user.id,
+          carbonCreditId: credit.id,
+          quantity: 1 + Math.floor(Math.random() * 10),
         },
       });
     }
@@ -196,6 +223,41 @@ async function main() {
       }
     }
   }
+
+  // Seed a paid order with Stripe paymentIntentId and paidAt
+  const paidOrder = await prisma.order.create({
+    data: {
+      userId: users[1].id,
+      status: "Completed",
+      totalPrice: 0,
+      paymentIntentId: "pi_test_12345",
+      paidAt: new Date(),
+      createdAt: new Date(),
+      shippingAddress: "123 Green Lane, Eco City, Vietnam",
+    },
+  });
+  let paidTotal = 0;
+  for (let i = 0; i < 2; i++) {
+    const credit = credits[Math.floor(Math.random() * credits.length)];
+    const quantity = 5 + Math.floor(Math.random() * 10);
+    const price = credit.pricePerCredit;
+    const subtotal = quantity * price;
+    await prisma.orderItem.create({
+      data: {
+        orderId: paidOrder.id,
+        carbonCreditId: credit.id,
+        quantity,
+        pricePerCredit: price,
+        subtotal,
+        retired: i === 0, // Mark one item as retired
+      },
+    });
+    paidTotal += subtotal;
+  }
+  await prisma.order.update({
+    where: { id: paidOrder.id },
+    data: { totalPrice: paidTotal },
+  });
 
   console.log("Seed complete!");
 }
