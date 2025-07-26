@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { GET, POST, PUT, DELETE } from "@/app/api/credits/route";
 
-const mockRequest = (body: any) => ({ json: async () => body } as Request);
+const mockRequest = (body: any) => {
+  return new Request("http://localhost/api/credits", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+};
 
 describe("Credits API", () => {
   let creditId: number | undefined;
@@ -11,6 +19,15 @@ describe("Credits API", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(Array.isArray(data)).toBe(true);
+    if (data.length > 0) {
+      expect(data[0]).toHaveProperty("id");
+      expect(data[0]).toHaveProperty("forestId");
+      expect(data[0]).toHaveProperty("vintage");
+      expect(data[0]).toHaveProperty("certification");
+      expect(data[0]).toHaveProperty("totalCredits");
+      expect(data[0]).toHaveProperty("availableCredits");
+      expect(data[0]).toHaveProperty("pricePerCredit");
+    }
   });
 
   it("POST /api/credits creates a credit", async () => {
@@ -28,6 +45,11 @@ describe("Credits API", () => {
     const data = await res.json();
     expect(data).toHaveProperty("id");
     expect(data.forestId).toBe(1);
+    expect(data.vintage).toBe(2024);
+    expect(data.certification).toBe("Gold Standard");
+    expect(data.totalCredits).toBe(1000);
+    expect(data.availableCredits).toBe(1000);
+    expect(data.pricePerCredit).toBe(10.5);
     creditId = data.id;
   });
 
