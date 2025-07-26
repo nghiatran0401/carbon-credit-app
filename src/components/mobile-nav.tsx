@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Leaf } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface MobileNavProps {
   links: Array<{
@@ -17,6 +18,7 @@ interface MobileNavProps {
 
 export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -45,7 +47,7 @@ export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
                 onClick={() => {
                   if (logout) logout();
                   setOpen(false);
-                  window.location.href = "/";
+                  router.push("/");
                 }}
               >
                 Logout

@@ -2,9 +2,9 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import confetti from "canvas-confetti";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function SuccessPage() {
+function SuccessPageContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const [loading, setLoading] = useState(true);
@@ -86,5 +86,13 @@ export default function SuccessPage() {
         <button className="mt-4 px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Go to Dashboard</button>
       </Link>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<div className="flex flex-col items-center justify-center min-h-[70vh] py-12">Loading...</div>}>
+      <SuccessPageContent />
+    </Suspense>
   );
 }

@@ -5,9 +5,11 @@ import { MobileNav } from "@/components/mobile-nav";
 import { ShoppingCart } from "lucide-react";
 import useSWR from "swr";
 import { apiGet } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 export function DesktopNav() {
   const { isAuthenticated, user, logout } = useAuth();
+  const router = useRouter();
   const userId = user?.id;
   const { data: cartData } = useSWR(userId ? `/api/cart?userId=${userId}` : null, apiGet);
   const cartCount = Array.isArray(cartData) ? cartData.length : cartData ? 1 : 0;
@@ -39,7 +41,7 @@ export function DesktopNav() {
         <button
           onClick={() => {
             logout();
-            window.location.href = "/";
+            router.push("/");
           }}
           className="text-gray-600 hover:text-red-600 border border-gray-300 rounded px-3 py-1 ml-2"
         >

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Leaf, Shield, Info } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function CartPage() {
   return (
@@ -21,12 +22,13 @@ export default function CartPage() {
 
 function CartPageContent() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const userId = user?.id;
-  const { data, mutate } = useSWR(userId ? `/api/cart?userId=${userId}` : null, apiGet);
-  const cart: any[] = Array.isArray(data) ? data : data ? [data] : [];
+  const { data: cartData, mutate } = useSWR(userId ? `/api/cart?userId=${userId}` : null, apiGet);
+  const cart: any[] = Array.isArray(cartData) ? cartData : cartData ? [cartData] : [];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const searchParams = useSearchParams();
 
   const handleRemove = async (carbonCreditId: number) => {
     setLoading(true);
@@ -46,7 +48,7 @@ function CartPageContent() {
     try {
       const res: any = await apiPost("/api/checkout", { userId, cartItems: cart });
       if (res.checkoutUrl) {
-        window.location.href = res.checkoutUrl;
+        router.push(res.checkoutUrl);
         return;
       }
       setError("Stripe checkout URL not returned.");
