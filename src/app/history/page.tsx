@@ -42,7 +42,7 @@ export default function HistoryPage() {
 
   // For admin: fetch all orders, for user: fetch only their orders
   const ordersUrl = user?.role === "admin" ? "/api/orders" : user?.id ? `/api/orders?userId=${user.id}` : null;
-  const { data: ordersRaw, isLoading, error } = useSWR(ordersUrl, apiGet);
+  const { data: ordersRaw, isLoading, error, mutate } = useSWR(ordersUrl, apiGet);
   const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -54,6 +54,21 @@ export default function HistoryPage() {
       router.replace("/auth");
     }
   }, [isAuthenticated, router]);
+
+  // Manual order completion for testing
+  const handleCompleteOrder = async (orderId: number) => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (response.ok) {
+        mutate(); // Refresh the orders list
+      }
+    } catch (error) {
+      console.error("Error completing order:", error);
+    }
+  };
 
   // For admin: filter by selected user
   const filteredOrders = useMemo(() => {
@@ -162,6 +177,11 @@ export default function HistoryPage() {
                   Placed: {new Date(order.createdAt).toLocaleString()}
                   <br />
                   {user?.role === "admin" && <span>User: {order.user?.email}</span>}
+                  {order.status === "Pending" && (
+                    <Button size="sm" variant="outline" onClick={() => handleCompleteOrder(order.id)} className="mt-2 text-xs">
+                      Complete Order
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>

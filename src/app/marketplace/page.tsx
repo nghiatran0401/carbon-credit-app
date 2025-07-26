@@ -134,9 +134,9 @@ export default function MarketplacePage() {
 
   // Filter and sort logic
   let filteredCredits = credits.filter((credit) => {
-    // Forest type filter
-    const forestTypeValue = credit.forestType ?? "";
-    const forestMatch = forestType === "all" || (typeof forestTypeValue === "string" && forestTypeValue.toLowerCase().replace(" ", "").includes(forestType));
+    // Forest type filter - fix: use credit.forest.type instead of credit.forestType
+    const forestTypeValue = credit.forest?.type ?? "";
+    const forestMatch = forestType === "all" || (typeof forestTypeValue === "string" && forestTypeValue.toLowerCase() === forestType.toLowerCase());
     // Certification filter (handle both "VCS" and "VCS (Verified Carbon Standard)")
     const certValue = credit.certification ?? "";
     const certMatch = certification === "all" || (typeof certValue === "string" && certValue.toLowerCase().includes(certification.replace("-", " ")));
@@ -223,13 +223,10 @@ export default function MarketplacePage() {
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="mangrove">Mangrove</SelectItem>
-              <SelectItem value="tropical">Tropical</SelectItem>
-              <SelectItem value="temperate">Temperate</SelectItem>
               <SelectItem value="wetland">Wetland</SelectItem>
-              <SelectItem value="mountain">Mountain</SelectItem>
-              <SelectItem value="dry">Dry Forest</SelectItem>
-              <SelectItem value="island">Island</SelectItem>
-              <SelectItem value="pine">Pine</SelectItem>
+              <SelectItem value="tropical evergreen">Tropical Evergreen</SelectItem>
+              <SelectItem value="tropical montane">Tropical Montane</SelectItem>
+              <SelectItem value="dry dipterocarp">Dry Dipterocarp</SelectItem>
             </SelectContent>
           </Select>
 
@@ -397,9 +394,9 @@ export default function MarketplacePage() {
                                 <Badge className="bg-blue-100 text-blue-800 border-blue-300" variant="outline">
                                   <Shield className="h-3 w-3 mr-1 inline" /> {selectedCredit.certification}
                                 </Badge>
-                                {selectedCredit.forestType && (
+                                {selectedCredit.forest?.type && (
                                   <Badge className="bg-green-100 text-green-800 border-green-300" variant="outline">
-                                    <Leaf className="h-3 w-3 mr-1 inline" /> {selectedCredit.forestType}
+                                    <Leaf className="h-3 w-3 mr-1 inline" /> {selectedCredit.forest.type}
                                   </Badge>
                                 )}
                               </div>
