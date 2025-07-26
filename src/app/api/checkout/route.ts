@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+const baseUrl = process.env.BASE_URL || "http://localhost:3000";
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const Stripe = require("stripe");
 const stripe = Stripe(stripeSecret);
@@ -19,21 +19,32 @@ export async function POST(req: NextRequest) {
   let total = 0;
   let totalCredits = 0;
   for (const item of cartItems) {
-    total += item.price * item.quantity;
+    const price = item.carbonCredit?.pricePerCredit || item.price || 0;
+    total += price * item.quantity;
     totalCredits += item.quantity;
   }
 
   // Create Stripe Checkout Session
-  const line_items = cartItems.map((item: any) => ({
-    price_data: {
-      currency: "usd",
-      product_data: {
-        name: item.name,
+  const line_items = cartItems.map((item: any) => {
+    const price = item.carbonCredit?.pricePerCredit || item.price || 0;
+    const name = item.carbonCredit?.forest?.name || item.name || "Carbon Credit";
+
+    if (!price || price <= 0) {
+      throw new Error(`Invalid price for item: ${name}`);
+    }
+
+    return {
+      price_data: {
+        currency: "usd",
+        product_data: {
+          name: name,
+        },
+        unit_amount: Math.round(price * 100),
       },
-      unit_amount: Math.round(item.price * 100),
-    },
-    quantity: item.quantity,
-  }));
+      quantity: item.quantity,
+    };
+  });
+
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
     line_items,
@@ -51,14 +62,16 @@ export async function POST(req: NextRequest) {
       totalPrice: total,
       totalCredits,
       currency: "USD",
-      // Remove stripeSessionId from Order (not in model)
       items: {
-        create: cartItems.map((item: any) => ({
-          carbonCreditId: item.carbonCreditId || 1, // fallback for demo
-          quantity: item.quantity,
-          pricePerCredit: item.price,
-          subtotal: item.price * item.quantity,
-        })),
+        create: cartItems.map((item: any) => {
+          const price = item.carbonCredit?.pricePerCredit || item.price || 0;
+          return {
+            carbonCreditId: item.carbonCreditId || 1, // fallback for demo
+            quantity: item.quantity,
+            pricePerCredit: price,
+            subtotal: price * item.quantity,
+          };
+        }),
       },
     },
   });
@@ -84,5 +97,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ sessionId: session.id });
+  return NextResponse.json({ sessionId: session.id, checkoutUrl: session.url });
 }
