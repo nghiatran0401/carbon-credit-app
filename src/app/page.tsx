@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Leaf, Globe, TrendingUp, Shield, Users, MapPin } from "lucide-react";
 import Link from "next/link";
 import { MobileNav } from "@/components/mobile-nav";
+import { withBasePath } from "@/lib/utils";
 
 export default function HomePage() {
   return (
@@ -20,10 +21,10 @@ export default function HomePage() {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button size="lg" variant="outline" asChild>
-            <Link href="/marketplace">Explore Credits</Link>
+            <Link href={withBasePath("/marketplace")}>Explore Credits</Link>
           </Button>
           <Button size="lg" variant="outline" asChild>
-            <Link href="/dashboard">View Dashboard</Link>
+            <Link href={withBasePath("/dashboard")}>View Dashboard</Link>
           </Button>
         </div>
       </section>
@@ -110,7 +111,7 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold text-gray-900 mb-4">Ready to Make an Impact?</h2>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">Join companies worldwide in supporting forest conservation through verified carbon credit trading.</p>
           <Button size="lg" variant="outline" asChild>
-            <Link href="/auth">Start Trading Credits</Link>
+            <Link href={withBasePath("/auth")}>Start Trading Credits</Link>
           </Button>
         </div>
       </section>

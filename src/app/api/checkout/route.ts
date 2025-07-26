@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 const stripeSecret = process.env.STRIPE_SECRET_KEY;
 const Stripe = require("stripe");
 const stripe = Stripe(stripeSecret);

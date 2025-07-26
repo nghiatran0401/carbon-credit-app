@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Leaf } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { withBasePath } from "@/lib/utils";
 
 interface MobileNavProps {
   links: Array<{
@@ -47,14 +48,14 @@ export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
                 onClick={() => {
                   if (logout) logout();
                   setOpen(false);
-                  router.push("/");
+                  router.push(withBasePath("/"));
                 }}
               >
                 Logout
               </Button>
             ) : (
               <Button variant="outline" asChild className="w-full">
-                <Link href="/auth" onClick={() => setOpen(false)}>
+                <Link href={withBasePath("/auth")} onClick={() => setOpen(false)}>
                   Get Started
                 </Link>
               </Button>

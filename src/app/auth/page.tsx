@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { withBasePath } from "@/lib/utils";
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +27,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/dashboard");
+      router.replace(withBasePath("/dashboard"));
     }
   }, [isAuthenticated, router]);
 
@@ -36,7 +37,7 @@ export default function AuthPage() {
     setError(null);
     try {
       await login(email, password);
-      router.replace("/dashboard");
+      router.replace(withBasePath("/dashboard"));
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -100,7 +101,7 @@ export default function AuthPage() {
                 </form>
 
                 <div className="text-center">
-                  <Link href="/forgot-password" className="text-sm text-green-600 hover:underline">
+                  <Link href={withBasePath("/forgot-password")} className="text-sm text-green-600 hover:underline">
                     Forgot your password?
                   </Link>
                 </div>
@@ -184,11 +185,11 @@ export default function AuthPage() {
                     <Checkbox id="terms" required />
                     <Label htmlFor="terms" className="text-sm">
                       I agree to the{" "}
-                      <Link href="/terms" className="text-green-600 hover:underline">
+                      <Link href={withBasePath("/terms")} className="text-green-600 hover:underline">
                         Terms of Service
                       </Link>{" "}
                       and{" "}
-                      <Link href="/privacy" className="text-green-600 hover:underline">
+                      <Link href={withBasePath("/privacy")} className="text-green-600 hover:underline">
                         Privacy Policy
                       </Link>
                     </Label>

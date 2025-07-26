@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Leaf, Shield, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { withBasePath } from "@/lib/utils";
 
 export default function CartPage() {
   return (
@@ -94,7 +95,7 @@ function CartPageContent() {
               <ShoppingCart className="h-12 w-12 text-gray-400" />
             </div>
             <div className="text-lg text-gray-500 mb-2">Your cart is empty.</div>
-            <Link href="/marketplace">
+            <Link href={withBasePath("/marketplace")}>
               <Button size="lg" variant="outline" className="mt-2">
                 Browse Marketplace
               </Button>
@@ -153,7 +154,7 @@ function CartPageContent() {
               <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white font-semibold" onClick={handleCheckout} disabled={loading || cart.length === 0}>
                 {loading ? "Processing..." : "Checkout"}
               </Button>
-              <Link href="/marketplace" className="text-center text-green-700 hover:underline text-sm mt-2">
+              <Link href={withBasePath("/marketplace")} className="text-center text-green-700 hover:underline text-sm mt-2">
                 Continue Shopping
               </Link>
             </CardContent>

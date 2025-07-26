@@ -8,6 +8,7 @@ import { Leaf } from "lucide-react";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-context";
 import { DesktopNav, MobileNavWrapper } from "@/components/nav-client";
+import { withBasePath } from "@/lib/utils";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -34,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Header */}
           <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-[10000]">
             <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-              <Link href="/">
+              <Link href={withBasePath("/")}>
                 <div className="flex items-center space-x-2">
                   <Leaf className="h-8 w-8 text-green-600" />
                   <span className="text-2xl font-bold text-green-800">EcoCredit</span>
@@ -63,10 +64,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <h3 className="font-semibold mb-4">Platform</h3>
                   <ul className="space-y-2 text-gray-400">
                     <li>
-                      <Link href="/dashboard">Dashboard</Link>
+                      <Link href={withBasePath("/dashboard")}>Dashboard</Link>
                     </li>
                     <li>
-                      <Link href="/marketplace">Marketplace</Link>
+                      <Link href={withBasePath("/marketplace")}>Marketplace</Link>
                     </li>
                   </ul>
                 </div>
@@ -74,13 +75,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <h3 className="font-semibold mb-4">Company</h3>
                   <ul className="space-y-2 text-gray-400">
                     <li>
-                      <Link href="/about">About</Link>
+                      <Link href={withBasePath("/about")}>About</Link>
                     </li>
                     <li>
-                      <Link href="/team">Team</Link>
+                      <Link href={withBasePath("/team")}>Team</Link>
                     </li>
                     <li>
-                      <Link href="/contact">Contact</Link>
+                      <Link href={withBasePath("/contact")}>Contact</Link>
                     </li>
                   </ul>
                 </div>
@@ -88,13 +89,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <h3 className="font-semibold mb-4">Support</h3>
                   <ul className="space-y-2 text-gray-400">
                     <li>
-                      <Link href="/help">Help Center</Link>
+                      <Link href={withBasePath("/help")}>Help Center</Link>
                     </li>
                     <li>
-                      <Link href="/docs">Documentation</Link>
+                      <Link href={withBasePath("/docs")}>Documentation</Link>
                     </li>
                     <li>
-                      <Link href="/api">API</Link>
+                      <Link href={withBasePath("/api")}>API</Link>
                     </li>
                   </ul>
                 </div>
