@@ -1,0 +1,185 @@
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Table Bookmark {
+  id Int [pk, increment]
+  userId Int [not null]
+  forestId Int [not null]
+  createdAt DateTime [default: `now()`, not null]
+  user User [not null]
+  forest Forest [not null]
+}
+
+Table User {
+  id Int [pk, increment]
+  email String [unique, not null]
+  passwordHash String [not null]
+  firstName String [not null]
+  lastName String [not null]
+  company String
+  role String [not null, default: 'user']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  orders Order [not null]
+  bookmarks Bookmark [not null]
+  cartItems CartItem [not null]
+  emailVerified Boolean [not null, default: false]
+  stripeCustomerId String
+}
+
+Table Forest {
+  id Int [pk, increment]
+  name String [not null]
+  location String [not null]
+  type String [not null]
+  area Float [not null]
+  description String [not null]
+  status String [not null]
+  lastUpdated DateTime [not null]
+  credits CarbonCredit [not null]
+  bookmarks Bookmark [not null]
+}
+
+Table CarbonCredit {
+  id Int [pk, increment]
+  forestId Int [not null]
+  vintage Int [not null]
+  certification String [not null]
+  totalCredits Int [not null]
+  availableCredits Int [not null]
+  pricePerCredit Float [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  forest Forest [not null]
+  orderItems OrderItem [not null]
+  cartItems CartItem [not null]
+  symbol String [not null, default: 'tCO₂']
+  retiredCredits Int [not null, default: 0]
+  exchangeRates ExchangeRate [not null]
+}
+
+Table ExchangeRate {
+  id Int [pk, increment]
+  carbonCredit CarbonCredit [not null]
+  carbonCreditId Int [not null]
+  rate Float [not null]
+  currency String [not null, default: 'USD']
+  effectiveFrom DateTime [not null]
+  effectiveTo DateTime
+  orderItems OrderItem [not null]
+}
+
+Table Order {
+  id Int [pk, increment]
+  userId Int [not null]
+  createdAt DateTime [default: `now()`, not null]
+  status String [not null]
+  totalPrice Float [not null]
+  totalCredits Int [not null, default: 0]
+  currency String [not null, default: 'USD']
+  totalUsd Float [not null, default: 0]
+  user User [not null]
+  items OrderItem [not null]
+  paymentIntentId String
+  paidAt DateTime
+  shippingAddress String
+  stripeSessionId String [unique]
+  failureReason String
+  payments Payment [not null]
+  orderHistory OrderHistory [not null]
+  certificate Certificate
+}
+
+Table OrderItem {
+  id Int [pk, increment]
+  orderId Int [not null]
+  carbonCreditId Int [not null]
+  quantity Int [not null]
+  pricePerCredit Float [not null]
+  subtotal Float [not null]
+  usdAmount Float [not null, default: 0]
+  exchangeRate ExchangeRate
+  exchangeRateId Int
+  order Order [not null]
+  carbonCredit CarbonCredit [not null]
+  retired Boolean [not null, default: false]
+}
+
+Table CartItem {
+  id Int [pk, increment]
+  user User [not null]
+  userId Int [not null]
+  carbonCredit CarbonCredit [not null]
+  carbonCreditId Int [not null]
+  quantity Int [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  addedAt DateTime [default: `now()`, not null]
+
+  indexes {
+    (userId, carbonCreditId) [unique]
+  }
+}
+
+Table Payment {
+  id Int [pk, increment]
+  orderId Int [not null]
+  order Order [not null]
+  stripeSessionId String [unique]
+  stripePaymentIntentId String
+  amount Float [not null]
+  currency String [not null, default: 'USD']
+  status String [not null]
+  failureReason String
+  method String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+}
+
+Table OrderHistory {
+  id Int [pk, increment]
+  order Order [not null]
+  orderId Int [not null]
+  event String [not null]
+  message String
+  createdAt DateTime [default: `now()`, not null]
+}
+
+Table Certificate {
+  id String [pk]
+  orderId Int [unique, not null]
+  order Order [not null]
+  certificateHash String [unique, not null]
+  issuedAt DateTime [default: `now()`, not null]
+  status String [not null, default: 'active']
+  metadata Json
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+}
+
+Ref: Bookmark.userId > User.id [delete: Cascade]
+
+Ref: Bookmark.forestId > Forest.id [delete: Cascade]
+
+Ref: CarbonCredit.forestId > Forest.id [delete: Cascade]
+
+Ref: ExchangeRate.carbonCreditId > CarbonCredit.id [delete: Cascade]
+
+Ref: Order.userId > User.id
+
+Ref: OrderItem.exchangeRateId > ExchangeRate.id
+
+Ref: OrderItem.orderId > Order.id [delete: Cascade]
+
+Ref: OrderItem.carbonCreditId > CarbonCredit.id [delete: Cascade]
+
+Ref: CartItem.userId > User.id [delete: Cascade]
+
+Ref: CartItem.carbonCreditId > CarbonCredit.id [delete: Cascade]
+
+Ref: Payment.orderId > Order.id [delete: Cascade]
+
+Ref: OrderHistory.orderId > Order.id [delete: Cascade]
+
+Ref: Certificate.orderId - Order.id [delete: Cascade]
