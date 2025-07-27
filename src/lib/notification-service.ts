@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import { Notification } from "@/types";
-import { getSocketServer } from "./socket-server";
 
 export interface CreateNotificationData {
   userId: number;
@@ -92,15 +91,7 @@ export class NotificationService {
   }
 
   private async sendWebSocketNotification(userId: number, notification: Notification): Promise<void> {
-    try {
-      const socketServer = getSocketServer();
-      if (socketServer) {
-        socketServer.sendNotificationToUser(userId, notification);
-      }
-    } catch (error) {
-      console.error("Error sending WebSocket notification:", error);
-      // Don't throw - WebSocket failure shouldn't break notification creation
-    }
+    // WebSocket notifications handled by polling - no action needed
   }
 
   async getUserNotifications(userId: number, limit = 50, offset = 0): Promise<Notification[]> {

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   let { userId, forestId } = await req.json();
-  console.log("BOOKMARK POST", { userId, forestId });
+
   if (userId === undefined || forestId === undefined) return NextResponse.json({ error: "Missing userId or forestId (undefined)" }, { status: 400 });
   userId = Number(userId);
   forestId = Number(forestId);

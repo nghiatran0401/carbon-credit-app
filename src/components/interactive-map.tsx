@@ -6,12 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Calculator, Trash2, TreeDeciduous, BadgeCheck, Leaf, Ruler, ShieldCheck, Tag } from "lucide-react";
-import { FOREST_ZONES, USD_PER_CREDIT } from "@/lib/map-utils";
+import { FOREST_ZONES } from "@/lib/map-utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { remove as removeDiacritics } from "diacritics";
-import { LatLngBounds } from "leaflet";
 import { useMap } from "react-leaflet";
-import L from "leaflet";
+import { Forest, Bookmark } from "@/types";
 
 // Dynamically import map components to avoid SSR issues
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
@@ -19,10 +18,10 @@ const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLa
 const Polygon = dynamic(() => import("react-leaflet").then((mod) => mod.Polygon), { ssr: false });
 
 interface InteractiveMapProps {
-  forests: any[];
-  bookmarks: any[];
-  selectedForest: any;
-  onSelectForest: (forest: any) => void;
+  forests: Forest[];
+  bookmarks: Bookmark[];
+  selectedForest: Forest | null;
+  onSelectForest: (forest: Forest) => void;
 }
 
 export default function InteractiveMap({ forests, bookmarks, selectedForest, onSelectForest }: InteractiveMapProps) {
@@ -38,12 +37,12 @@ export default function InteractiveMap({ forests, bookmarks, selectedForest, onS
   // const [leafletMap, setLeafletMap] = useState<any>(null); // Removed
   const [flyToCenter, setFlyToCenter] = useState<[number, number] | null>(null);
 
-  const isBookmarked = (forestId: number) => bookmarks.some((b: any) => b.forestId === forestId || b.forest?.id === forestId);
+  const isBookmarked = (forestId: number) => bookmarks.some((b) => b.forestId === forestId || b.forest?.id === forestId);
   const normalize = (str: string) =>
     removeDiacritics(str || "")
       .toLowerCase()
       .replace(/\s+/g, "");
-  const filteredForests = tab === "favorites" ? forests.filter((f: any) => isBookmarked(f.id)) : forests;
+  const filteredForests = tab === "favorites" ? forests.filter((f) => isBookmarked(f.id)) : forests;
 
   useEffect(() => {
     setIsClient(true);
@@ -72,15 +71,15 @@ export default function InteractiveMap({ forests, bookmarks, selectedForest, onS
 
   // When tab changes, select the first forest in the filtered list
   useEffect(() => {
-    if (filteredForests.length && (!selectedForest || !filteredForests.some((f: any) => f.id === selectedForest.id))) {
+    if (filteredForests.length && (!selectedForest || !filteredForests.some((f) => f.id === selectedForest.id))) {
       onSelectForest(filteredForests[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, bookmarks, forests]);
 
-  const handleZoneClick = (zoneKey: string, zone: any) => {
+  const handleZoneClick = (zoneKey: string, zone: { name: string }) => {
     const zoneName = normalize(zone.name);
-    const forest = filteredForests.find((f: any) => normalize(f.name) === zoneName);
+    const forest = filteredForests.find((f) => normalize(f.name) === zoneName);
     if (forest) {
       onSelectForest(forest);
     } else if (filteredForests.length) {
@@ -146,7 +145,7 @@ export default function InteractiveMap({ forests, bookmarks, selectedForest, onS
           </TabsList>
         </Tabs>
         <div className="relative">
-          <div className="h-96 rounded-lg overflow-hidden border">
+          <div className="h-64 sm:h-80 lg:h-96 rounded-lg overflow-hidden border">
             <MapContainer center={mapCenter} zoom={11} style={{ height: "100%", width: "100%" }} ref={mapRef}>
               <MapFlyTo center={flyToCenter} />
               <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -191,8 +190,8 @@ export default function InteractiveMap({ forests, bookmarks, selectedForest, onS
         </div>
 
         {/* Forest List Under the Map */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredForests.map((forest: any) => {
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+          {filteredForests.map((forest) => {
             const zoneEntry = Object.entries(FOREST_ZONES).find(([, zone]) => normalize(zone.name) === normalize(forest.name));
             const zone = zoneEntry ? zoneEntry[1] : null;
             const zoneCenter = zone ? [zone.coordinates.reduce((sum, c) => sum + c[0], 0) / zone.coordinates.length, zone.coordinates.reduce((sum, c) => sum + c[1], 0) / zone.coordinates.length] : null;

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
 import ForestsAdmin from "@/app/admin/ForestsAdmin";
@@ -11,11 +11,11 @@ import { apiGet } from "@/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Leaf, DollarSign, Users, Globe, Download } from "lucide-react";
 import dynamic from "next/dynamic";
 import { BarChart, Bar } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Order, CarbonCredit, Forest, User, MonthlySalesData, TopForestData, TopUserData } from "@/types";
 
 const ResponsiveContainer = dynamic(() => import("recharts").then((m) => m.ResponsiveContainer), { ssr: false });
 const LineChart = dynamic(() => import("recharts").then((m) => m.LineChart), { ssr: false });
@@ -32,11 +32,11 @@ const SECTIONS = [
   { key: "users", label: "Users" },
 ];
 
-function ordersToCSV(orders: any[]): string {
+function ordersToCSV(orders: Order[]): string {
   const header = ["Order ID", "User Email", "Date", "Status", "Total", "Item Certification", "Item Vintage", "Quantity", "Price Per Credit", "Subtotal"];
   const rows = orders.flatMap(
     (order) =>
-      order.items?.map((item: any) => [
+      order.items?.map((item) => [
         order.id,
         order.user?.email ?? "",
         new Date(order.createdAt).toLocaleString(),
@@ -56,11 +56,20 @@ export default function AdminPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
   const [section, setSection] = useState("forests");
-  const [showForestModal, setShowForestModal] = useState<any | null>(null);
-  const [showUserModal, setShowUserModal] = useState<any | null>(null);
+  const [showForestModal, setShowForestModal] = useState<Forest | null>(null);
+  const [showUserModal, setShowUserModal] = useState<User | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(2024);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Auth check
+  if (!isClient) {
+    return <div className="p-8 text-center">Loading...</div>;
+  }
+
   if (!isAuthenticated) {
     router.replace("/auth");
     return null;
@@ -74,27 +83,27 @@ export default function AdminPage() {
   const { data: creditsRaw } = useSWR("/api/credits", apiGet);
   const { data: forestsRaw } = useSWR("/api/forests", apiGet);
   const { data: usersRaw } = useSWR("/api/users", apiGet);
-  const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
-  const credits = Array.isArray(creditsRaw) ? creditsRaw : [];
-  const forests = Array.isArray(forestsRaw) ? forestsRaw : [];
-  const users = Array.isArray(usersRaw) ? usersRaw : [];
+  const orders: Order[] = Array.isArray(ordersRaw) ? ordersRaw : [];
+  const credits: CarbonCredit[] = Array.isArray(creditsRaw) ? creditsRaw : [];
+  const forests: Forest[] = Array.isArray(forestsRaw) ? forestsRaw : [];
+  const users: User[] = Array.isArray(usersRaw) ? usersRaw : [];
 
   // Key metrics
   const totalCreditsSold = useMemo(() => {
-    return orders.reduce((sum: number, order: any) => sum + (order.items?.reduce((s: number, item: any) => s + (item.quantity || 0), 0) || 0), 0);
+    return orders.reduce((sum, order) => sum + (order.items?.reduce((s, item) => s + (item.quantity || 0), 0) || 0), 0);
   }, [orders]);
   const totalRevenue = useMemo(() => {
-    return orders.reduce((sum: number, order: any) => sum + (order.totalPrice || 0), 0);
+    return orders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
   }, [orders]);
   const activeProjects = forests.length;
-  const totalCredits = credits.reduce((sum: number, c: any) => sum + (c.totalCredits || 0), 0);
-  const availableCredits = credits.reduce((sum: number, c: any) => sum + (c.availableCredits || 0), 0);
+  const totalCredits = credits.reduce((sum, c) => sum + (c.totalCredits || 0), 0);
+  const availableCredits = credits.reduce((sum, c) => sum + (c.availableCredits || 0), 0);
   const partnersCount = users.length;
 
   // Monthly sales data for chart (filtered by year)
   const monthlyBarData = useMemo(() => {
-    const map = new Map<number, { month: string; credits: number; revenue: number }>();
-    orders.forEach((order: any) => {
+    const map = new Map<number, MonthlySalesData>();
+    orders.forEach((order) => {
       const date = new Date(order.createdAt);
       if (date.getFullYear() !== selectedYear) return;
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -104,7 +113,7 @@ export default function AdminPage() {
         map.set(monthNum, { month: label, credits: 0, revenue: 0 });
       }
       const entry = map.get(monthNum)!;
-      entry.credits += order.items?.reduce((s: number, item: any) => s + (item.quantity || 0), 0) || 0;
+      entry.credits += order.items?.reduce((s, item) => s + (item.quantity || 0), 0) || 0;
       entry.revenue += order.totalPrice || 0;
     });
     // Ensure all months are present
@@ -118,14 +127,14 @@ export default function AdminPage() {
 
   // Top forests by credits sold
   const topForests = useMemo(() => {
-    const map = new Map<number, { forest: any; creditsSold: number }>();
-    orders.forEach((order: any) => {
-      order.items?.forEach((item: any) => {
+    const map = new Map<number, TopForestData>();
+    orders.forEach((order) => {
+      order.items?.forEach((item) => {
         const forestId = item.carbonCredit?.forestId;
         if (!forestId) return;
         if (!map.has(forestId)) {
-          const forest = forests.find((f: any) => f.id === forestId);
-          map.set(forestId, { forest, creditsSold: 0 });
+          const forest = forests.find((f) => f.id === forestId);
+          map.set(forestId, { forest: forest!, creditsSold: 0 });
         }
         map.get(forestId)!.creditsSold += item.quantity || 0;
       });
@@ -137,13 +146,13 @@ export default function AdminPage() {
 
   // Top users by order value
   const topUsers = useMemo(() => {
-    const map = new Map<number, { user: any; total: number }>();
-    orders.forEach((order: any) => {
+    const map = new Map<number, TopUserData>();
+    orders.forEach((order) => {
       const userId = order.user?.id;
       if (!userId) return;
       if (!map.has(userId)) {
-        const u = users.find((u: any) => u.id === userId);
-        map.set(userId, { user: u, total: 0 });
+        const u = users.find((u) => u.id === userId);
+        map.set(userId, { user: u!, total: 0 });
       }
       map.get(userId)!.total += order.totalPrice || 0;
     });
@@ -154,22 +163,28 @@ export default function AdminPage() {
 
   // Export CSV
   const handleDownloadCSV = () => {
-    const csv = ordersToCSV(orders);
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "orders.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    if (typeof window === "undefined") return; // Server-side guard
+
+    try {
+      const csv = ordersToCSV(orders);
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "orders.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+    }
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-56 bg-white border-r p-6 flex flex-col gap-4">
+      <aside className="w-full lg:w-56 bg-white border-b lg:border-r lg:border-b-0 p-4 lg:p-6 flex flex-col gap-4">
         <h2 className="text-xl font-bold mb-4">Admin Panel</h2>
-        <div className="mb-6">
+        <div className="mb-6 grid grid-cols-2 lg:grid-cols-1 gap-2">
           <Card className="mb-2">
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-medium">Total Credits Sold</CardTitle>
@@ -219,12 +234,12 @@ export default function AdminPage() {
         </div>
       </aside>
       {/* Main content */}
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 lg:p-8">
         {/* Enhanced Analytics Dashboard */}
         <div className="mb-8">
           <Card className="mb-6">
-            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-4">
+            <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <CardTitle>Monthly Sales</CardTitle>
                 <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
                   <SelectTrigger className="w-28">
@@ -237,7 +252,7 @@ export default function AdminPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" size="sm" onClick={handleDownloadCSV}>
+              <Button variant="outline" size="sm" onClick={handleDownloadCSV} className="w-full sm:w-auto">
                 <Download className="h-4 w-4 mr-2" /> Export Orders CSV
               </Button>
             </CardHeader>
@@ -269,8 +284,8 @@ export default function AdminPage() {
               <CardContent>
                 <div className="space-y-2">
                   {topForests.map(({ forest, creditsSold }) => (
-                    <div key={forest?.id} className="flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:bg-green-50" onClick={() => setShowForestModal(forest)}>
-                      <span className="font-medium">{forest?.name}</span>
+                    <div key={forest.id} className="flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:bg-green-50" onClick={() => setShowForestModal(forest)}>
+                      <span className="font-medium">{forest.name}</span>
                       <span className="text-green-700 font-bold">{creditsSold.toLocaleString()} credits</span>
                     </div>
                   ))}
@@ -284,8 +299,8 @@ export default function AdminPage() {
               <CardContent>
                 <div className="space-y-2">
                   {topUsers.map(({ user, total }) => (
-                    <div key={user?.id} className="flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:bg-blue-50" onClick={() => setShowUserModal(user)}>
-                      <span className="font-medium">{user?.email}</span>
+                    <div key={user.id} className="flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:bg-blue-50" onClick={() => setShowUserModal(user)}>
+                      <span className="font-medium">{user.email}</span>
                       <span className="text-blue-700 font-bold">${total.toLocaleString()}</span>
                     </div>
                   ))}
@@ -313,7 +328,7 @@ export default function AdminPage() {
                 Status: <span className="font-medium">{showForestModal.status}</span>
               </div>
               <div className="mb-2">
-                Last Updated: <span className="font-medium">{new Date(showForestModal.lastUpdated).toLocaleDateString()}</span>
+                Last Updated: <span className="font-medium">{typeof window !== "undefined" ? new Date(showForestModal.lastUpdated).toLocaleDateString() : showForestModal.lastUpdated}</span>
               </div>
               <div className="mb-2">
                 Description: <span className="font-medium">{showForestModal.description}</span>
@@ -341,7 +356,7 @@ export default function AdminPage() {
                 Company: <span className="font-medium">{showUserModal.company || "-"}</span>
               </div>
               <div className="mb-2">
-                Created: <span className="font-medium">{new Date(showUserModal.createdAt).toLocaleDateString()}</span>
+                Created: <span className="font-medium">{typeof window !== "undefined" ? new Date(showUserModal.createdAt).toLocaleDateString() : showUserModal.createdAt}</span>
               </div>
             </div>
           </div>

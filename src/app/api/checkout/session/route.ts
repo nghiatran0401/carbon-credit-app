@@ -29,8 +29,6 @@ export async function GET(req: NextRequest) {
   // Fallback: If order is still pending, mark it as completed
   // This handles cases where the webhook didn't fire
   if (payment.order.status === "Pending" && payment.status === "pending") {
-    console.log(`Fallback: Manually completing order ${payment.order.id} for session ${sessionId}`);
-
     // Update payment status
     await prisma.payment.update({
       where: { id: payment.id },

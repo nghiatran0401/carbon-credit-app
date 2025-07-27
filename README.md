@@ -60,7 +60,6 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 
    # Application URLs
    NEXT_PUBLIC_BASE_URL="http://localhost:3000"
-   NEXT_PUBLIC_SOCKET_URL="http://localhost:3001"
    ```
 
 ### Database Setup
@@ -143,7 +142,7 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 
 - Real-time order and payment status tracking (with audit trail)
 - Admin panel displays full order history (status changes, payment events, failures, etc.)
-- Real-time notification system with WebSocket support and intelligent polling
+- Real-time notification system with intelligent polling
 - Comprehensive notification management with filtering and bulk operations
 
 ## Scripts
@@ -171,7 +170,7 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 
 ## Real-time Features
 
-- **WebSocket Notifications**: Real-time notification delivery using Socket.IO
+- **Intelligent Polling**: Real-time notification delivery using efficient polling
 - **Intelligent Polling**: Adaptive polling with exponential backoff for reliability
 - **Optimistic Updates**: Immediate UI updates with fallback error handling
 - **Notification Filtering**: Filter notifications by type (order, credit, payment, system)

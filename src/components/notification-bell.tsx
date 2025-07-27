@@ -86,13 +86,13 @@ export function NotificationBell() {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto bg-white border border-gray-200 shadow-lg z-[10001]" sideOffset={8}>
+      <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] sm:w-80 max-h-96 overflow-y-auto bg-white border border-gray-200 shadow-lg z-[10001]" sideOffset={8}>
         <div className="flex items-center justify-between p-3 border-b">
           <div>
             <h4 className="font-semibold text-gray-900">Notifications</h4>
             <p className="text-sm text-gray-500">{isLoading ? "Loading..." : `${unreadCount} unread`}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <select value={filter} onChange={(e) => setFilter(e.target.value as any)} className="text-xs border rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-green-500" disabled={isLoading}>
               <option value="all">All</option>
               <option value="unread">Unread</option>

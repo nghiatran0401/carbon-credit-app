@@ -28,14 +28,14 @@ export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
           <span className="sr-only">Toggle menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+      <SheetContent side="right" className="w-[280px] sm:w-[350px] md:w-[400px]">
         <div className="flex items-center space-x-2 mb-6">
           <Leaf className="h-6 w-6 text-green-600" />
           <span className="text-xl font-bold text-green-800">EcoCredit</span>
         </div>
         <nav className="flex flex-col space-y-4">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className="text-lg font-medium text-gray-900 hover:text-green-600 transition-colors" onClick={() => setOpen(false)}>
+            <Link key={link.href} href={link.href} className="text-lg font-medium text-gray-900 hover:text-green-600 transition-colors touch-target flex items-center py-2" onClick={() => setOpen(false)}>
               {link.label}
             </Link>
           ))}

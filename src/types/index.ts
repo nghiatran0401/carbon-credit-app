@@ -81,9 +81,24 @@ export interface Certificate {
   certificateHash: string;
   issuedAt: string;
   status: string;
-  metadata?: any;
+  metadata?: CertificateMetadata;
   createdAt: string;
   updatedAt: string;
+}
+
+// Certificate Metadata
+export interface CertificateMetadata {
+  items?: CertificateItem[];
+  [key: string]: unknown;
+}
+
+// Certificate Item
+export interface CertificateItem {
+  certification: string;
+  vintage: number;
+  quantity: number;
+  pricePerCredit: number;
+  subtotal: number;
 }
 
 // Order
@@ -114,6 +129,35 @@ export interface OrderItem {
   carbonCredit?: CarbonCredit;
 }
 
+// Cart Item
+export interface CartItem {
+  id: number;
+  userId: number;
+  carbonCreditId: number;
+  quantity: number;
+  carbonCredit?: CarbonCredit;
+}
+
+// Bookmark
+export interface Bookmark {
+  id: number;
+  userId: number;
+  forestId: number;
+  createdAt: string;
+  forest?: Forest;
+}
+
+// Exchange Rate
+export interface ExchangeRate {
+  id: number;
+  carbonCreditId: number;
+  rate: number;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Map
 export interface ForestZone {
   id?: number;
@@ -133,12 +177,22 @@ export interface Notification {
   type: "order" | "credit" | "system" | "payment";
   title: string;
   message: string;
-  data?: any;
+  data?: NotificationData;
   read: boolean;
   readAt?: string;
   createdAt: string;
   updatedAt: string;
   user?: User;
+}
+
+// Notification Data
+export interface NotificationData {
+  orderId?: number;
+  creditId?: number;
+  forestName?: string;
+  event?: string;
+  status?: string;
+  [key: string]: unknown;
 }
 
 export interface NotificationContextType {
@@ -151,4 +205,33 @@ export interface NotificationContextType {
   fetchNotifications: (force?: boolean) => Promise<void>;
   addNotification: (notification: Omit<Notification, "id" | "createdAt" | "updatedAt">) => void;
   clearError: () => void;
+}
+
+// API Response Types
+export interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+  pagination?: {
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+    total: number;
+  };
+}
+
+// Admin Analytics Types
+export interface MonthlySalesData {
+  month: string;
+  credits: number;
+  revenue: number;
+}
+
+export interface TopForestData {
+  forest: Forest;
+  creditsSold: number;
+}
+
+export interface TopUserData {
+  user: User;
+  total: number;
 }

@@ -136,7 +136,7 @@ export default function MarketplacePage() {
             <CardTitle>Why Choose Our Carbon Credits?</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
               <div className="text-center">
                 <Shield className="h-12 w-12 text-blue-600 mx-auto mb-4" />
                 <h3 className="font-semibold mb-2">Verified & Certified</h3>
@@ -163,9 +163,9 @@ export default function MarketplacePage() {
 
         {/* Filters */}
         <div className="mb-2 font-semibold text-gray-800 text-lg">Filter Credits</div>
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Select value={availability} onValueChange={setAvailability}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Availability" />
             </SelectTrigger>
             <SelectContent>
@@ -176,7 +176,7 @@ export default function MarketplacePage() {
           </Select>
 
           <Select value={forestType} onValueChange={setForestType}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Forest Type" />
             </SelectTrigger>
             <SelectContent>
@@ -190,7 +190,7 @@ export default function MarketplacePage() {
           </Select>
 
           <Select value={certification} onValueChange={setCertification}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Certification" />
             </SelectTrigger>
             <SelectContent>
@@ -203,7 +203,7 @@ export default function MarketplacePage() {
           </Select>
 
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -216,7 +216,7 @@ export default function MarketplacePage() {
         </div>
 
         {/* Credit Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-8">
           {filteredCredits.map((credit) => {
             const isAvailable = typeof credit.availableCredits === "number" && credit.availableCredits > 0;
             const latestRate = getLatestExchangeRate(credit.id);

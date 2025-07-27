@@ -15,7 +15,7 @@ export function DesktopNav() {
   const { data: cartData } = useSWR(userId ? `/api/cart?userId=${userId}` : null, apiGet);
   const cartCount = Array.isArray(cartData) ? cartData.length : cartData ? 1 : 0;
   return (
-    <div className="hidden md:flex items-center space-x-6">
+    <div className="hidden lg:flex items-center space-x-6">
       <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
         Dashboard
       </Link>

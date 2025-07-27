@@ -12,8 +12,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: Request) {
-  console.log("Webhook received:", new Date().toISOString());
-
   const body = await req.text();
   const sig = headers().get("stripe-signature");
 
@@ -25,7 +23,6 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    console.log("Webhook event type:", event.type);
   } catch (err: any) {
     console.error("Webhook signature verification failed.", err.message);
     return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
@@ -36,15 +33,11 @@ export async function POST(req: Request) {
   // Handle the event
   switch (event.type) {
     case "checkout.session.completed": {
-      console.log("Processing checkout.session.completed event");
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log("Session ID:", session.id);
 
       // Find the payment by stripeSessionId
       const payment = await prisma.payment.findFirst({ where: { stripeSessionId: session.id } });
       if (payment) {
-        console.log("Found payment for session:", payment.id);
-
         // Mark payment as succeeded
         await prisma.payment.update({
           where: { id: payment.id },
@@ -65,8 +58,6 @@ export async function POST(req: Request) {
           },
         });
 
-        console.log("Updated order:", order.id, "to status:", order.status);
-
         // Add OrderHistory event
         await prisma.orderHistory.create({
           data: {
@@ -85,14 +76,12 @@ export async function POST(req: Request) {
 
         // Clear the user's cart after successful payment
         if (order.userId) {
-          const deletedCartItems = await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
-          console.log("Cleared cart items for user:", order.userId, "deleted:", deletedCartItems.count);
+          await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
         }
 
         // Generate certificate for the completed order
         try {
-          const certificate = await certificateService.generateCertificate(order.id);
-          console.log("Generated certificate:", certificate.id, "for order:", order.id);
+          await certificateService.generateCertificate(order.id);
 
           // Create notification for successful payment and certificate generation
           try {
@@ -109,7 +98,6 @@ export async function POST(req: Request) {
       break;
     }
     case "payment_intent.payment_failed": {
-      console.log("Processing payment_intent.payment_failed event");
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       // Find the payment by stripePaymentIntentId
       const payment = await prisma.payment.findFirst({ where: { stripePaymentIntentId: paymentIntent.id } });
@@ -149,9 +137,8 @@ export async function POST(req: Request) {
     }
     // Add more event types as needed
     default:
-      console.log(`Unhandled event type: ${event.type}`);
+      // Unhandled event type - log for debugging if needed
+      break;
   }
-
-  console.log("Webhook processed successfully");
   return new NextResponse(null, { status: 200 });
 }
