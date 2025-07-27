@@ -18,7 +18,7 @@
 - **Admin Analytics**: Revenue charts, user metrics, and export functionality
 - **Bookmark System**: User favorites with API and UI integration
 - **Certificates**: Digital certificates with PDF generation
-- **Notification System**: Persistent notifications for order updates and new credits
+- **Notification System**: Real-time notifications with WebSocket support, intelligent polling, and comprehensive notification management
 
 ### ✅ Forest & Carbon Credit Management
 

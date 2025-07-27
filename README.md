@@ -12,6 +12,7 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 - Full CRUD for forests, credits, and orders
 - Real-time order and payment status tracking (with audit trail)
 - Admin panel displays full order history (status changes, payment events, failures, etc.)
+- Real-time notification system with WebSocket support
 - Toast notifications with variants
 - Responsive design for mobile and desktop
 - Robust API with full test coverage (Vitest)
@@ -24,6 +25,8 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 - [Prisma](https://www.prisma.io/) ORM + MySQL
 - [Tailwind CSS](https://tailwindcss.com/)
 - [SWR](https://swr.vercel.app/) for data fetching
+- [Socket.IO](https://socket.io/) for real-time notifications
+- [Stripe](https://stripe.com/) for payment processing
 - [Vitest](https://vitest.dev/) for testing
 
 ## Getting Started
@@ -45,9 +48,19 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
    ```bash
    npm install
    ```
-3. Set up your database connection in `.env`:
+3. Set up your environment variables in `.env`:
+
    ```env
+   # Database Configuration
    DATABASE_URL="mysql://user:password@localhost:3306/carbon_credit"
+
+   # Stripe Configuration
+   STRIPE_SECRET_KEY="sk_test_..."
+   STRIPE_WEBHOOK_SECRET="whsec_..."
+
+   # Application URLs
+   NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+   NEXT_PUBLIC_SOCKET_URL="http://localhost:3001"
    ```
 
 ### Database Setup
@@ -112,6 +125,11 @@ All API routes are under `/api/` and follow RESTful conventions. Example endpoin
 - **Orders:** `/api/orders` (GET, POST, PUT, DELETE)
 - **Users:** `/api/users` (GET)
 - **Auth:** `/api/auth/login` (POST), `/api/auth/register` (POST)
+- **Notifications:** `/api/notifications` (GET, POST), `/api/notifications/[id]` (PUT), `/api/notifications/mark-all-read` (POST)
+- **Cart:** `/api/cart` (GET, POST, PUT, DELETE)
+- **Bookmarks:** `/api/bookmarks` (GET, POST, DELETE)
+- **Certificates:** `/api/certificates` (GET, POST)
+- **Webhooks:** `/api/webhook` (POST) - Stripe payment webhooks
 
 See the code in `src/app/api/` for request/response details.
 
@@ -119,12 +137,14 @@ See the code in `src/app/api/` for request/response details.
 
 All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.ts) and match the Prisma schema:
 
-- `User`, `Forest`, `CarbonCredit`, `Order`, `OrderItem`, `ForestZone`, etc.
+- `User`, `Forest`, `CarbonCredit`, `Order`, `OrderItem`, `ForestZone`, `Notification`, etc.
 
 ## Features
 
 - Real-time order and payment status tracking (with audit trail)
 - Admin panel displays full order history (status changes, payment events, failures, etc.)
+- Real-time notification system with WebSocket support and intelligent polling
+- Comprehensive notification management with filtering and bulk operations
 
 ## Scripts
 
@@ -148,3 +168,11 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 ## Stripe Webhook
 
 - Stripe webhook endpoint: `/api/webhook` (configure your Stripe dashboard to point to this for payment event updates)
+
+## Real-time Features
+
+- **WebSocket Notifications**: Real-time notification delivery using Socket.IO
+- **Intelligent Polling**: Adaptive polling with exponential backoff for reliability
+- **Optimistic Updates**: Immediate UI updates with fallback error handling
+- **Notification Filtering**: Filter notifications by type (order, credit, payment, system)
+- **Bulk Operations**: Mark all notifications as read with a single click
