@@ -20,7 +20,7 @@ model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   passwordHash String
-  firstName    String
+  firstName     String
   lastName     String
   company      String?
   role         String   @default("user")
@@ -50,7 +50,7 @@ model CarbonCredit {
   id               Int          @id @default(autoincrement())
   forestId         Int
   vintage          Int
-  certification    String
+  certification     String
   totalCredits     Int
   availableCredits Int
   pricePerCredit   Float
@@ -68,7 +68,7 @@ model ExchangeRate {
   id             Int          @id @default(autoincrement())
   carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   carbonCreditId Int
-  rate           Float        // USD per CC
+  rate           Float        
   currency       String       @default("USD")
   effectiveFrom  DateTime
   effectiveTo    DateTime?
@@ -81,9 +81,9 @@ model Order {
   createdAt  DateTime    @default(now())
   status     String
   totalPrice Float
-  totalCredits Int      @default(0)
-  currency   String     @default("USD")
-  totalUsd   Float      @default(0)
+  totalCredits Int       @default(0)
+  currency   String      @default("USD")
+  totalUsd   Float       @default(0)
   user       User        @relation(fields: [userId], references: [id])
   items      OrderItem[]
   paymentIntentId String?
@@ -93,6 +93,7 @@ model Order {
   failureReason String?
   payments   Payment[]
   orderHistory OrderHistory[]
+  certificate  Certificate?
   @@index([stripeSessionId])
 }
 
@@ -146,4 +147,16 @@ model OrderHistory {
   event     String   // e.g. "created", "paid", "failed", "refunded"
   message   String?
   createdAt DateTime @default(now())
+}
+
+model Certificate {
+  id              String   @id @default(cuid())
+  orderId         Int      @unique
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  certificateHash  String   @unique // For internal record keeping
+  issuedAt        DateTime @default(now())
+  status          String   @default("active") // active, revoked, expired
+  metadata        Json?    // Additional certificate data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 } 

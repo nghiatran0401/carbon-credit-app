@@ -73,6 +73,19 @@ export interface OrderHistory {
   createdAt: string;
 }
 
+// Certificate
+export interface Certificate {
+  id: string;
+  orderId: number;
+  order?: Order;
+  certificateHash: string;
+  issuedAt: string;
+  status: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Order
 export interface Order {
   id: number;
@@ -84,6 +97,7 @@ export interface Order {
   items?: OrderItem[];
   payments?: Payment[];
   orderHistory?: OrderHistory[];
+  certificate?: Certificate;
   paidAt?: string;
   failureReason?: string;
 }

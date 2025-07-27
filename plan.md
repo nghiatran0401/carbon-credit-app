@@ -17,7 +17,7 @@
 - **Payment Webhook Integration**: Real-time payment status updates
 - **Admin Analytics**: Revenue charts, user metrics, and export functionality
 - **Bookmark System**: User favorites with API and UI integration
-- **Enhanced Certificates**: Digital certificates with QR codes and verification ✅ **COMPLETED**
+- **Certificates**: Digital certificates with PDF generation
 
 ### ✅ Forest & Carbon Credit Management
 

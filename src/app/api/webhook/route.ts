@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
+import { certificateService } from "@/lib/certificate-service";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,14 @@ export async function POST(req: Request) {
         if (order.userId) {
           const deletedCartItems = await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
           console.log("Cleared cart items for user:", order.userId, "deleted:", deletedCartItems.count);
+        }
+
+        // Generate certificate for the completed order
+        try {
+          const certificate = await certificateService.generateCertificate(order.id);
+          console.log("Generated certificate:", certificate.id, "for order:", order.id);
+        } catch (certError: any) {
+          console.error("Error generating certificate for order:", order.id, certError.message);
         }
       } else {
         console.error("No payment found for session:", session.id);

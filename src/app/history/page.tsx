@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 
 const PAGE_SIZE = 5;
 
@@ -187,6 +187,43 @@ export default function HistoryPage() {
                       <span className="ml-2 text-red-600">({order.payments[order.payments.length - 1].failureReason})</span>
                     )}
                     {order.paidAt && <span className="ml-4 text-green-700">Paid at: {new Date(order.paidAt).toLocaleString()}</span>}
+                  </div>
+                )}
+
+                {/* Certificate button for completed orders */}
+                {order.status === "Completed" && (
+                  <div className="mt-3 pt-3 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-green-700 border-green-300 hover:bg-green-50"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(`/api/certificates?orderId=${order.id}`);
+                          if (response.ok) {
+                            const certificate = await response.json();
+                            // Open certificate in new window
+                            window.open(`/certificates/${certificate.id}`, "_blank");
+                          } else {
+                            // Generate certificate if it doesn't exist
+                            const genResponse = await fetch("/api/certificates", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ orderId: order.id }),
+                            });
+                            if (genResponse.ok) {
+                              const certificate = await genResponse.json();
+                              window.open(`/certificates/${certificate.id}`, "_blank");
+                            }
+                          }
+                        } catch (err) {
+                          console.error("Error accessing certificate:", err);
+                        }
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Certificate
+                    </Button>
                   </div>
                 )}
               </CardContent>
