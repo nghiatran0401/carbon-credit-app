@@ -18,6 +18,7 @@
 - **Admin Analytics**: Revenue charts, user metrics, and export functionality
 - **Bookmark System**: User favorites with API and UI integration
 - **Certificates**: Digital certificates with PDF generation
+- **Notification System**: Persistent notifications for order updates and new credits
 
 ### ✅ Forest & Carbon Credit Management
 
@@ -62,10 +63,9 @@
 ## ⏳ Future Roadmap
 
 1. **Educational Content**: Informational sections about carbon credits and forest conservation
-2. **Notification System**: Persistent notifications for order updates and new credits
-3. **Price Alerts**: Notifications for price changes on bookmarked credits
-4. **Multi-Region Support**: Expand beyond Vietnam to Southeast Asia
-5. **Peer-to-Peer Trading/Gifting**: Direct user-to-user carbon credit exchange
+2. **Price Alerts**: Notifications for price changes on bookmarked credits
+3. **Multi-Region Support**: Expand beyond Vietnam to Southeast Asia
+4. **Peer-to-Peer Trading/Gifting**: Direct user-to-user carbon credit exchange
 
 ## 🧠 Strategic Considerations
 

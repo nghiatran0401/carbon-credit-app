@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { notificationService } from "@/lib/notification-service";
 
 const prisma = new PrismaClient();
 
@@ -52,6 +53,14 @@ export async function POST(req: Request) {
       orderHistory: true,
     },
   });
+
+  // Create notification for order creation
+  try {
+    const notification = await notificationService.createOrderNotification(userId, createdOrder.id, "Order Created", `Your order #${createdOrder.id} has been created successfully. Total: $${totalPrice.toFixed(2)}`);
+  } catch (error) {
+    console.error("Error creating order notification:", error);
+  }
+
   return NextResponse.json(orderWithUser);
 }
 

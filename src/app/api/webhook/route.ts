@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { certificateService } from "@/lib/certificate-service";
+import { notificationService } from "@/lib/notification-service";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,13 @@ export async function POST(req: Request) {
           },
         });
 
+        // Create order update notification
+        try {
+          await notificationService.createOrderNotification(order.userId, order.id, "Payment Completed", `Your order #${order.id} has been paid successfully.`);
+        } catch (notifError: any) {
+          console.error("Error creating order notification:", notifError.message);
+        }
+
         // Clear the user's cart after successful payment
         if (order.userId) {
           const deletedCartItems = await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
@@ -85,6 +93,13 @@ export async function POST(req: Request) {
         try {
           const certificate = await certificateService.generateCertificate(order.id);
           console.log("Generated certificate:", certificate.id, "for order:", order.id);
+
+          // Create notification for successful payment and certificate generation
+          try {
+            await notificationService.createPaymentNotification(order.userId, order.id, "Successful", `Payment received for order #${order.id}. Your certificate is ready!`);
+          } catch (notifError: any) {
+            console.error("Error creating payment notification:", notifError.message);
+          }
         } catch (certError: any) {
           console.error("Error generating certificate for order:", order.id, certError.message);
         }
@@ -108,7 +123,7 @@ export async function POST(req: Request) {
           },
         });
         // Mark order as failed
-        await prisma.order.update({
+        const order = await prisma.order.update({
           where: { id: payment.orderId },
           data: {
             status: "Failed",
@@ -122,6 +137,13 @@ export async function POST(req: Request) {
             message: `Payment failed: ${paymentIntent.last_payment_error?.message || "Unknown error"}`,
           },
         });
+
+        // Create payment failure notification
+        try {
+          await notificationService.createPaymentNotification(order.userId, order.id, "Failed", `Payment failed for order #${order.id}. Please try again.`);
+        } catch (notifError: any) {
+          console.error("Error creating payment failure notification:", notifError.message);
+        }
       }
       break;
     }

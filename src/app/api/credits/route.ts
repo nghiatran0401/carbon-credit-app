@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { notificationService } from "@/lib/notification-service";
 
 const prisma = new PrismaClient();
 
@@ -15,7 +16,34 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const data = await req.json();
-  const credit = await prisma.carbonCredit.create({ data });
+  const credit = await prisma.carbonCredit.create({
+    data,
+    include: {
+      forest: true,
+    },
+  });
+
+  // Create notification for new credits
+  try {
+    // Get all users who might be interested in new credits
+    const users = await prisma.user.findMany({
+      where: {
+        role: "user", // Only notify regular users, not admins
+      },
+    });
+
+    // Create notifications for each user
+    for (const user of users) {
+      try {
+        await notificationService.createCreditNotification(user.id, credit.id, credit.forest?.name || "Unknown Forest", `New ${credit.certification} credits available (${credit.availableCredits} credits)`);
+      } catch (error) {
+        console.error(`Failed to create notification for user ${user.id}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error("Error creating credit notifications:", error);
+  }
+
   return NextResponse.json(credit);
 }
 

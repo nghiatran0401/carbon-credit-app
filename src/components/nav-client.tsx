@@ -6,6 +6,7 @@ import { ShoppingCart } from "lucide-react";
 import useSWR from "swr";
 import { apiGet } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { NotificationBell } from "@/components/notification-bell";
 
 export function DesktopNav() {
   const { isAuthenticated, user, logout } = useAuth();
@@ -37,6 +38,8 @@ export function DesktopNav() {
           {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-green-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">{cartCount}</span>}
         </Link>
       )}
+      {/* Notification Bell */}
+      {isAuthenticated && <NotificationBell />}
       {isAuthenticated ? (
         <button
           onClick={() => {
