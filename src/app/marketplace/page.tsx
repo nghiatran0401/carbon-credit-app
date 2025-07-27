@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { ShoppingCart, Leaf, MapPin, Shield, CreditCard, Gift, Users, Info } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import useSWR from "swr";
 import { useToast } from "@/hooks/use-toast";
 import type { CarbonCredit, Order, OrderItem } from "@/types";
@@ -29,14 +29,9 @@ export default function MarketplacePage() {
   const { data: forests } = useSWR("/api/forests", fetcher);
   // Fetch exchange rates for all credits
   const { data: exchangeRates } = useSWR("/api/exchange-rates", fetcher);
-  // Fetch orders for purchase history
-  const { data: orders } = useSWR("/api/orders", fetcher);
+
   const [selectedCredit, setSelectedCredit] = useState<any | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [cart, setCart] = useState<any[]>([]);
-  const [orderLoading, setOrderLoading] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
-  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [forestType, setForestType] = useState("all");
   const [certification, setCertification] = useState("all");
   const [sortBy, setSortBy] = useState("price-low");
@@ -83,42 +78,6 @@ export default function MarketplacePage() {
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  };
-
-  const getTotalCartValue = () => {
-    return cart.reduce((total, item) => total + item.subtotal, 0);
-  };
-
-  const handleCheckout = async () => {
-    if (cart.length === 0) {
-      toast({ title: "Cart empty", description: "Add items to your cart before checking out.", variant: "info" });
-      return;
-    }
-    setOrderLoading(true);
-    setOrderError(null);
-    setOrderSuccess(null);
-    try {
-      const userId = user?.id;
-      if (!userId) throw new Error("User not found");
-      const order = await apiPost<any>("/api/orders", {
-        userId,
-        status: "Pending",
-        items: cart.map((item) => ({
-          carbonCreditId: item.id,
-          quantity: item.quantity,
-          pricePerCredit: item.pricePerCredit,
-        })),
-      });
-      setOrderSuccess("Order placed successfully!");
-      setCart([]);
-      mutate(); // Refetch credits
-      toast({ title: "Order placed", description: `Your order #${order.id} was placed successfully.`, variant: "default" });
-    } catch (err: any) {
-      setOrderError(err.message);
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setOrderLoading(false);
     }
   };
 
@@ -264,7 +223,7 @@ export default function MarketplacePage() {
             const usdValue = latestRate ? (credit.pricePerCredit * latestRate.rate).toFixed(2) : null;
             const forest = forests?.find((f: any) => f.id === credit.forestId);
             // Purchase history for this credit
-            const creditOrders = orders ? orders.filter((o: any) => o.items.some((item: any) => item.carbonCreditId === credit.id)) : [];
+
             return (
               <div className="relative" key={credit.id}>
                 {/* Sold Out Overlay */}

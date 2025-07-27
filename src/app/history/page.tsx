@@ -55,21 +55,6 @@ export default function HistoryPage() {
     }
   }, [isAuthenticated, router]);
 
-  // Manual order completion for testing
-  const handleCompleteOrder = async (orderId: number) => {
-    try {
-      const response = await fetch(`/api/orders/${orderId}/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (response.ok) {
-        mutate(); // Refresh the orders list
-      }
-    } catch (error) {
-      console.error("Error completing order:", error);
-    }
-  };
-
   // For admin: filter by selected user
   const filteredOrders = useMemo(() => {
     let filtered = orders;
@@ -177,11 +162,6 @@ export default function HistoryPage() {
                   Placed: {new Date(order.createdAt).toLocaleString()}
                   <br />
                   {user?.role === "admin" && <span>User: {order.user?.email}</span>}
-                  {order.status === "Pending" && (
-                    <Button size="sm" variant="outline" onClick={() => handleCompleteOrder(order.id)} className="mt-2 text-xs">
-                      Complete Order
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               <CardContent>
