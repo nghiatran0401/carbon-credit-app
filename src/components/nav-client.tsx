@@ -70,6 +70,6 @@ export function MobileNavWrapper() {
   if (isAuthenticated && user?.role === "admin") {
     links.push({ href: "/admin", label: "Admin" });
   }
-  links.push({ href: "/auth", label: isAuthenticated ? "Logout" : "Login/Register" });
+  // Don't add logout to links array since MobileNav handles it separately
   return <MobileNav links={links} isAuthenticated={isAuthenticated} logout={logout} />;
 }

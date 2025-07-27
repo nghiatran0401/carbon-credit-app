@@ -73,6 +73,24 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
    npx tsx prisma/seed.ts
    ```
 
+### Database Management with Prisma Studio
+
+Prisma Studio provides a visual interface to view and edit your database data:
+
+```bash
+npx prisma studio
+```
+
+This will open Prisma Studio in your browser (usually at `http://localhost:5555`), where you can:
+
+- Browse and edit all database tables
+- View relationships between models
+- Add, edit, or delete records
+- Filter and sort data
+- Export data in various formats
+
+**Note**: Prisma Studio is a development tool and should not be used in production environments.
+
 ### Running the Development Server
 
 ```bash

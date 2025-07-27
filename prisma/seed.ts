@@ -169,6 +169,199 @@ async function main() {
     });
     exchangeRates.push(rate1, rate2, rate3);
   }
+
+  // Create sample notifications for testing
+  const users = await prisma.user.findMany();
+  const user1 = users.find((u) => u.email === "user1@gmail.com");
+  const user2 = users.find((u) => u.email === "user2@gmail.com");
+
+  if (user1 && user2) {
+    // Create 5 different types of notifications for testing
+    await Promise.all([
+      // 1. Order notification - Order created
+      prisma.notification.create({
+        data: {
+          userId: user1.id,
+          type: "order",
+          title: "Order Created Successfully",
+          message: "Your order #1234 has been created and is pending payment. Total: $1,250.00",
+          data: {
+            orderId: 1234,
+            event: "created",
+            status: "pending",
+            totalAmount: 1250.0,
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+        },
+      }),
+
+      // 2. Payment notification - Payment succeeded
+      prisma.notification.create({
+        data: {
+          userId: user1.id,
+          type: "payment",
+          title: "Payment Successful",
+          message: "Payment for order #1234 has been processed successfully. Your carbon credits are now available.",
+          data: {
+            orderId: 1234,
+            event: "payment_succeeded",
+            status: "completed",
+            amount: 1250.0,
+          },
+          read: true,
+          readAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
+          createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hour ago
+        },
+      }),
+
+      // 3. Credit notification - New credits available
+      prisma.notification.create({
+        data: {
+          userId: user1.id,
+          type: "credit",
+          title: "New Carbon Credits Available",
+          message: "New VCS certified credits from Can Gio Mangrove Forest are now available for purchase.",
+          data: {
+            creditId: credits[0]?.id || 1,
+            forestName: "Can Gio Mangrove Forest",
+            event: "new_credits",
+            certification: "VCS",
+            availableCredits: 5000,
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+        },
+      }),
+
+      // 4. System notification - Platform maintenance
+      prisma.notification.create({
+        data: {
+          userId: user1.id,
+          type: "system",
+          title: "Scheduled Maintenance",
+          message: "The platform will be undergoing maintenance on Sunday, 2:00-4:00 AM UTC. Some features may be temporarily unavailable.",
+          data: {
+            event: "maintenance",
+            scheduledDate: "2024-01-28T02:00:00Z",
+            duration: "2 hours",
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+        },
+      }),
+
+      // 5. Order notification - Order completed with certificate
+      prisma.notification.create({
+        data: {
+          userId: user1.id,
+          type: "order",
+          title: "Certificate Generated",
+          message: "Your carbon credit certificate for order #1234 has been generated and is ready for download.",
+          data: {
+            orderId: 1234,
+            event: "certificate_generated",
+            status: "completed",
+            certificateId: "cert_abc123",
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+        },
+      }),
+
+      // 6. Payment notification - Payment failed (for user2)
+      prisma.notification.create({
+        data: {
+          userId: user2.id,
+          type: "payment",
+          title: "Payment Failed",
+          message: "Payment for order #5678 failed. Please check your payment method and try again.",
+          data: {
+            orderId: 5678,
+            event: "payment_failed",
+            status: "failed",
+            failureReason: "Insufficient funds",
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 45 * 60 * 1000), // 45 minutes ago
+        },
+      }),
+
+      // 7. Credit notification - Price change alert
+      prisma.notification.create({
+        data: {
+          userId: user2.id,
+          type: "credit",
+          title: "Price Alert",
+          message: "The price for Gold Standard credits from Xuan Thuy National Park has increased by 15%.",
+          data: {
+            creditId: credits[1]?.id || 2,
+            forestName: "Xuan Thuy National Park",
+            event: "price_change",
+            oldPrice: 12.5,
+            newPrice: 14.38,
+            changePercent: 15,
+          },
+          read: true,
+          readAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
+          createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 hours ago
+        },
+      }),
+
+      // 8. System notification - Welcome message
+      prisma.notification.create({
+        data: {
+          userId: user2.id,
+          type: "system",
+          title: "Welcome to EcoCredit!",
+          message: "Thank you for joining EcoCredit. Start exploring our carbon credit marketplace and make a positive impact on the environment.",
+          data: {
+            event: "welcome",
+            userType: "new_user",
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        },
+      }),
+
+      // 9. Order notification - Order shipped
+      prisma.notification.create({
+        data: {
+          userId: user1.id,
+          type: "order",
+          title: "Order Status Updated",
+          message: "Your order #1234 has been processed and your carbon credits have been retired on your behalf.",
+          data: {
+            orderId: 1234,
+            event: "credits_retired",
+            status: "completed",
+            retiredCredits: 100,
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
+        },
+      }),
+
+      // 10. Credit notification - Limited availability
+      prisma.notification.create({
+        data: {
+          userId: user2.id,
+          type: "credit",
+          title: "Limited Availability",
+          message: "Only 50 VCS credits remaining from Cuc Phuong National Park. Don't miss out!",
+          data: {
+            creditId: credits[2]?.id || 3,
+            forestName: "Cuc Phuong National Park",
+            event: "low_stock",
+            remainingCredits: 50,
+            certification: "VCS",
+          },
+          read: false,
+          createdAt: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
+        },
+      }),
+    ]);
+  }
 }
 
 main()

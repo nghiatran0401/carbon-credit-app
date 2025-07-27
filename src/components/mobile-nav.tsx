@@ -28,7 +28,7 @@ export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
           <span className="sr-only">Toggle menu</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-[280px] sm:w-[350px] md:w-[400px]">
+      <SheetContent side="right" className="w-[280px] sm:w-[350px] md:w-[400px] bg-white">
         <div className="flex items-center space-x-2 mb-6">
           <Leaf className="h-6 w-6 text-green-600" />
           <span className="text-xl font-bold text-green-800">EcoCredit</span>
