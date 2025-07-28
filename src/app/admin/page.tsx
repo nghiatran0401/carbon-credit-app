@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
 import ForestsAdmin from "@/app/admin/ForestsAdmin";
@@ -61,44 +61,35 @@ export default function AdminPage() {
   const [selectedYear, setSelectedYear] = useState<number>(2024);
   const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Auth check
-  if (!isClient) {
-    return <div className="p-8 text-center">Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    router.replace("/auth");
-    return null;
-  }
-  if (user?.role !== "admin") {
-    return <div className="p-8 text-center text-red-600">Access denied. Admins only.</div>;
-  }
-
-  // Fetch all data for analytics
+  // Fetch all data for analytics - these hooks must be called before any conditional returns
   const { data: ordersRaw } = useSWR("/api/orders", apiGet);
   const { data: creditsRaw } = useSWR("/api/credits", apiGet);
   const { data: forestsRaw } = useSWR("/api/forests", apiGet);
   const { data: usersRaw } = useSWR("/api/users", apiGet);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Process data
   const orders: Order[] = Array.isArray(ordersRaw) ? ordersRaw : [];
   const credits: CarbonCredit[] = Array.isArray(creditsRaw) ? creditsRaw : [];
   const forests: Forest[] = Array.isArray(forestsRaw) ? forestsRaw : [];
   const users: User[] = Array.isArray(usersRaw) ? usersRaw : [];
 
-  // Key metrics
+  // ALL useMemo hooks must be called before any conditional returns
   const totalCreditsSold = useMemo(() => {
     return orders.reduce((sum, order) => sum + (order.items?.reduce((s, item) => s + (item.quantity || 0), 0) || 0), 0);
   }, [orders]);
+
   const totalRevenue = useMemo(() => {
     return orders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
   }, [orders]);
-  const activeProjects = forests.length;
-  const totalCredits = credits.reduce((sum, c) => sum + (c.totalCredits || 0), 0);
-  const availableCredits = credits.reduce((sum, c) => sum + (c.availableCredits || 0), 0);
-  const partnersCount = users.length;
+
+  const activeProjects = useMemo(() => forests.length, [forests]);
+  const totalCredits = useMemo(() => credits.reduce((sum, c) => sum + (c.totalCredits || 0), 0), [credits]);
+  const availableCredits = useMemo(() => credits.reduce((sum, c) => sum + (c.availableCredits || 0), 0), [credits]);
+  const partnersCount = useMemo(() => users.length, [users]);
 
   // Monthly sales data for chart (filtered by year)
   const monthlyBarData = useMemo(() => {
@@ -134,9 +125,14 @@ export default function AdminPage() {
         if (!forestId) return;
         if (!map.has(forestId)) {
           const forest = forests.find((f) => f.id === forestId);
-          map.set(forestId, { forest: forest!, creditsSold: 0 });
+          if (forest) {
+            map.set(forestId, { forest, creditsSold: 0 });
+          }
         }
-        map.get(forestId)!.creditsSold += item.quantity || 0;
+        const entry = map.get(forestId);
+        if (entry) {
+          entry.creditsSold += item.quantity || 0;
+        }
       });
     });
     return Array.from(map.values())
@@ -152,17 +148,22 @@ export default function AdminPage() {
       if (!userId) return;
       if (!map.has(userId)) {
         const u = users.find((u) => u.id === userId);
-        map.set(userId, { user: u!, total: 0 });
+        if (u) {
+          map.set(userId, { user: u, total: 0 });
+        }
       }
-      map.get(userId)!.total += order.totalPrice || 0;
+      const entry = map.get(userId);
+      if (entry) {
+        entry.total += order.totalPrice || 0;
+      }
     });
     return Array.from(map.values())
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
   }, [orders, users]);
 
-  // Export CSV
-  const handleDownloadCSV = () => {
+  // Export CSV function
+  const handleDownloadCSV = useCallback(() => {
     if (typeof window === "undefined") return; // Server-side guard
 
     try {
@@ -177,7 +178,21 @@ export default function AdminPage() {
     } catch (error) {
       console.error("Error downloading CSV:", error);
     }
-  };
+  }, [orders]);
+
+  // Auth check - after ALL hooks are called
+  if (!isClient) {
+    return <div className="p-8 text-center">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    router.replace("/auth");
+    return null;
+  }
+
+  if (user?.role !== "admin") {
+    return <div className="p-8 text-center text-red-600">Access denied. Admins only.</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50">

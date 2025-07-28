@@ -65,10 +65,81 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const { id, ...data } = await req.json();
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  const order = await prisma.order.update({ where: { id }, data });
-  return NextResponse.json(order);
+  try {
+    const { id, status, ...data } = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
+
+    // Get the current order to check if status is changing
+    const currentOrder = await prisma.order.findUnique({
+      where: { id: Number(id) },
+      select: { status: true, userId: true },
+    });
+
+    if (!currentOrder) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    const updateData: any = { ...data };
+    if (status !== undefined) updateData.status = status;
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: Number(id) },
+      data: updateData,
+      include: {
+        user: true,
+        items: {
+          include: {
+            carbonCredit: true,
+          },
+        },
+        payments: true,
+        orderHistory: true,
+      },
+    });
+
+    // Create order history entry if status changed
+    if (status && status !== currentOrder.status) {
+      await prisma.orderHistory.create({
+        data: {
+          orderId: Number(id),
+          event: "status_updated",
+          message: `Order status changed from ${currentOrder.status} to ${status}`,
+        },
+      });
+
+      // Create notification for status change
+      try {
+        await notificationService.createOrderNotification(currentOrder.userId, Number(id), "Status Updated", `Your order #${id} status has been updated to ${status}`);
+      } catch (error) {
+        console.error("Error creating status update notification:", error);
+      }
+
+      // Fetch the updated order with the new order history
+      const updatedOrderWithHistory = await prisma.order.findUnique({
+        where: { id: Number(id) },
+        include: {
+          user: true,
+          items: {
+            include: {
+              carbonCredit: true,
+            },
+          },
+          payments: true,
+          orderHistory: true,
+        },
+      });
+
+      return NextResponse.json(updatedOrderWithHistory);
+    }
+
+    return NextResponse.json(updatedOrder);
+  } catch (error: any) {
+    console.error("Error updating order:", error);
+    return NextResponse.json({ error: error.message || "Failed to update order" }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request) {

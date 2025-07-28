@@ -9,6 +9,8 @@ export interface User {
   lastName: string;
   company?: string | null;
   role: string;
+  emailVerified: boolean;
+  stripeCustomerId?: string | null;
   createdAt: string;
   updatedAt: string;
   orders?: Order[];
@@ -43,6 +45,8 @@ export interface CarbonCredit {
   totalCredits: number;
   availableCredits: number;
   pricePerCredit: number;
+  symbol: string;
+  retiredCredits: number;
   createdAt: string;
   updatedAt: string;
   forest?: Forest;
