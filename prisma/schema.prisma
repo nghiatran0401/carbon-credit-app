@@ -3,7 +3,7 @@ generator client {
 }
 
 generator erd {
-  provider = "prisma-dbml-generator"
+  provider = "prisma-erd-generator"
 }
 
 datasource db {
