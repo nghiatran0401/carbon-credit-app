@@ -65,6 +65,51 @@ async function createUsers() {
   console.log("👥 Creating users...");
   const users = [];
 
+  // Create demo accounts first
+  console.log("   Creating demo accounts...");
+  const demoUsers = await Promise.all([
+    prisma.user.create({
+      data: {
+        email: "admin@gmail.com",
+        passwordHash: await bcrypt.hash("cos20031", 10),
+        firstName: "Admin",
+        lastName: "User",
+        company: null,
+        role: "admin",
+        emailVerified: true,
+        stripeCustomerId: "cus_admin_001",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: "user1@gmail.com",
+        passwordHash: await bcrypt.hash("cos20031", 10),
+        firstName: "Alice",
+        lastName: "Nguyen",
+        company: "GreenTech",
+        role: "user",
+        emailVerified: true,
+        stripeCustomerId: "cus_user1_001",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: "user2@gmail.com",
+        passwordHash: await bcrypt.hash("cos20031", 10),
+        firstName: "Bob",
+        lastName: "Tran",
+        company: "EcoWorks",
+        role: "user",
+        emailVerified: false,
+        stripeCustomerId: "cus_user2_001",
+      },
+    }),
+  ]);
+
+  users.push(...demoUsers);
+  console.log("   ✅ Demo accounts created");
+
+  // Create additional random users
   for (let i = 0; i < CONFIG.USERS; i++) {
     const firstName = faker.person.firstName();
     const lastName = faker.person.lastName();
@@ -84,7 +129,7 @@ async function createUsers() {
     });
     users.push(user);
 
-    if (i % 100 === 0) console.log(`   Created ${i + 1}/${CONFIG.USERS} users`);
+    if (i % 100 === 0) console.log(`   Created ${i + 1}/${CONFIG.USERS} additional users`);
   }
 
   return users;
