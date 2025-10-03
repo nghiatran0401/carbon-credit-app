@@ -36,6 +36,8 @@ model User {
   emailVerified Boolean  @default(false)
   stripeCustomerId String?
   notifications Notification[]
+  walletAddress    String?  @unique
+  walletPrivateKey String?
 }
 
 model Forest {
@@ -96,6 +98,8 @@ model Order {
   shippingAddress String?
   stripeSessionId String? @unique
   failureReason String?
+  tokenTxHash String?     // Blockchain transaction hash for token transfer
+  tokenTransferred Boolean @default(false) // Track if tokens have been transferred
   payments   Payment[]
   orderHistory OrderHistory[]
   certificate  Certificate?
