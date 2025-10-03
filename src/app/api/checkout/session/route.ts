@@ -5,22 +5,44 @@ const prisma = new PrismaClient();
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("session_id");
-  if (!sessionId) {
-    return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
+  const mockOrderId = req.nextUrl.searchParams.get("mock_order_id");
+  
+  if (!sessionId && !mockOrderId) {
+    return NextResponse.json({ error: "Missing session_id or mock_order_id" }, { status: 400 });
   }
 
-  // Find payment and order by Stripe session ID
-  const payment = await prisma.payment.findFirst({
-    where: { stripeSessionId: sessionId },
-    include: {
-      order: {
-        include: {
-          items: true,
-          orderHistory: true,
+  let payment;
+
+  if (mockOrderId) {
+    // Handle mock payment lookup by order ID
+    payment = await prisma.payment.findFirst({
+      where: { 
+        orderId: parseInt(mockOrderId),
+        method: "mock"
+      },
+      include: {
+        order: {
+          include: {
+            items: true,
+            orderHistory: true,
+          },
         },
       },
-    },
-  });
+    });
+  } else {
+    // Find payment and order by Stripe session ID
+    payment = await prisma.payment.findFirst({
+      where: { stripeSessionId: sessionId },
+      include: {
+        order: {
+          include: {
+            items: true,
+            orderHistory: true,
+          },
+        },
+      },
+    });
+  }
 
   if (!payment) {
     return NextResponse.json({ error: "Payment not found" }, { status: 404 });

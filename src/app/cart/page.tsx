@@ -60,6 +60,22 @@ function CartPageContent() {
     setLoading(false);
   };
 
+  const handleMockCheckout = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res: any = await apiPost("/api/checkout/mock", { userId, cartItems: cart });
+      if (res.success && res.redirectUrl) {
+        router.push(res.redirectUrl);
+        return;
+      }
+      setError("Mock checkout failed.");
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
   const handleError = (msg: string) => {
     setError(msg);
   };
@@ -155,9 +171,14 @@ function CartPageContent() {
                 <span className="font-bold text-green-700 text-2xl">${total.toFixed(2)}</span>
               </div>
               <Separator />
-              <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white font-semibold" onClick={handleCheckout} disabled={loading || cart.length === 0}>
-                {loading ? "Processing..." : "Checkout"}
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white font-semibold" onClick={handleCheckout} disabled={loading || cart.length === 0}>
+                  {loading ? "Processing..." : "Checkout with Stripe"}
+                </Button>
+                <Button size="lg" variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50" onClick={handleMockCheckout} disabled={loading || cart.length === 0}>
+                  {loading ? "Processing..." : "Mock Payment (Test)"}
+                </Button>
+              </div>
               <Link href="/marketplace" className="text-center text-green-700 hover:underline text-sm mt-2">
                 Continue Shopping
               </Link>

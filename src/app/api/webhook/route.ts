@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { certificateService } from "@/lib/certificate-service";
 import { notificationService } from "@/lib/notification-service";
+import { blockchainService } from "@/lib/blockchain-service";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,59 @@ export async function POST(req: Request) {
           }
         } catch (certError: any) {
           console.error("Error generating certificate for order:", order.id, certError.message);
+        }
+
+        // Invoke smart contract to transfer tokens (for Stripe payments too)
+        try {
+          console.log(`Initiating blockchain transaction for ${order.totalCredits} credits (Stripe order)`);
+          const blockchainTxHash = await blockchainService.transferTokensToBuyer(order.totalCredits);
+          console.log(`Blockchain transaction successful: ${blockchainTxHash}`);
+          
+          // Update order with blockchain transaction details
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              tokenTxHash: blockchainTxHash,
+              tokenTransferred: true,
+            },
+          });
+          
+          // Add blockchain transaction to order history
+          await prisma.orderHistory.create({
+            data: {
+              orderId: order.id,
+              event: "blockchain_transfer",
+              message: `Carbon tokens transferred to blockchain. Transaction hash: ${blockchainTxHash}`,
+            },
+          });
+
+          // Create blockchain notification
+          await notificationService.createOrderNotification(
+            order.userId, 
+            order.id, 
+            "Blockchain Transfer Complete", 
+            `Your ${order.totalCredits} carbon credits have been transferred to the blockchain. TX: ${blockchainTxHash}`
+          );
+
+        } catch (blockchainError: any) {
+          console.error("Blockchain transfer failed for Stripe order:", blockchainError.message);
+          
+          // Record the blockchain failure but don't fail the entire order
+          await prisma.orderHistory.create({
+            data: {
+              orderId: order.id,
+              event: "blockchain_failed",
+              message: `Blockchain transfer failed: ${blockchainError.message}`,
+            },
+          });
+
+          // Notify user of blockchain issue
+          await notificationService.createOrderNotification(
+            order.userId, 
+            order.id, 
+            "Blockchain Transfer Failed", 
+            `Your order was completed but blockchain transfer failed. Please contact support. Order #${order.id}`
+          );
         }
       } else {
         console.error("No payment found for session:", session.id);

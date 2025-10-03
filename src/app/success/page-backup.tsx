@@ -7,14 +7,6 @@ import { CertificateDisplay } from "@/components/certificate-display";
 import { getBlockchainExplorerInfo, formatTransactionStatus, truncateTransactionHash } from "@/lib/blockchain-utils";
 import type { Certificate } from "@/types";
 
-export default function SuccessPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <SuccessPageContent />
-    </Suspense>
-  );
-}
-
 function SuccessPageContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
@@ -123,12 +115,10 @@ function SuccessPageContent() {
           <div className="mb-2 text-sm text-gray-700">
             Session ID: <span className="font-mono">{payment.stripeSessionId}</span>
           </div>
-          
-          {/* Blockchain Transaction Display */}
           {order.tokenTxHash && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <div className={`w-3 h-3 rounded-full ${order.tokenTransferred ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`}></div>
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 <span className="text-sm font-semibold text-green-800">
                   Blockchain Transaction
                 </span>
@@ -137,9 +127,6 @@ function SuccessPageContent() {
                 <div className="text-xs text-gray-600 mb-1">Transaction Hash:</div>
                 <div className="font-mono text-xs bg-white p-2 rounded border break-all">
                   {order.tokenTxHash}
-                </div>
-                <div className="mt-1 text-xs text-gray-500">
-                  Short: {truncateTransactionHash(order.tokenTxHash)}
                 </div>
               </div>
               <div className="flex flex-col gap-2 text-xs">
@@ -155,7 +142,7 @@ function SuccessPageContent() {
                   </svg>
                 </a>
                 <a 
-                  href="http://localhost:7545"
+                  href={`http://localhost:7545`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-800 underline"
@@ -172,12 +159,10 @@ function SuccessPageContent() {
                 </span>
               </div>
               <div className="text-xs text-gray-600 mt-1">
-                🌿 {order.totalCredits} carbon credits on blockchain
+                🌿 {order.totalCredits} carbon credits transferred to blockchain
               </div>
             </div>
           )}
-          
-          {/* Pending Blockchain Transfer */}
           {!order.tokenTxHash && order.totalCredits > 0 && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
@@ -194,25 +179,44 @@ function SuccessPageContent() {
               </div>
             </div>
           )}
-          
+          </div>
+          <div className="mb-2 text-sm text-gray-700">Items:</div>
+          <ul className="list-disc pl-6 text-gray-700">
+            {order.items?.map((item: any) => (
+              <li key={item.id}>
+                {item.quantity} x Credit #{item.carbonCreditId} @ ${item.pricePerCredit.toFixed(2)} each (Subtotal: ${item.subtotal.toFixed(2)})
+              </li>
+            ))}
+          </ul>
         </div>
       )}
+
+      {/* Certificate Display */}
       {certificate && (
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-4xl mt-8">
+          <h2 className="text-xl font-bold text-center mb-6 text-green-800">Your Certificate</h2>
           <CertificateDisplay certificate={certificate} />
         </div>
       )}
-      <div className="flex flex-col items-center gap-2 mt-4">
-        <Link
-          href="/dashboard"
-          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-        >
-          View Dashboard
+
+      <div className="flex flex-col sm:flex-row gap-4 mt-6">
+        <Link href="/dashboard">
+          <button className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Go to Dashboard</button>
         </Link>
-        <Link href="/marketplace" className="text-green-700 hover:underline">
-          Continue Shopping
-        </Link>
+        {certificate && (
+          <Link href="/history">
+            <button className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">View All Certificates</button>
+          </Link>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<div className="flex flex-col items-center justify-center min-h-[70vh] py-12">Loading...</div>}>
+      <SuccessPageContent />
+    </Suspense>
   );
 }
