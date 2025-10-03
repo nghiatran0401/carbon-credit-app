@@ -60,6 +60,18 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 
    # Application URLs
    NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+
+   # Blockchain (Cart transparency logging)
+   # Local Ganache example
+   BLOCKCHAIN_RPC_URL="http://127.0.0.1:8545"
+   # Private key of the account used to send logging transactions (DO NOT COMMIT)
+   BLOCKCHAIN_PRIVATE_KEY="0xabc123..."
+   # Address of deployed CartLogger contract (after truffle migrate)
+   CART_LOGGER_ADDRESS="0x..."
+   # Token transfer (on payment completion)
+   SELLER_PRIVATE_KEY="0x..."           # Private key holding initial CarbonToken supply
+   CARBON_TOKEN_ADDRESS="0x..."         # Deployed CarbonToken contract address
+   DEFAULT_BUYER_WALLET_ADDRESS="0x..." # Optional fallback if user.walletAddress not set
    ```
 
 ### Database Setup
@@ -246,3 +258,42 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 - **Optimistic Updates**: Immediate UI updates with fallback error handling
 - **Notification Filtering**: Filter notifications by type (order, credit, payment, system)
 - **Bulk Operations**: Mark all notifications as read with a single click
+
+## Blockchain Transparency (Cart Actions)
+
+The application emits on-chain events for cart mutations to provide a public, tamper-evident audit trail.
+
+Contract: `CartLogger.sol` (event-only, minimal gas)
+
+Event schema:
+
+```
+event CartAction(
+   uint256 indexed userId,
+   uint256 indexed carbonCreditId,
+   uint256 quantity,
+   string action,      // ADD | UPDATE | REMOVE
+   uint256 timestamp
+);
+```
+
+Flow:
+1. User performs cart action (add/update/remove).
+2. API updates database via Prisma.
+3. Server attempts to call `CartLogger.log(...)` using configured RPC + private key.
+4. Response includes `{ blockchain: { txHash } }` or an error if logging not configured.
+
+To enable locally:
+1. Run a local chain (Ganache, Hardhat node, etc.) exposing an RPC URL.
+2. `truffle migrate --network development` to deploy contracts.
+3. Copy deployed `CartLogger` address from migration output to `CART_LOGGER_ADDRESS` in `.env.local`.
+4. Set `BLOCKCHAIN_PRIVATE_KEY` for the account that deployed the contract (or any funded account).
+5. Restart Next.js dev server so env vars load.
+
+If env vars are missing, cart operations still succeed; blockchain logging is skipped gracefully.
+
+Future extensions:
+- Restrict `log` function to a specific relayer address.
+- Index events off-chain into a queryable table.
+- Add per-order payment events to on-chain log.
+- Migrate to a rollup / L2 for low fees if moving to public networks.
