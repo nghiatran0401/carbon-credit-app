@@ -6,6 +6,7 @@ import { certificateService } from "@/lib/certificate-service";
 import { notificationService } from "@/lib/notification-service";
 import { orderAuditService } from "@/lib/order-audit-service";
 import { orderAuditMiddleware } from "@/lib/order-audit-middleware";
+import { carbonMovementService } from "@/lib/carbon-movement-service";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,16 @@ export async function POST(req: Request) {
         } catch (auditError: any) {
           console.error(`❌ Error in audit middleware for order ${order.id}:`, auditError.message);
           // Don't fail the webhook if audit storage fails, but log it
+        }
+
+        // Track carbon credit movement in Neo4j
+        try {
+          console.log(`Tracking carbon credit movement for order ${order.id}`);
+          await carbonMovementService.trackOrderMovement(order.id);
+          console.log(`✅ Carbon credit movement tracked for order ${order.id}`);
+        } catch (movementError: any) {
+          console.error(`❌ Error tracking movement for order ${order.id}:`, movementError.message);
+          // Don't fail the webhook if movement tracking fails
         }
 
         // Create order update notification
