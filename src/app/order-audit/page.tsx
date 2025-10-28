@@ -152,37 +152,37 @@ export default function OrderAuditPage() {
         <TabsContent value="overview" className="space-y-4">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Audited Orders</CardTitle>
+                <CardTitle className="text-sm font-medium text-blue-900">Total Audited Orders</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{audits.length}</div>
-                <p className="text-xs text-muted-foreground">Stored in ImmuDB</p>
+                <div className="text-2xl font-bold text-blue-900">{audits.length}</div>
+                <p className="text-xs text-blue-700">Stored in ImmuDB</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Credits Audited</CardTitle>
+                <CardTitle className="text-sm font-medium text-green-900">Total Credits Audited</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-green-900">
                   {audits.reduce((sum, audit) => sum + audit.transactionData.totalCredits, 0)}
                 </div>
-                <p className="text-xs text-muted-foreground">Carbon credits</p>
+                <p className="text-xs text-green-700">Carbon credits</p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Value Audited</CardTitle>
+                <CardTitle className="text-sm font-medium text-purple-900">Total Value Audited</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-purple-900">
                   {formatCurrency(audits.reduce((sum, audit) => sum + audit.transactionData.totalPrice, 0))}
                 </div>
-                <p className="text-xs text-muted-foreground">Transaction value</p>
+                <p className="text-xs text-purple-700">Transaction value</p>
               </CardContent>
             </Card>
           </div>
@@ -359,40 +359,41 @@ export default function OrderAuditPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>SHA256 Hash</Label>
+                
                 <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
+                  <Label>SHA256 Hash</Label><br></br>
                   {selectedAudit.hash}
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-2 gap-4 ">
+                <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Order ID</Label>
                   <div className="text-sm">#{selectedAudit.transactionData.orderId}</div>
                 </div>
-                <div>
+                <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Total Credits</Label>
                   <div className="text-sm">{selectedAudit.transactionData.totalCredits}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Total Price</Label>
                   <div className="text-sm">{formatCurrency(selectedAudit.transactionData.totalPrice)}</div>
                 </div>
-                <div>
+                <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Paid At</Label>
                   <div className="text-sm">{formatTimestamp(new Date(selectedAudit.transactionData.paidAt).getTime())}</div>
                 </div>
               </div>
 
-              <div>
+              <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                 <Label>Audit Timestamp</Label>
                 <div className="text-sm">{formatTimestamp(selectedAudit.timestamp)}</div>
               </div>
 
-              <div>
+              <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                 <Label>ImmuDB Key</Label>
                 <div className="font-mono text-sm bg-gray-100 p-2 rounded">
                   order_{selectedAudit.orderId}
