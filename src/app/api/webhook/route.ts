@@ -4,6 +4,8 @@ import Stripe from "stripe";
 import { PrismaClient } from "@prisma/client";
 import { certificateService } from "@/lib/certificate-service";
 import { notificationService } from "@/lib/notification-service";
+import { orderAuditService } from "@/lib/order-audit-service";
+import { orderAuditMiddleware } from "@/lib/order-audit-middleware";
 
 export const dynamic = "force-dynamic";
 
@@ -30,13 +32,18 @@ export async function POST(req: Request) {
 
   const prisma = new PrismaClient();
 
+  console.log(`🔔 Webhook received: ${event.type} at ${new Date().toISOString()}`);
+
   // Handle the event
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+      console.log(`💳 Checkout session completed: ${session.id}`);
 
       // Find the payment by stripeSessionId
       const payment = await prisma.payment.findFirst({ where: { stripeSessionId: session.id } });
+      console.log(`🔍 Payment found:`, payment ? `Order ${payment.orderId}` : 'None');
+      
       if (payment) {
         // Mark payment as succeeded
         await prisma.payment.update({
@@ -56,7 +63,19 @@ export async function POST(req: Request) {
             status: "Completed",
             paidAt: new Date(),
           },
+          include: {
+            items: {
+              include: {
+                carbonCredit: true,
+              },
+            },
+          },
         });
+
+        // Calculate total credits from order items
+        const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+        console.log(`Processing webhook for order ${order.id}: ${totalCredits} credits, $${order.totalPrice}, paid at ${order.paidAt}`);
 
         // Add OrderHistory event
         await prisma.orderHistory.create({
@@ -66,6 +85,23 @@ export async function POST(req: Request) {
             message: `Order paid via Stripe session ${session.id}`,
           },
         });
+
+        // Store immutable audit trail in ImmuDB using middleware
+        try {
+          console.log(`Ensuring audit trail for order ${order.id} (${totalCredits} credits, $${order.totalPrice})`);
+          const auditResult = await orderAuditMiddleware.ensureOrderAudit(order.id);
+          
+          if (auditResult.created) {
+            console.log(`✅ New audit trail created for order ${order.id}`);
+          } else if (auditResult.exists) {
+            console.log(`ℹ️ Audit trail already exists for order ${order.id}`);
+          } else if (auditResult.error) {
+            console.error(`❌ Failed to create audit trail for order ${order.id}: ${auditResult.error}`);
+          }
+        } catch (auditError: any) {
+          console.error(`❌ Error in audit middleware for order ${order.id}:`, auditError.message);
+          // Don't fail the webhook if audit storage fails, but log it
+        }
 
         // Create order update notification
         try {

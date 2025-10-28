@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { orderAuditMiddleware } from "@/lib/order-audit-middleware";
 
 const prisma = new PrismaClient();
 
@@ -57,6 +58,23 @@ export async function GET(req: NextRequest) {
 
     // Clear the user's cart
     await prisma.cartItem.deleteMany({ where: { userId: payment.order.userId } });
+
+    // Ensure audit trail is created for the completed order
+    try {
+      console.log(`Creating audit trail for order ${payment.order.id} via checkout session`);
+      const auditResult = await orderAuditMiddleware.ensureOrderAudit(payment.order.id);
+      
+      if (auditResult.created) {
+        console.log(`✅ Audit trail created for order ${payment.order.id} via checkout session`);
+      } else if (auditResult.exists) {
+        console.log(`ℹ️ Audit trail already exists for order ${payment.order.id}`);
+      } else if (auditResult.error) {
+        console.error(`❌ Failed to create audit trail for order ${payment.order.id}: ${auditResult.error}`);
+      }
+    } catch (auditError: any) {
+      console.error(`❌ Error in audit middleware for order ${payment.order.id}:`, auditError.message);
+      // Don't fail the request if audit storage fails
+    }
 
     // Fetch updated data
     const updatedPayment = await prisma.payment.findFirst({

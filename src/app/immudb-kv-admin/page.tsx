@@ -134,7 +134,7 @@ export default function ImmudbKeyValueAdmin() {
   };
 
   useEffect(() => {
-    runDebugTest();
+    // runDebugTest();
   }, []);
 
   return (
