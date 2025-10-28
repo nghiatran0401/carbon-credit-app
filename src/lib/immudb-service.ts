@@ -117,11 +117,21 @@ class ImmudbService {
         metadata: transactionHash.metadata,
       });
 
+      console.log(`Attempting to store transaction with key: ${key}`);
+      console.log(`Value: ${value}`);
+      
       const result = await this.client.set({ key, value });
+      console.log(`Transaction hash stored successfully. Result:`, result);
       console.log(`Transaction hash stored with ID: ${result?.id || 'unknown'}`);
+      
+      // Immediately verify the data was stored
+      const verification = await this.client.get({ key });
+      console.log(`Verification read result:`, verification);
+      
       return result?.id?.toString() || 'stored';
     } catch (error) {
       console.error('Failed to store transaction hash:', error);
+      console.error('Error details:', error);
       throw new Error(`Failed to store transaction hash: ${error}`);
     }
   }
@@ -171,21 +181,32 @@ class ImmudbService {
     }
 
     try {
+      console.log(`Scanning for transactions with prefix 'tx_' and limit ${limit}`);
+      
       // Use scan to get all keys with prefix 'tx_'
       const result = await this.client.scan({
         prefix: 'tx_',
         limit,
       });
 
+      console.log('Scan result:', result);
+      console.log('Entries list:', result?.entriesList);
+
       const transactions: TransactionHash[] = [];
       
       if (result && result.entriesList) {
+        console.log(`Found ${result.entriesList.length} entries`);
+        
         for (const entry of result.entriesList) {
           try {
+            console.log('Processing entry:', entry);
+            
             // The value might be a Uint8Array, so we need to convert it to string
             const valueStr = typeof entry.value === 'string' 
               ? entry.value 
               : new TextDecoder().decode(entry.value as Uint8Array);
+            
+            console.log('Decoded value:', valueStr);
             
             const data = JSON.parse(valueStr);
             transactions.push({
@@ -197,13 +218,18 @@ class ImmudbService {
             });
           } catch (parseError) {
             console.warn('Failed to parse transaction entry:', parseError);
+            console.warn('Entry was:', entry);
           }
         }
+      } else {
+        console.log('No entries found or entriesList is null/undefined');
       }
 
+      console.log(`Returning ${transactions.length} transactions`);
       return transactions;
     } catch (error) {
       console.error('Failed to get all transaction hashes:', error);
+      console.error('Error details:', error);
       throw new Error(`Failed to get all transaction hashes: ${error}`);
     }
   }

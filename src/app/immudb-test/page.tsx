@@ -273,7 +273,7 @@ export default function ImmudbTestPage() {
       <Card>
         <CardHeader>
           <CardTitle>Store Transaction Hash</CardTitle>
-          <CardDescription>Store a new transaction hash in ImmuDB</CardDescription>
+          <CardDescription>Store a new transaction hash in ImmuDB (Key-Value)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -317,9 +317,11 @@ export default function ImmudbTestPage() {
               />
             </div>
           </div>
-          <Button onClick={storeTransaction} disabled={isLoading}>
-            {isLoading ? 'Storing...' : 'Store Transaction'}
-          </Button>
+          <div className="flex space-x-2">
+            <Button onClick={storeTransaction} disabled={isLoading}>
+              {isLoading ? 'Storing...' : 'Store Transaction (KV)'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
