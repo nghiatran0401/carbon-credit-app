@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
         id: true,
         totalCredits: true,
         totalPrice: true,
+        buyer: true,
+        seller: true,
         paidAt: true,
         status: true
       }
@@ -48,7 +50,9 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         totalCredits: order.totalCredits,
         totalPrice: order.totalPrice,
-        paidAt: order.paidAt
+        paidAt: order.paidAt,
+        buyer: (order as any).buyer,
+        seller: (order as any).seller
       }
     );
     
@@ -69,8 +73,8 @@ export async function POST(request: NextRequest) {
         status: order.status
       },
       hashComputation: {
-        formula: "SHA256(orderId + totalCredits + totalPrice + paidAtTimestamp)",
-        dataString: `${order.id}${order.totalCredits}${order.totalPrice}${order.paidAt.getTime()}`,
+        formula: "SHA256(orderId|buyer|seller|totalCredits|totalPrice|paidAtTimestamp)",
+        dataString: `${order.id}|${(order as any).buyer ?? ''}|${(order as any).seller ?? ''}|${order.totalCredits}|${order.totalPrice}|${order.paidAt.getTime()}`,
         paidAtTimestamp: order.paidAt.getTime()
       }
     });

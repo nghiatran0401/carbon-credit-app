@@ -27,7 +27,9 @@ async function testOrderAudit() {
         orderId: 9999,
         totalCredits: 100,
         totalPrice: 250.50,
-        paidAt: new Date()
+        paidAt: new Date(),
+        buyer: 'test-buyer',
+        seller: 'test-seller'
       };
 
       console.log('Test order data:', testOrder);
@@ -43,7 +45,7 @@ async function testOrderAudit() {
     } else {
       console.log('\n📋 Processing existing completed orders:\n');
 
-      for (const order of completedOrders) {
+        for (const order of completedOrders) {
         console.log(`Order ${order.id}:`);
         console.log(`  Status: ${order.status}`);
         console.log(`  Total Credits: ${order.totalCredits}`);
@@ -56,7 +58,9 @@ async function testOrderAudit() {
             orderId: order.id,
             totalCredits: order.totalCredits,
             totalPrice: order.totalPrice,
-            paidAt: order.paidAt!
+            paidAt: order.paidAt!,
+            buyer: (order as any).buyer,
+            seller: (order as any).seller
           });
           console.log(`  ✅ Audit stored for order ${order.id}`);
 
@@ -65,7 +69,9 @@ async function testOrderAudit() {
             orderId: order.id,
             totalCredits: order.totalCredits,
             totalPrice: order.totalPrice,
-            paidAt: order.paidAt!
+            paidAt: order.paidAt!,
+            buyer: (order as any).buyer,
+            seller: (order as any).seller
           });
           console.log(`  🔐 Verification: ${verification.isValid ? 'VALID' : 'INVALID'}`);
 

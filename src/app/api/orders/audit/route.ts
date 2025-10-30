@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
           totalCredits: true,
           totalPrice: true,
           paidAt: true,
+          buyer: true,
+          seller: true,
           status: true
         }
       });
@@ -40,7 +42,9 @@ export async function GET(request: NextRequest) {
             orderId: currentOrder.id,
             totalCredits: currentOrder.totalCredits,
             totalPrice: currentOrder.totalPrice,
-            paidAt: currentOrder.paidAt
+            paidAt: currentOrder.paidAt,
+            buyer: (currentOrder as any).buyer,
+            seller: (currentOrder as any).seller,
           }
         );
       }
@@ -91,7 +95,9 @@ export async function POST(request: NextRequest) {
         totalCredits: true,
         totalPrice: true,
         paidAt: true,
-        status: true
+        status: true,
+        buyer: true,
+        seller: true
       }
     });
     
@@ -109,12 +115,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    // Store audit record
+    // Store audit record (include buyer/seller)
     const hash = await orderAuditService.storeOrderAudit({
       orderId: order.id,
       totalCredits: order.totalCredits,
       totalPrice: order.totalPrice,
-      paidAt: order.paidAt
+      paidAt: order.paidAt,
+      buyer: (order as any).buyer,
+      seller: (order as any).seller
     });
     
     return NextResponse.json({

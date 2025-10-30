@@ -28,7 +28,9 @@ async function fixMissingAudits() {
           orderId: order.id,
           totalCredits: order.totalCredits,
           totalPrice: order.totalPrice,
-          paidAt: order.paidAt!
+          paidAt: order.paidAt!,
+          buyer: (order as any).buyer,
+          seller: (order as any).seller
         });
 
         if (!verification.storedHash) {
@@ -39,7 +41,9 @@ async function fixMissingAudits() {
             orderId: order.id,
             totalCredits: order.totalCredits,
             totalPrice: order.totalPrice,
-            paidAt: order.paidAt!
+            paidAt: order.paidAt!,
+            buyer: (order as any).buyer,
+            seller: (order as any).seller
           });
           
           console.log(`  ✅ Audit record created for Order ${order.id}`);

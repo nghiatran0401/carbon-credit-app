@@ -6,6 +6,8 @@ export interface OrderTransactionData {
   totalCredits: number;
   totalPrice: number;
   paidAt: Date;
+  buyer?: string;
+  seller?: string;
 }
 
 export interface OrderHash {
@@ -18,24 +20,29 @@ export interface OrderHash {
 class OrderAuditService {
   /**
    * Compute SHA256 hash from order transaction details
-   * Formula: SHA256(orderId + totalCredits + totalPrice + paidAt_timestamp)
+   * New formula includes buyer and seller to tie the order to participants:
+   * Formula: SHA256(orderId + buyer + seller + totalCredits + totalPrice + paidAt_timestamp)
    */
   computeOrderHash(orderData: OrderTransactionData): string {
-    const { orderId, totalCredits, totalPrice, paidAt } = orderData;
-    
+    const { orderId, totalCredits, totalPrice, paidAt, buyer, seller } = orderData;
+
     // Convert paidAt to timestamp for consistent hashing
     const paidAtTimestamp = paidAt.getTime();
-    
-    // Create the string to hash: orderId + totalCredits + totalPrice + paidAtTimestamp
-    const dataString = `${orderId}${totalCredits}${totalPrice}${paidAtTimestamp}`;
-    
+
+    // Normalize buyer/seller to empty string if undefined
+    const buyerStr = buyer ?? '';
+    const sellerStr = seller ?? '';
+
+    // Create the string to hash in a deterministic order
+    const dataString = `${orderId}|${buyerStr}|${sellerStr}|${totalCredits}|${totalPrice}|${paidAtTimestamp}`;
+
     // Compute SHA256 hash
     const hash = crypto.createHash('sha256').update(dataString).digest('hex');
-    
+
     console.log(`Computing hash for order ${orderId}:`);
     console.log(`  Data string: ${dataString}`);
     console.log(`  SHA256 hash: ${hash}`);
-    
+
     return hash;
   }
 
@@ -68,7 +75,9 @@ class OrderAuditService {
           totalCredits: orderData.totalCredits,
           totalPrice: orderData.totalPrice,
           paidAt: orderData.paidAt.toISOString(),
-          dataString: `${orderData.orderId}${orderData.totalCredits}${orderData.totalPrice}${orderData.paidAt.getTime()}`
+          buyer: orderData.buyer ?? null,
+          seller: orderData.seller ?? null,
+          dataString: `${orderData.orderId}|${orderData.buyer ?? ''}|${orderData.seller ?? ''}|${orderData.totalCredits}|${orderData.totalPrice}|${orderData.paidAt.getTime()}`
         }
       });
       
@@ -94,7 +103,7 @@ class OrderAuditService {
     key: string;
   }> {
     try {
-      const computedHash = this.computeOrderHash(orderData);
+  const computedHash = this.computeOrderHash(orderData);
       const immudbService = getImmudbService();
       
       // Retrieve stored audit record
@@ -108,7 +117,7 @@ class OrderAuditService {
           key
         };
       }
-      
+
       const storedHash = storedRecord.metadata.computedHash;
       const isValid = storedHash === computedHash;
       
@@ -149,7 +158,9 @@ class OrderAuditService {
             orderId: tx.metadata?.orderId || 0,
             totalCredits: tx.metadata?.totalCredits || 0,
             totalPrice: tx.metadata?.totalPrice || 0,
-            paidAt: new Date(tx.metadata?.paidAt || Date.now())
+            paidAt: new Date(tx.metadata?.paidAt || Date.now()),
+            buyer: tx.metadata?.buyer || undefined,
+            seller: tx.metadata?.seller || undefined,
           }
         }));
       
@@ -173,7 +184,7 @@ class OrderAuditService {
       if (!storedRecord || !storedRecord.metadata) {
         return null;
       }
-      
+
       return {
         orderId: storedRecord.metadata.orderId || 0,
         hash: storedRecord.metadata.computedHash || '',
@@ -182,7 +193,9 @@ class OrderAuditService {
           orderId: storedRecord.metadata.orderId || 0,
           totalCredits: storedRecord.metadata.totalCredits || 0,
           totalPrice: storedRecord.metadata.totalPrice || 0,
-          paidAt: new Date(storedRecord.metadata.paidAt || Date.now())
+          paidAt: new Date(storedRecord.metadata.paidAt || Date.now()),
+          buyer: storedRecord.metadata.buyer || undefined,
+          seller: storedRecord.metadata.seller || undefined,
         }
       };
     } catch (error) {

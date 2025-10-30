@@ -91,6 +91,8 @@ model Order {
   totalUsd   Float       @default(0)
   user       User        @relation(fields: [userId], references: [id])
   items      OrderItem[]
+  seller     String
+  buyer      String
   paymentIntentId String?
   paidAt     DateTime?
   shippingAddress String?

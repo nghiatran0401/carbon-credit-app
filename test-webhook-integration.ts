@@ -32,6 +32,8 @@ async function testWebhookIntegration() {
           userId: 1, // Assuming user ID 1 exists
           status: 'Pending',
           totalPrice: 15.00,
+          buyer: 'test-buyer',
+          seller: 'test-seller',
           items: {
             create: [
               {
@@ -96,7 +98,9 @@ async function testWebhookIntegration() {
           orderId: completedOrder.id,
           totalCredits: totalCredits,
           totalPrice: completedOrder.totalPrice,
-          paidAt: completedOrder.paidAt!
+          paidAt: completedOrder.paidAt!,
+          buyer: (completedOrder as any).buyer,
+          seller: (completedOrder as any).seller
         };
         
         console.log('Storing audit data:', auditData);
@@ -137,7 +141,9 @@ async function testWebhookIntegration() {
           orderId: completedOrder.id,
           totalCredits: totalCredits,
           totalPrice: completedOrder.totalPrice,
-          paidAt: completedOrder.paidAt!
+          paidAt: completedOrder.paidAt!,
+          buyer: (completedOrder as any).buyer,
+          seller: (completedOrder as any).seller
         });
         console.log(`✅ Audit trail stored for order ${completedOrder.id}`);
       } catch (error: any) {

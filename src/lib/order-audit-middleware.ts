@@ -33,8 +33,12 @@ class OrderAuditMiddleware {
         return { exists: false, created: false, error: 'Order not completed' };
       }
 
-      // Calculate total credits
-      const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  // Calculate total credits
+  const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Read buyer/seller from order
+  const buyer = (order as any).buyer;
+  const seller = (order as any).seller;
 
       // Check if audit record already exists
       try {
@@ -42,7 +46,9 @@ class OrderAuditMiddleware {
           orderId: order.id,
           totalCredits,
           totalPrice: order.totalPrice,
-          paidAt: order.paidAt
+          paidAt: order.paidAt,
+          buyer,
+          seller
         });
 
         if (verification.storedHash) {
@@ -53,12 +59,14 @@ class OrderAuditMiddleware {
         // Record doesn't exist, continue to create it
       }
 
-      // Create audit record
+      // Create audit record (include buyer/seller)
       await orderAuditService.storeOrderAudit({
         orderId: order.id,
         totalCredits,
         totalPrice: order.totalPrice,
-        paidAt: order.paidAt
+        paidAt: order.paidAt,
+        buyer,
+        seller
       });
 
       console.log(`✅ Created audit record for order ${orderId}`);
