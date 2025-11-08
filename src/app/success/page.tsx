@@ -6,6 +6,18 @@ import { useEffect, useState, Suspense } from "react";
 import { CertificateDisplay } from "@/components/certificate-display";
 import type { Certificate } from "@/types";
 
+interface OrderAudit {
+  orderId: number;
+  hash: string;
+  timestamp: number;
+  transactionData: {
+    orderId: number;
+    totalCredits: number;
+    totalPrice: number;
+    paidAt: string;
+  };
+}
+
 function SuccessPageContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
@@ -14,6 +26,8 @@ function SuccessPageContent() {
   const [order, setOrder] = useState<any>(null);
   const [payment, setPayment] = useState<any>(null);
   const [certificate, setCertificate] = useState<Certificate | null>(null);
+  const [audit, setAudit] = useState<OrderAudit | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   useEffect(() => {
     confetti({
@@ -45,6 +59,28 @@ function SuccessPageContent() {
             }
           } catch (err) {
             console.error("Error fetching certificate:", err);
+          }
+
+          // Fetch audit record from ImmuDB
+          setAuditLoading(true);
+          try {
+            const auditResponse = await fetch('/api/orders/audit');
+            if (auditResponse.ok) {
+              const auditData = await auditResponse.json();
+              if (auditData.success && auditData.audits) {
+                // Find the audit record for this order
+                const orderAudit = auditData.audits.find(
+                  (a: OrderAudit) => a.orderId === data.order.id
+                );
+                if (orderAudit) {
+                  setAudit(orderAudit);
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching audit record:", err);
+          } finally {
+            setAuditLoading(false);
           }
         }
 
@@ -115,13 +151,65 @@ function SuccessPageContent() {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-sm text-purple-900 mb-1">ImmuDB (Immutable Audit)</h4>
-                <p className="text-xs text-purple-700">
+                <p className="text-xs text-purple-700 mb-2">
                   Transaction permanently recorded to immutable database for tamper-proof audit trail.
                 </p>
-                <div className="mt-2 flex items-center text-xs text-purple-600">
-                  <span className="inline-block w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                  Verified & Sealed
-                </div>
+                
+                {auditLoading && (
+                  <div className="mt-2 text-xs text-purple-600">
+                    Loading audit record...
+                  </div>
+                )}
+
+                {!auditLoading && audit && (
+                  <div className="mt-3 space-y-2">
+                    <div className="bg-white p-2 rounded border border-purple-200">
+                      <div className="text-[10px] text-purple-600 font-medium mb-1">SHA256 Hash</div>
+                      <div className="font-mono text-[10px] break-all text-gray-800">{audit.hash}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white p-2 rounded border border-purple-200">
+                        <div className="text-[10px] text-purple-600 font-medium">Order ID</div>
+                        <div className="text-xs font-mono">#{audit.transactionData.orderId}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-purple-200">
+                        <div className="text-[10px] text-purple-600 font-medium">Total Credits</div>
+                        <div className="text-xs font-mono">{audit.transactionData.totalCredits}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-purple-200">
+                        <div className="text-[10px] text-purple-600 font-medium">Total Price</div>
+                        <div className="text-xs font-mono">${audit.transactionData.totalPrice.toFixed(2)}</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-purple-200">
+                        <div className="text-[10px] text-purple-600 font-medium">Paid At</div>
+                        <div className="text-xs font-mono">{new Date(audit.transactionData.paidAt).toLocaleString()}</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-2 rounded border border-purple-200">
+                      <div className="text-[10px] text-purple-600 font-medium mb-1">Audit Timestamp</div>
+                      <div className="text-xs font-mono">{new Date(audit.timestamp).toLocaleString()}</div>
+                    </div>
+
+                    <div className="bg-white p-2 rounded border border-purple-200">
+                      <div className="text-[10px] text-purple-600 font-medium mb-1">ImmuDB Key</div>
+                      <div className="text-xs font-mono">order_{audit.orderId}</div>
+                    </div>
+
+                    <div className="mt-2 flex items-center text-xs text-purple-600">
+                      <span className="inline-block w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                      Verified & Sealed
+                    </div>
+                  </div>
+                )}
+
+                {!auditLoading && !audit && (
+                  <div className="mt-2 flex items-center text-xs text-purple-600">
+                    <span className="inline-block w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                    Audit record being created...
+                  </div>
+                )}
               </div>
             </div>
 
