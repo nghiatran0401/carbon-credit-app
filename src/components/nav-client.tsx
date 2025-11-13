@@ -19,6 +19,11 @@ export function DesktopNav() {
       <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
         Dashboard
       </Link>
+
+      <Link href="/wallet" className="text-gray-600 hover:text-green-600">
+        Wallet
+      </Link>
+
       <Link href="/marketplace_new" className="text-gray-600 hover:text-green-600">
         Marketplace
       </Link>
