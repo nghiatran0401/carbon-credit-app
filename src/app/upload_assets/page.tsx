@@ -27,21 +27,35 @@ export default function UploadAssetsPage() {
 	const [loading, setLoading] = useState(false);
 	const [success, setSuccess] = useState("");
 	const [error, setError] = useState("");
+	const [transactionHash, setTransactionHash] = useState("");
+	const [tokenId, setTokenId] = useState<number | null>(null);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setLoading(true);
 		setError("");
 		setSuccess("");
+		setTransactionHash("");
+		setTokenId(null);
 		try {
 			if (!user) throw new Error("User not authenticated");
 			if (!carbonCreditAmount || !forestName) throw new Error("All fields required");
-			await apiPost("/api/upload-assets", {
+			const result: any = await apiPost("/api/upload-assets", {
 				userId: user.id,
 				carbonCreditAmount: Number(carbonCreditAmount),
 				forestName: forestName,
 			});
-			setSuccess("Asset uploaded successfully!");
+			
+			if (result.blockchainWarning) {
+				setError(result.blockchainWarning);
+			} else if (result.blockchain) {
+				setSuccess("Asset uploaded successfully!");
+				setTransactionHash(result.blockchain.transactionHash);
+				setTokenId(result.blockchain.tokenId);
+			} else {
+				setSuccess("Asset uploaded successfully!");
+			}
+			
 			setCarbonCreditAmount("");
 			setForestName("");
 		} catch (err: any) {
@@ -84,7 +98,26 @@ export default function UploadAssetsPage() {
 				<Button type="submit" disabled={loading}>
 					{loading ? "Uploading..." : "Upload"}
 				</Button>
-				{success && <div className="text-green-600 mt-2">{success}</div>}
+				{success && (
+					<div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
+						<p className="text-green-600 font-semibold">{success}</p>
+						{transactionHash && (
+							<div className="mt-2 text-sm">
+								<p className="text-gray-700">
+									<span className="font-medium">Transaction Hash:</span>
+								</p>
+								<p className="text-gray-600 break-all font-mono text-xs mt-1">
+									{transactionHash}
+								</p>
+							</div>
+						)}
+						{tokenId !== null && (
+							<p className="text-gray-700 text-sm mt-2">
+								<span className="font-medium">Token ID:</span> {tokenId}
+							</p>
+						)}
+					</div>
+				)}
 				{error && <div className="text-red-600 mt-2">{error}</div>}
 			</form>
 		</div>
