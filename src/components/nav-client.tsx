@@ -19,7 +19,7 @@ export function DesktopNav() {
       <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
         Dashboard
       </Link>
-      <Link href="/marketplace" className="text-gray-600 hover:text-green-600">
+      <Link href="/marketplace_new" className="text-gray-600 hover:text-green-600">
         Marketplace
       </Link>
 
