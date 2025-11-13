@@ -55,11 +55,11 @@ function MockPaymentContent() {
   const [error, setError] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
-  // Mock card details
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [cvv, setCvv] = useState("");
+  // Mock card details - Pre-filled for demo
+  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242");
+  const [cardName, setCardName] = useState("John Doe");
+  const [expiryDate, setExpiryDate] = useState("12/25");
+  const [cvv, setCvv] = useState("123");
 
   useEffect(() => {
     if (!orderId) {
