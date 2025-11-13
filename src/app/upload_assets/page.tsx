@@ -41,7 +41,7 @@ export default function UploadAssetsPage() {
 			if (!user) throw new Error("User not authenticated");
 			if (!carbonCreditAmount || !forestName) throw new Error("All fields required");
 			const result: any = await apiPost("/api/upload-assets", {
-				userId: user.id,
+				userId: user.email,
 				carbonCreditAmount: Number(carbonCreditAmount),
 				forestName: forestName,
 			});

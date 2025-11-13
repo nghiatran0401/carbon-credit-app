@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 interface TokenBalance {
   tokenId: number;
   forestId: number;
+  blockchainForestId: number | null;
   forestName: string;
   forestLocation: string;
   balance: number;
@@ -248,10 +249,12 @@ export default function WalletPage() {
                     <h3 className="font-semibold truncate">{token.forestName}</h3>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>{token.forestLocation}</span>
-                      {token.credit && (
+                      <span>•</span>
+                      <span>Token ID: {token.tokenId}</span>
+                      {token.blockchainForestId !== null && (
                         <>
                           <span>•</span>
-                          <span>Token ID: {token.tokenId}</span>
+                          <span>Forest ID (On-Chain): {token.blockchainForestId}</span>
                         </>
                       )}
                     </div>
@@ -313,7 +316,7 @@ export default function WalletPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Contract:</span>
-            <code className="text-sm text-xs break-all">
+            <code className="text-sm break-all">
               {process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "Not configured"}
             </code>
           </div>

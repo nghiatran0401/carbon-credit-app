@@ -1,17 +1,21 @@
 # Blockchain Wallet Feature
 
 ## Overview
+
 The wallet page displays token assets from the Ganache local blockchain network for a specific wallet address. Access is restricted to the `user1@gmail.com` user only.
 
 ## Configuration
 
 ### Wallet Address
+
 - **Address**: `0x5A57feFf398a8ea3F2E10144cF71fD9A88801cE7`
 - **Network**: Ganache Local (http://127.0.0.1:7545)
 - **Authorized User**: user1@gmail.com
 
 ### Environment Variables
+
 The following environment variables are configured in `.env.local`:
+
 ```env
 GANACHE_URL=http://127.0.0.1:7545
 CONTRACT_ADDRESS=0x4137AD0F554629a554e413E0921Ec7e1E752376c
@@ -23,11 +27,13 @@ OWNER_PRIVATE_KEY=0xb88500eec0ccf40329dbbbb3996d86577c2107998b077609846991f4f205
 ## Features
 
 ### 1. **Wallet Display**
+
 - Shows the connected wallet address
 - Displays active status badge
 - Connected to Ganache local network
 
 ### 2. **Token Holdings**
+
 - Lists all carbon credit tokens owned by the wallet
 - Shows token balance for each forest
 - Displays forest information (name, location)
@@ -35,11 +41,13 @@ OWNER_PRIVATE_KEY=0xb88500eec0ccf40329dbbbb3996d86577c2107998b077609846991f4f205
 - Calculates estimated value in USD
 
 ### 3. **Summary Statistics**
+
 - **Total Token Types**: Number of different forest tokens
 - **Total Credits**: Sum of all carbon credits owned
 - **Estimated Value**: Total USD value based on current prices
 
 ### 4. **Network Information**
+
 - Network name: Ganache Local
 - RPC URL: http://127.0.0.1:7545
 - Smart contract address
@@ -47,6 +55,7 @@ OWNER_PRIVATE_KEY=0xb88500eec0ccf40329dbbbb3996d86577c2107998b077609846991f4f205
 ## Access Control
 
 The wallet page implements strict access control:
+
 1. User must be authenticated
 2. User email must match `user1@gmail.com`
 3. Unauthorized users see an "Access Denied" message
@@ -57,9 +66,11 @@ The wallet page implements strict access control:
 ### GET `/api/wallet?address={walletAddress}`
 
 **Query Parameters:**
+
 - `address` (required): The blockchain wallet address
 
 **Response:**
+
 ```json
 {
   "walletAddress": "0x5A57feFf398a8ea3F2E10144cF71fD9A88801cE7",
@@ -71,7 +82,7 @@ The wallet page implements strict access control:
       "forestLocation": "Brazil",
       "balance": 1000,
       "credit": {
-        "pricePerCredit": 15.50,
+        "pricePerCredit": 15.5,
         "certification": "VCS",
         "vintage": 2024,
         "symbol": "AMZN-2024"
@@ -124,11 +135,13 @@ src/
 ## Usage
 
 1. **Start Ganache**:
+
    ```bash
    ganache-cli -p 7545
    ```
 
 2. **Deploy Smart Contract** (if not already deployed):
+
    ```bash
    cd CreditToken
    truffle migrate --network development
@@ -154,6 +167,7 @@ src/
 ## Future Enhancements
 
 Potential improvements:
+
 - Support for multiple wallet addresses
 - Wallet connection via MetaMask or WalletConnect
 - Transaction history display

@@ -277,6 +277,27 @@ class BlockchainService {
   }
 
   /**
+   * Get forest ID for a token ID
+   */
+  async getForestIdForToken(tokenId: number): Promise<number | null> {
+    try {
+      if (!this.web3 || !this.contract) {
+        await this.initialize();
+      }
+
+      if (!this.contract) {
+        return null;
+      }
+
+      const forestId = await this.contract.methods.getForestId(tokenId).call();
+      return Number(forestId);
+    } catch (error) {
+      console.error("Failed to get forest ID:", error);
+      return null;
+    }
+  }
+
+  /**
    * Get token balance for an address
    */
   async getBalance(address: string, tokenId: number): Promise<number> {

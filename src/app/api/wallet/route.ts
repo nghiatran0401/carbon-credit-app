@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     if (!walletAddress) {
       return NextResponse.json(
         { error: "Wallet address is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -35,29 +35,34 @@ export async function GET(request: NextRequest) {
     const tokenBalances = await Promise.all(
       forests.map(async (forest) => {
         const tokenId = await blockchainService.getTokenIdForForest(forest.id);
-        
+
         if (tokenId === null || tokenId === 0) {
           return null;
         }
 
         const balance = await blockchainService.getBalance(
           walletAddress,
-          tokenId
+          tokenId,
         );
 
         if (balance === 0) {
           return null;
         }
 
+        // Get the forestId stored on the blockchain token
+        const blockchainForestId =
+          await blockchainService.getForestIdForToken(tokenId);
+
         return {
           tokenId,
           forestId: forest.id,
+          blockchainForestId, // Forest ID stored on the blockchain token
           forestName: forest.name,
           forestLocation: forest.location,
           balance,
           credit: forest.credits[0] || null,
         };
-      })
+      }),
     );
 
     // Filter out null values (forests with no tokens)
@@ -72,7 +77,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching wallet data:", error);
     return NextResponse.json(
       { error: error.message || "Failed to fetch wallet data" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
