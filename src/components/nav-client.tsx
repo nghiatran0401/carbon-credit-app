@@ -22,6 +22,10 @@ export function DesktopNav() {
       <Link href="/marketplace_new" className="text-gray-600 hover:text-green-600">
         Marketplace
       </Link>
+      
+      <Link href="/upload_assets" className="text-gray-600 hover:text-green-600">
+        Upload Assets
+      </Link>
 
       <Link href="/history" className="text-gray-600 hover:text-green-600">
         History
