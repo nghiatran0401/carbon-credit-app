@@ -194,6 +194,26 @@ export async function POST(request: NextRequest) {
               message: `Transferred ${item.quantity} tokens (Token ID: ${tokenId}) to buyer. TX: ${transferResult.transactionHash}`,
             },
           });
+
+          // Update available credits in database
+          try {
+            await prisma.carbonCredit.update({
+              where: { id: item.carbonCreditId },
+              data: {
+                availableCredits: {
+                  decrement: item.quantity,
+                },
+              },
+            });
+            console.log(
+              `Updated availableCredits for credit ${item.carbonCreditId}, decreased by ${item.quantity}`,
+            );
+          } catch (updateError: any) {
+            console.error(
+              `Error updating availableCredits for credit ${item.carbonCreditId}:`,
+              updateError,
+            );
+          }
         }
       } catch (error: any) {
         console.error(

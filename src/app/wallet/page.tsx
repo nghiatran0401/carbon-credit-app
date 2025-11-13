@@ -5,10 +5,12 @@ import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, AlertCircle, Coins, TrendingUp } from "lucide-react";
+import { Wallet, AlertCircle, Coins, TrendingUp, FileDown, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CertificateDisplay } from "@/components/certificate-display";
 
 interface TokenBalance {
   tokenId: number;
@@ -43,6 +45,9 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeWallet, setActiveWallet] = useState<"owner" | "buyer">("buyer");
+  const [exportingCertificate, setExportingCertificate] = useState(false);
+  const [certificate, setCertificate] = useState<any>(null);
+  const [showCertificate, setShowCertificate] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -98,6 +103,48 @@ export default function WalletPage() {
     }
   };
 
+  const handleExportCertificate = async () => {
+    if (!user?.id) {
+      setError("Please log in to export certificate");
+      return;
+    }
+
+    if (!currentWalletData || currentWalletData.tokens.length === 0) {
+      setError("No tokens available to export");
+      return;
+    }
+
+    try {
+      setExportingCertificate(true);
+      setError(null);
+
+      const response = await fetch("/api/certificates/wallet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          walletAddress: currentWalletAddress,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate certificate");
+      }
+
+      const data = await response.json();
+      setCertificate(data.certificate);
+      setShowCertificate(true);
+    } catch (err: any) {
+      console.error("Error exporting certificate:", err);
+      setError(err.message || "Failed to export certificate");
+    } finally {
+      setExportingCertificate(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return null;
   }
@@ -136,14 +183,33 @@ export default function WalletPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Wallet className="h-8 w-8 text-green-600" />
-        <div>
-          <h1 className="text-3xl font-bold">Blockchain Wallet</h1>
-          <p className="text-muted-foreground">
-            Connected to Ganache Local Network
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Wallet className="h-8 w-8 text-green-600" />
+          <div>
+            <h1 className="text-3xl font-bold">Blockchain Wallet</h1>
+            <p className="text-muted-foreground">
+              Connected to Ganache Local Network
+            </p>
+          </div>
         </div>
+        <Button
+          onClick={handleExportCertificate}
+          disabled={exportingCertificate || !currentWalletData || currentWalletData.tokens.length === 0}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          {exportingCertificate ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <FileDown className="h-4 w-4 mr-2" />
+              Export All Tokens to Certificate
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Wallet Selector Tabs */}
@@ -370,6 +436,130 @@ export default function WalletPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Certificate Display Modal */}
+      {showCertificate && certificate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-green-800">Wallet Certificate</h2>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCertificate(false)}
+                  className="shrink-0"
+                >
+                  Close
+                </Button>
+              </div>
+              
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-900 mb-1">Certificate Information</h3>
+                    <p className="text-sm text-blue-800">
+                      This certificate represents all carbon credit tokens currently held in your wallet. 
+                      You can freely trade these tokens, and generate a new certificate at any time to reflect your current holdings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white border rounded-lg p-6 mb-6">
+                <div className="grid gap-4">
+                  <div className="flex justify-between items-center text-sm pb-3 border-b">
+                    <span className="text-gray-600">Certificate ID:</span>
+                    <span className="font-mono font-semibold">{certificate.certificateId}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pb-3 border-b">
+                    <span className="text-gray-600">Wallet Address:</span>
+                    <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">{currentWalletAddress}</code>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pb-3 border-b">
+                    <span className="text-gray-600">Total Credits:</span>
+                    <span className="font-bold text-green-700">{certificate.totalCredits.toLocaleString()} credits</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pb-3 border-b">
+                    <span className="text-gray-600">Total Value:</span>
+                    <span className="font-bold text-green-700">${certificate.totalValue.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pb-3 border-b">
+                    <span className="text-gray-600">Token Types:</span>
+                    <span className="font-semibold">{certificate.tokenCount}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Export Date:</span>
+                    <span className="text-xs">{new Date(certificate.exportDate).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {certificate.metadata?.tokens && certificate.metadata.tokens.length > 0 && (
+                  <div className="mt-6 pt-6 border-t">
+                    <h3 className="font-semibold text-gray-900 mb-3">Token Holdings:</h3>
+                    <div className="space-y-3">
+                      {certificate.metadata.tokens.map((token: any, index: number) => (
+                        <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900">{token.forestName}</h4>
+                              <p className="text-sm text-gray-600">{token.forestLocation}</p>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-green-700">{token.quantity.toLocaleString()} credits</div>
+                              <div className="text-xs text-gray-600">${token.subtotal.toFixed(2)}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="text-xs">{token.certification}</Badge>
+                            <Badge variant="outline" className="text-xs">{token.vintage}</Badge>
+                            <span className="text-xs text-gray-500">${token.pricePerCredit.toFixed(2)}/credit</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-6 pt-6 border-t">
+                  <div className="text-xs text-gray-600 mb-2">Certificate Hash (for verification):</div>
+                  <div className="flex items-center gap-2 bg-gray-100 rounded p-3">
+                    <code className="text-xs font-mono text-gray-800 break-all flex-1">
+                      {certificate.certificateHash}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(certificate.certificateHash);
+                        alert("Certificate hash copied to clipboard!");
+                      }}
+                      className="shrink-0 px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => window.print()}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Print Certificate
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCertificate(false)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

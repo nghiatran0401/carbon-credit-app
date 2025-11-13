@@ -3,8 +3,6 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import confetti from "canvas-confetti";
 import { useEffect, useState, Suspense } from "react";
-import { CertificateDisplay } from "@/components/certificate-display";
-import type { Certificate } from "@/types";
 
 function SuccessPageContent() {
   const searchParams = useSearchParams();
@@ -13,7 +11,6 @@ function SuccessPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<any>(null);
   const [payment, setPayment] = useState<any>(null);
-  const [certificate, setCertificate] = useState<Certificate | null>(null);
 
   useEffect(() => {
     confetti({
@@ -34,21 +31,8 @@ function SuccessPageContent() {
       .then(async (data) => {
         setOrder(data);
         setPayment(data.payments?.[0] || null);
-
-        // Fetch certificate if order is completed
-        if (data.status === "Completed") {
-          try {
-            const certResponse = await fetch(`/api/certificates?orderId=${data.id}`);
-            if (certResponse.ok) {
-              const certData = await certResponse.json();
-              setCertificate(certData);
-            }
-          } catch (err) {
-            console.error("Error fetching certificate:", err);
-          }
-        }
-
         setLoading(false);
+        
         // Remove cart from localStorage if you use it
         if (typeof window !== "undefined") {
           localStorage.removeItem("cart");
@@ -216,23 +200,17 @@ function SuccessPageContent() {
         </div>
       )}
 
-      {/* Certificate Display */}
-      {certificate && (
-        <div className="w-full max-w-4xl mt-8">
-          <h2 className="text-xl font-bold text-center mb-6 text-green-800">Your Certificate</h2>
-          <CertificateDisplay certificate={certificate} />
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-4 mt-6">
-        <Link href="/dashboard">
-          <button className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">Go to Dashboard</button>
+        <Link href="/wallet">
+          <button className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
+            View Wallet & Trade Tokens
+          </button>
         </Link>
-        {certificate && (
-          <Link href="/history">
-            <button className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">View All Certificates</button>
-          </Link>
-        )}
+        <Link href="/dashboard">
+          <button className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+            Go to Dashboard
+          </button>
+        </Link>
       </div>
     </div>
   );

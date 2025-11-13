@@ -92,8 +92,9 @@ export default function MarketplacePage() {
     useState<MarketplaceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "minted" | "unminted">("all");
+  const [filter, setFilter] = useState<"all" | "minted" | "unminted">("minted");
   const [addingToCart, setAddingToCart] = useState<number | null>(null);
+  const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -145,11 +146,21 @@ export default function MarketplacePage() {
       return;
     }
 
+    // Get quantity from state, default to 10 if not set
+    const quantity = quantities[token.offChainData.forestId] || 10;
+
+    if (quantity > credit.availableCredits) {
+      setError(`Only ${credit.availableCredits} credits available`);
+      return;
+    }
+
+    if (quantity <= 0) {
+      setError("Please enter a valid quantity");
+      return;
+    }
+
     try {
       setAddingToCart(token.offChainData.forestId);
-      
-      // Add to cart (default quantity: 10 credits)
-      const quantity = Math.min(10, credit.availableCredits);
       
       const response = await fetch("/api/cart", {
         method: "POST",
@@ -176,6 +187,20 @@ export default function MarketplacePage() {
     } finally {
       setAddingToCart(null);
     }
+  };
+
+  const updateQuantity = (forestId: number, value: number, maxAvailable: number) => {
+    const newQuantity = Math.max(1, Math.min(value, maxAvailable));
+    setQuantities((prev) => ({ ...prev, [forestId]: newQuantity }));
+  };
+
+  const getQuantity = (forestId: number, maxAvailable: number) => {
+    if (!quantities[forestId]) {
+      const defaultQty = Math.min(10, maxAvailable);
+      setQuantities((prev) => ({ ...prev, [forestId]: defaultQty }));
+      return defaultQty;
+    }
+    return quantities[forestId];
   };
 
   if (!isAuthenticated) {
@@ -473,6 +498,87 @@ export default function MarketplacePage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         +{token.offChainData.credits.length - 2} more...
                       </p>
+                    )}
+
+                    {/* Quantity Selector */}
+                    {token.offChainData.credits[0] && (
+                      <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                        <label className="text-xs font-medium text-black  mb-2 block">
+                          Purchase Quantity
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const currentQty = getQuantity(
+                                token.offChainData.forestId,
+                                token.offChainData.credits[0].availableCredits
+                              );
+                              updateQuantity(
+                                token.offChainData.forestId,
+                                currentQty - 1,
+                                token.offChainData.credits[0].availableCredits
+                              );
+                            }}
+                          >
+                            -
+                          </Button>
+                          <input
+                            type="number"
+                            min="1"
+                            max={token.offChainData.credits[0].availableCredits}
+                            value={getQuantity(
+                              token.offChainData.forestId,
+                              token.offChainData.credits[0].availableCredits
+                            )}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 1;
+                              updateQuantity(
+                                token.offChainData.forestId,
+                                value,
+                                token.offChainData.credits[0].availableCredits
+                              );
+                            }}
+                            className="h-8 w-20 text-center border rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              const currentQty = getQuantity(
+                                token.offChainData.forestId,
+                                token.offChainData.credits[0].availableCredits
+                              );
+                              updateQuantity(
+                                token.offChainData.forestId,
+                                currentQty + 1,
+                                token.offChainData.credits[0].availableCredits
+                              );
+                            }}
+                          >
+                            +
+                          </Button>
+                          <div className="flex-1 text-right">
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              Total:
+                            </div>
+                            <div className="text-sm font-bold text-green-700 dark:text-green-400">
+                              ${(
+                                getQuantity(
+                                  token.offChainData.forestId,
+                                  token.offChainData.credits[0].availableCredits
+                                ) * token.offChainData.credits[0].pricePerCredit
+                              ).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-2">
+                          ${token.offChainData.credits[0].pricePerCredit.toFixed(2)} per credit
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
