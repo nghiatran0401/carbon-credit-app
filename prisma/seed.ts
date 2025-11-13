@@ -53,10 +53,12 @@ async function main() {
     prisma.forest.create({
       data: {
         name: "Can Gio Mangrove Forest",
+        uploader: "admin@gmail.com",
         location: "Can Gio District, Ho Chi Minh City",
         type: "Mangrove",
         area: 850,
-        description: "Primary mangrove conservation area with high biodiversity.",
+        description:
+          "Primary mangrove conservation area with high biodiversity.",
         status: "Active",
         lastUpdated: new Date("2024-01-15"),
       },
@@ -64,10 +66,12 @@ async function main() {
     prisma.forest.create({
       data: {
         name: "Xuan Thuy National Park",
+        uploader: "admin@gmail.com",
         location: "Giao Thuy District, Nam Dinh Province",
         type: "Wetland",
         area: 750,
-        description: "Vietnam's first Ramsar site, important for migratory birds.",
+        description:
+          "Vietnam's first Ramsar site, important for migratory birds.",
         status: "Active",
         lastUpdated: new Date("2024-01-12"),
       },
@@ -75,6 +79,7 @@ async function main() {
     prisma.forest.create({
       data: {
         name: "Cuc Phuong National Park",
+        uploader: "admin@gmail.com",
         location: "Nho Quan District, Ninh Binh Province",
         type: "Tropical Evergreen",
         area: 222,
@@ -86,6 +91,7 @@ async function main() {
     prisma.forest.create({
       data: {
         name: "Bach Ma National Park",
+        uploader: "admin@gmail.com",
         location: "Phu Loc District, Thua Thien Hue Province",
         type: "Tropical Montane",
         area: 370,
@@ -97,10 +103,12 @@ async function main() {
     prisma.forest.create({
       data: {
         name: "Yok Don National Park",
+        uploader: "admin@gmail.com",
         location: "Buon Don District, Dak Lak Province",
         type: "Dry Dipterocarp",
         area: 1155,
-        description: "Largest national park in Vietnam, home to elephants and rare birds.",
+        description:
+          "Largest national park in Vietnam, home to elephants and rare birds.",
         status: "Active",
         lastUpdated: new Date("2024-01-08"),
       },
@@ -118,7 +126,9 @@ async function main() {
       if (statusType === 1) {
         availableCredits = totalCredits; // Fully available
       } else if (statusType === 2) {
-        availableCredits = Math.floor((totalCredits * randomBetween(10, 80)) / 100); // Partially available (10-80%)
+        availableCredits = Math.floor(
+          (totalCredits * randomBetween(10, 80)) / 100,
+        ); // Partially available (10-80%)
       } else {
         availableCredits = 0; // Sold out
       }
@@ -184,7 +194,8 @@ async function main() {
           userId: user1.id,
           type: "order",
           title: "Order Created Successfully",
-          message: "Your order #1234 has been created and is pending payment. Total: $1,250.00",
+          message:
+            "Your order #1234 has been created and is pending payment. Total: $1,250.00",
           data: {
             orderId: 1234,
             event: "created",
@@ -202,7 +213,8 @@ async function main() {
           userId: user1.id,
           type: "payment",
           title: "Payment Successful",
-          message: "Payment for order #1234 has been processed successfully. Your carbon credits are now available.",
+          message:
+            "Payment for order #1234 has been processed successfully. Your carbon credits are now available.",
           data: {
             orderId: 1234,
             event: "payment_succeeded",
@@ -221,7 +233,8 @@ async function main() {
           userId: user1.id,
           type: "credit",
           title: "New Carbon Credits Available",
-          message: "New VCS certified credits from Can Gio Mangrove Forest are now available for purchase.",
+          message:
+            "New VCS certified credits from Can Gio Mangrove Forest are now available for purchase.",
           data: {
             creditId: credits[0]?.id || 1,
             forestName: "Can Gio Mangrove Forest",
@@ -240,7 +253,8 @@ async function main() {
           userId: user1.id,
           type: "system",
           title: "Scheduled Maintenance",
-          message: "The platform will be undergoing maintenance on Sunday, 2:00-4:00 AM UTC. Some features may be temporarily unavailable.",
+          message:
+            "The platform will be undergoing maintenance on Sunday, 2:00-4:00 AM UTC. Some features may be temporarily unavailable.",
           data: {
             event: "maintenance",
             scheduledDate: "2024-01-28T02:00:00Z",
@@ -257,7 +271,8 @@ async function main() {
           userId: user1.id,
           type: "order",
           title: "Certificate Generated",
-          message: "Your carbon credit certificate for order #1234 has been generated and is ready for download.",
+          message:
+            "Your carbon credit certificate for order #1234 has been generated and is ready for download.",
           data: {
             orderId: 1234,
             event: "certificate_generated",
@@ -275,7 +290,8 @@ async function main() {
           userId: user2.id,
           type: "payment",
           title: "Payment Failed",
-          message: "Payment for order #5678 failed. Please check your payment method and try again.",
+          message:
+            "Payment for order #5678 failed. Please check your payment method and try again.",
           data: {
             orderId: 5678,
             event: "payment_failed",
@@ -293,7 +309,8 @@ async function main() {
           userId: user2.id,
           type: "credit",
           title: "Price Alert",
-          message: "The price for Gold Standard credits from Xuan Thuy National Park has increased by 15%.",
+          message:
+            "The price for Gold Standard credits from Xuan Thuy National Park has increased by 15%.",
           data: {
             creditId: credits[1]?.id || 2,
             forestName: "Xuan Thuy National Park",
@@ -314,7 +331,8 @@ async function main() {
           userId: user2.id,
           type: "system",
           title: "Welcome to EcoCredit!",
-          message: "Thank you for joining EcoCredit. Start exploring our carbon credit marketplace and make a positive impact on the environment.",
+          message:
+            "Thank you for joining EcoCredit. Start exploring our carbon credit marketplace and make a positive impact on the environment.",
           data: {
             event: "welcome",
             userType: "new_user",
@@ -330,7 +348,8 @@ async function main() {
           userId: user1.id,
           type: "order",
           title: "Order Status Updated",
-          message: "Your order #1234 has been processed and your carbon credits have been retired on your behalf.",
+          message:
+            "Your order #1234 has been processed and your carbon credits have been retired on your behalf.",
           data: {
             orderId: 1234,
             event: "credits_retired",
@@ -348,7 +367,8 @@ async function main() {
           userId: user2.id,
           type: "credit",
           title: "Limited Availability",
-          message: "Only 50 VCS credits remaining from Cuc Phuong National Park. Don't miss out!",
+          message:
+            "Only 50 VCS credits remaining from Cuc Phuong National Park. Don't miss out!",
           data: {
             creditId: credits[2]?.id || 3,
             forestName: "Cuc Phuong National Park",
