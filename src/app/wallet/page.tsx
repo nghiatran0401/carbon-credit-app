@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Wallet, AlertCircle, Coins, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface TokenBalance {
   tokenId: number;
@@ -31,14 +32,17 @@ interface WalletData {
 }
 
 const WALLET_ADDRESS = "0x5A57feFf398a8ea3F2E10144cF71fD9A88801cE7";
-const AUTHORIZED_EMAIL = "user1@gmail.com";
+const BUYER_ADDRESS = "0xC0D96df80AA7eFe04e4ed8D4170C87d75dAe047e";
+const AUTHORIZED_EMAIL = "admin@gmail.com";
 
 export default function WalletPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
   const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [buyerWalletData, setBuyerWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeWallet, setActiveWallet] = useState<"owner" | "buyer">("buyer");
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -47,11 +51,11 @@ export default function WalletPage() {
     }
 
     // Check if the user is authorized to view this wallet
-    if (user?.email !== AUTHORIZED_EMAIL) {
-      setError("You are not authorized to view this wallet");
-      setLoading(false);
-      return;
-    }
+    // if (user?.email !== AUTHORIZED_EMAIL) {
+    //   setError("You are not authorized to view this wallet");
+    //   setLoading(false);
+    //   return;
+    // }
 
     fetchWalletData();
   }, [isAuthenticated, user, router]);
@@ -61,17 +65,31 @@ export default function WalletPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
+      // Fetch owner wallet data
+      const ownerResponse = await fetch(
         `/api/wallet?address=${encodeURIComponent(WALLET_ADDRESS)}`
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch wallet data");
+      if (!ownerResponse.ok) {
+        const errorData = await ownerResponse.json();
+        throw new Error(errorData.error || "Failed to fetch owner wallet data");
       }
 
-      const data = await response.json();
-      setWalletData(data);
+      const ownerData = await ownerResponse.json();
+      setWalletData(ownerData);
+
+      // Fetch buyer wallet data
+      const buyerResponse = await fetch(
+        `/api/wallet?address=${encodeURIComponent(BUYER_ADDRESS)}`
+      );
+
+      if (!buyerResponse.ok) {
+        const errorData = await buyerResponse.json();
+        throw new Error(errorData.error || "Failed to fetch buyer wallet data");
+      }
+
+      const buyerData = await buyerResponse.json();
+      setBuyerWalletData(buyerData);
     } catch (err: any) {
       console.error("Error fetching wallet data:", err);
       setError(err.message || "Failed to load wallet data");
@@ -84,17 +102,17 @@ export default function WalletPage() {
     return null;
   }
 
-  if (error && user?.email !== AUTHORIZED_EMAIL) {
-    return (
-      <div className="container mx-auto p-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Access Denied</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+//   if (error && user?.email !== AUTHORIZED_EMAIL) {
+//     return (
+//       <div className="container mx-auto p-6">
+//         <Alert variant="destructive">
+//           <AlertCircle className="h-4 w-4" />
+//           <AlertTitle>Access Denied</AlertTitle>
+//           <AlertDescription>{error}</AlertDescription>
+//         </Alert>
+//       </div>
+//     );
+//   }
 
   const totalBalance = walletData?.tokens.reduce((sum, token) => sum + token.balance, 0) || 0;
   const totalValue =
@@ -102,6 +120,18 @@ export default function WalletPage() {
       (sum, token) => sum + token.balance * (token.credit?.pricePerCredit || 0),
       0
     ) || 0;
+
+  const buyerTotalBalance = buyerWalletData?.tokens.reduce((sum, token) => sum + token.balance, 0) || 0;
+  const buyerTotalValue =
+    buyerWalletData?.tokens.reduce(
+      (sum, token) => sum + token.balance * (token.credit?.pricePerCredit || 0),
+      0
+    ) || 0;
+
+  const currentWalletData = activeWallet === "owner" ? walletData : buyerWalletData;
+  const currentWalletAddress = activeWallet === "owner" ? WALLET_ADDRESS : BUYER_ADDRESS;
+  const currentTotalBalance = activeWallet === "owner" ? totalBalance : buyerTotalBalance;
+  const currentTotalValue = activeWallet === "owner" ? totalValue : buyerTotalValue;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -116,15 +146,33 @@ export default function WalletPage() {
         </div>
       </div>
 
+      {/* Wallet Selector Tabs */}
+      <Tabs value={activeWallet} onValueChange={(v) => setActiveWallet(v as any)}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="buyer">
+            Buyer Wallet
+          </TabsTrigger>
+          <TabsTrigger value="owner">
+            Owner Wallet
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Wallet Address Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Wallet Address</CardTitle>
-          <CardDescription>Your blockchain wallet address</CardDescription>
+          <CardTitle>
+            {activeWallet === "owner" ? "Owner" : "Buyer"} Wallet Address
+          </CardTitle>
+          <CardDescription>
+            {activeWallet === "owner" 
+              ? "Platform owner wallet (holds minted tokens before sale)"
+              : "Buyer wallet (receives purchased tokens)"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between gap-4 p-4 bg-muted rounded-lg">
-            <code className="text-sm font-mono break-all">{WALLET_ADDRESS}</code>
+            <code className="text-sm font-mono break-all">{currentWalletAddress}</code>
             <Badge variant="outline" className="shrink-0">
               Active
             </Badge>
@@ -165,7 +213,7 @@ export default function WalletPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {walletData?.totalTokenTypes || 0}
+                {currentWalletData?.totalTokenTypes || 0}
               </div>
               <p className="text-xs text-muted-foreground">
                 Different forest tokens
@@ -182,7 +230,7 @@ export default function WalletPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {totalBalance.toLocaleString()}
+                {currentTotalBalance.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">
                 Carbon credits owned
@@ -199,7 +247,7 @@ export default function WalletPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${totalValue.toFixed(2)}
+                ${currentTotalValue.toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Based on current prices
@@ -235,9 +283,9 @@ export default function WalletPage() {
             <div className="text-center py-8 text-muted-foreground">
               Failed to load token holdings
             </div>
-          ) : walletData && walletData.tokens.length > 0 ? (
+          ) : currentWalletData && currentWalletData.tokens.length > 0 ? (
             <div className="space-y-4">
-              {walletData.tokens.map((token) => (
+              {currentWalletData.tokens.map((token) => (
                 <div
                   key={token.tokenId}
                   className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"

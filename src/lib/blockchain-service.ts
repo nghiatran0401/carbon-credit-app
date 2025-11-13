@@ -109,6 +109,19 @@ const CONTRACT_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [
+      { internalType: "address", name: "from", type: "address" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "uint256", name: "id", type: "uint256" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+    ],
+    name: "safeTransferFrom",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ];
 
 class BlockchainService {
@@ -294,6 +307,63 @@ class BlockchainService {
     } catch (error) {
       console.error("Failed to get forest ID:", error);
       return null;
+    }
+  }
+
+  /**
+   * Transfer tokens from owner to buyer
+   */
+  async transferTokens(
+    toAddress: string,
+    tokenId: number,
+    amount: number,
+  ): Promise<{
+    success: boolean;
+    transactionHash?: string;
+    error?: string;
+  }> {
+    try {
+      if (!this.web3 || !this.contract) {
+        await this.initialize();
+      }
+
+      if (!this.contract) {
+        return { success: false, error: "Contract not initialized" };
+      }
+
+      // Add private key to wallet if not already added
+      if (
+        this.ownerPrivateKey &&
+        !this.web3!.eth.accounts.wallet.get(this.ownerAddress)
+      ) {
+        this.web3!.eth.accounts.wallet.add(this.ownerPrivateKey);
+      }
+
+      // Transfer tokens from owner to buyer
+      // ERC1155 safeTransferFrom(from, to, id, amount, data)
+      const tx = await this.contract.methods
+        .safeTransferFrom(
+          this.ownerAddress,
+          toAddress,
+          tokenId,
+          amount,
+          "0x", // empty data
+        )
+        .send({
+          from: this.ownerAddress,
+          gas: "500000",
+        });
+
+      return {
+        success: true,
+        transactionHash: tx.transactionHash,
+      };
+    } catch (error: any) {
+      console.error("Failed to transfer tokens:", error);
+      return {
+        success: false,
+        error: error.message || "Unknown error occurred",
+      };
     }
   }
 

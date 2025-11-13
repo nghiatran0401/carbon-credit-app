@@ -34,6 +34,7 @@ import {
   Leaf,
   Calendar,
   Tag,
+  Loader2,
 } from "lucide-react";
 
 interface CarbonCredit {
@@ -92,6 +93,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "minted" | "unminted">("all");
+  const [addingToCart, setAddingToCart] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -121,6 +123,58 @@ export default function MarketplacePage() {
       setError(err.message || "Failed to load marketplace data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBuyCredits = async (token: TokenData) => {
+    if (!user?.id) {
+      setError("Please log in to purchase credits");
+      return;
+    }
+
+    if (!token.offChainData.credits || token.offChainData.credits.length === 0) {
+      setError("No credits available for this forest");
+      return;
+    }
+
+    // Get the first available credit for this forest
+    const credit = token.offChainData.credits[0];
+    
+    if (credit.availableCredits <= 0) {
+      setError("No credits available for purchase");
+      return;
+    }
+
+    try {
+      setAddingToCart(token.offChainData.forestId);
+      
+      // Add to cart (default quantity: 10 credits)
+      const quantity = Math.min(10, credit.availableCredits);
+      
+      const response = await fetch("/api/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          carbonCreditId: credit.id,
+          quantity,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to add to cart");
+      }
+
+      // Navigate to cart with checkout flag
+      router.push("/cart?checkout=1");
+    } catch (err: any) {
+      console.error("Error adding to cart:", err);
+      setError(err.message || "Failed to add credits to cart");
+    } finally {
+      setAddingToCart(null);
     }
   };
 
@@ -439,12 +493,20 @@ export default function MarketplacePage() {
                   <Button
                     size="sm"
                     className="flex-1 bg-green-600 hover:bg-green-700"
-                    onClick={() =>
-                      router.push(`/marketplace/${token.offChainData.forestId}`)
-                    }
+                    onClick={() => handleBuyCredits(token)}
+                    disabled={addingToCart === token.offChainData.forestId}
                   >
-                    <Leaf className="h-4 w-4 mr-1" />
-                    Buy Credits
+                    {addingToCart === token.offChainData.forestId ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Leaf className="h-4 w-4 mr-1" />
+                        Buy Credits
+                      </>
+                    )}
                   </Button>
                 )}
               </CardFooter>
