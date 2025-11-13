@@ -195,18 +195,19 @@ export default function WalletPage() {
         </div>
         <Button
           onClick={handleExportCertificate}
-          disabled={exportingCertificate || !currentWalletData || currentWalletData.tokens.length === 0}
-          className="bg-green-600 hover:bg-green-700"
+          disabled={exportingCertificate || !currentWalletData || currentWalletData.tokens.length === 0 || activeWallet !== "buyer"}
+          className="bg-red-600 hover:bg-red-700"
+          title={activeWallet !== "buyer" ? "Only buyer wallet can retire tokens" : "Retire all tokens and generate certificate"}
         >
           {exportingCertificate ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Generating...
+              Retiring Tokens...
             </>
           ) : (
             <>
               <FileDown className="h-4 w-4 mr-2" />
-              Export All Tokens to Certificate
+              Retire All Tokens & Export Certificate
             </>
           )}
         </Button>
@@ -223,6 +224,18 @@ export default function WalletPage() {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {/* Warning for Buyer Wallet */}
+      {activeWallet === "buyer" && currentWalletData && currentWalletData.tokens.length > 0 && (
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertTitle className="text-yellow-900">Token Retirement Available</AlertTitle>
+          <AlertDescription className="text-yellow-800">
+            You can retire all tokens in this wallet to generate a permanent retirement certificate. 
+            <strong className="block mt-1">⚠️ Warning: This action will permanently burn all tokens on the blockchain and cannot be undone!</strong>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Wallet Address Card */}
       <Card>
@@ -453,14 +466,15 @@ export default function WalletPage() {
                 </Button>
               </div>
               
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
                   <div className="flex-1">
-                    <h3 className="font-semibold text-blue-900 mb-1">Certificate Information</h3>
-                    <p className="text-sm text-blue-800">
-                      This certificate represents all carbon credit tokens currently held in your wallet. 
-                      You can freely trade these tokens, and generate a new certificate at any time to reflect your current holdings.
+                    <h3 className="font-semibold text-red-900 mb-1">Retirement Certificate</h3>
+                    <p className="text-sm text-red-800">
+                      <strong>Important:</strong> All tokens in this certificate have been permanently retired (burned) on the blockchain. 
+                      This action is irreversible and represents the final offset of these carbon credits. 
+                      The blockchain transaction hashes below serve as proof of retirement.
                     </p>
                   </div>
                 </div>
@@ -477,8 +491,8 @@ export default function WalletPage() {
                     <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">{currentWalletAddress}</code>
                   </div>
                   <div className="flex justify-between items-center text-sm pb-3 border-b">
-                    <span className="text-gray-600">Total Credits:</span>
-                    <span className="font-bold text-green-700">{certificate.totalCredits.toLocaleString()} credits</span>
+                    <span className="text-gray-600">Total Credits Retired:</span>
+                    <span className="font-bold text-red-700">{certificate.totalCredits.toLocaleString()} credits</span>
                   </div>
                   <div className="flex justify-between items-center text-sm pb-3 border-b">
                     <span className="text-gray-600">Total Value:</span>
@@ -488,25 +502,31 @@ export default function WalletPage() {
                     <span className="text-gray-600">Token Types:</span>
                     <span className="font-semibold">{certificate.tokenCount}</span>
                   </div>
+                  <div className="flex justify-between items-center text-sm pb-3 border-b">
+                    <span className="text-gray-600">Status:</span>
+                    <Badge variant="destructive" className="text-xs">
+                      {certificate.burnedOnBlockchain ? "Retired (Burned)" : "Active"}
+                    </Badge>
+                  </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Export Date:</span>
-                    <span className="text-xs">{new Date(certificate.exportDate).toLocaleString()}</span>
+                    <span className="text-gray-600">Retirement Date:</span>
+                    <span className="text-xs">{new Date(certificate.retiredDate || certificate.exportDate).toLocaleString()}</span>
                   </div>
                 </div>
 
                 {certificate.metadata?.tokens && certificate.metadata.tokens.length > 0 && (
                   <div className="mt-6 pt-6 border-t">
-                    <h3 className="font-semibold text-gray-900 mb-3">Token Holdings:</h3>
+                    <h3 className="font-semibold text-gray-900 mb-3">Retired Token Holdings:</h3>
                     <div className="space-y-3">
                       {certificate.metadata.tokens.map((token: any, index: number) => (
-                        <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                        <div key={index} className="bg-gray-50 p-4 rounded-lg border-l-4 border-red-500">
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
                               <h4 className="font-semibold text-gray-900">{token.forestName}</h4>
                               <p className="text-sm text-gray-600">{token.forestLocation}</p>
                             </div>
                             <div className="text-right">
-                              <div className="font-bold text-green-700">{token.quantity.toLocaleString()} credits</div>
+                              <div className="font-bold text-red-700">{token.quantity.toLocaleString()} credits retired</div>
                               <div className="text-xs text-gray-600">${token.subtotal.toFixed(2)}</div>
                             </div>
                           </div>
@@ -517,6 +537,56 @@ export default function WalletPage() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Blockchain Burn Transactions */}
+                {certificate.metadata?.burnTransactions && certificate.metadata.burnTransactions.length > 0 && (
+                  <div className="mt-6 pt-6 border-t">
+                    <h3 className="font-semibold text-gray-900 mb-3">Blockchain Retirement Transactions:</h3>
+                    <div className="space-y-3">
+                      {certificate.metadata.burnTransactions.map((burn: any, index: number) => (
+                        <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-green-800 bg-green-100 px-2 py-1 rounded">
+                                  Token ID: {burn.tokenId}
+                                </span>
+                                <span className="text-xs text-gray-600">{burn.forestName}</span>
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                <span className="font-medium">{burn.amount.toLocaleString()} credits</span> permanently retired
+                              </div>
+                              {burn.transactionHash && (
+                                <div className="mt-2">
+                                  <div className="text-xs text-gray-600 mb-1">Transaction Hash:</div>
+                                  <div className="flex items-center gap-2 bg-white rounded p-2 border border-green-200">
+                                    <code className="text-xs font-mono text-gray-800 break-all flex-1">
+                                      {burn.transactionHash}
+                                    </code>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(burn.transactionHash);
+                                        alert("Transaction hash copied to clipboard!");
+                                      }}
+                                      className="shrink-0 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition"
+                                      title="Copy transaction hash"
+                                    >
+                                      Copy
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-3">
+                      ℹ️ You can verify these retirement transactions on your Ganache blockchain at{" "}
+                      <span className="font-mono">http://127.0.0.1:7545</span>
                     </div>
                   </div>
                 )}
@@ -546,11 +616,15 @@ export default function WalletPage() {
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
                   <FileDown className="h-4 w-4 mr-2" />
-                  Print Certificate
+                  Print/Download Certificate
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => setShowCertificate(false)}
+                  onClick={() => {
+                    setShowCertificate(false);
+                    // Refresh wallet data after closing to show tokens are burned
+                    fetchWalletData();
+                  }}
                   className="flex-1"
                 >
                   Close

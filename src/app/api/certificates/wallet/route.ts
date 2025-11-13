@@ -4,6 +4,9 @@ import * as crypto from "crypto";
 import { blockchainService } from "@/lib/blockchain-service";
 
 const prisma = new PrismaClient();
+const BUYER_ADDRESS =
+  process.env.BUYER_ADDRESS || "0xC0D96df80AA7eFe04e4ed8D4170C87d75dAe047e";
+const BUYER_PRIVATE_KEY = process.env.BUYER_PRIVATE_KEY || "";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +17,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing userId or walletAddress" },
         { status: 400 },
+      );
+    }
+
+    // Only allow buyer wallet to export certificate
+    if (walletAddress.toLowerCase() !== BUYER_ADDRESS.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Only the buyer wallet can export certificates" },
+        { status: 403 },
+      );
+    }
+
+    if (!BUYER_PRIVATE_KEY) {
+      return NextResponse.json(
+        { error: "Buyer private key not configured" },
+        { status: 500 },
       );
     }
 
@@ -83,10 +101,81 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate certificate ID
-    const certificateId = `WC-${userId}-${Date.now()}`;
+    // Burn all tokens on blockchain
+    const burnResults: Array<{
+      tokenId: number;
+      forestName: string;
+      amount: number;
+      success: boolean;
+      transactionHash?: string;
+      error?: string;
+    }> = [];
 
-    // Prepare certificate data
+    for (const token of walletTokens) {
+      try {
+        console.log(
+          `Burning ${token.balance} credits (Token ID: ${token.tokenId}) from wallet ${walletAddress}`,
+        );
+
+        const burnResult = await blockchainService.retireCredits(
+          token.tokenId,
+          token.balance,
+          walletAddress,
+          BUYER_PRIVATE_KEY,
+        );
+
+        burnResults.push({
+          tokenId: token.tokenId,
+          forestName: token.forestName,
+          amount: token.balance,
+          success: burnResult.success,
+          transactionHash: burnResult.transactionHash,
+          error: burnResult.error,
+        });
+
+        if (!burnResult.success) {
+          console.error(
+            `Failed to burn tokens for ${token.forestName}:`,
+            burnResult.error,
+          );
+        } else {
+          console.log(
+            `Successfully burned ${token.balance} tokens. TX: ${burnResult.transactionHash}`,
+          );
+        }
+      } catch (error: any) {
+        console.error(`Error burning tokens for ${token.forestName}:`, error);
+        burnResults.push({
+          tokenId: token.tokenId,
+          forestName: token.forestName,
+          amount: token.balance,
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    // Check if all burns were successful
+    const allBurnsSuccessful = burnResults.every((result) => result.success);
+
+    if (!allBurnsSuccessful) {
+      const failedBurns = burnResults.filter((result) => !result.success);
+      return NextResponse.json(
+        {
+          error: "Failed to burn some tokens",
+          failedBurns,
+          details: failedBurns
+            .map((fb) => `${fb.forestName}: ${fb.error}`)
+            .join(", "),
+        },
+        { status: 500 },
+      );
+    }
+
+    // Generate certificate ID
+    const certificateId = `RC-${userId}-${Date.now()}`;
+
+    // Prepare certificate data (not saved to database)
     const certificateData = {
       certificateId,
       userId,
@@ -95,7 +184,7 @@ export async function POST(req: NextRequest) {
       walletAddress,
       totalCredits,
       totalValue,
-      exportDate: new Date().toISOString(),
+      retiredDate: new Date().toISOString(),
       tokens: walletTokens.map((token) => ({
         forestName: token.forestName,
         forestLocation: token.forestLocation,
@@ -106,6 +195,12 @@ export async function POST(req: NextRequest) {
         pricePerCredit: token.pricePerCredit,
         subtotal: token.value,
       })),
+      burnTransactions: burnResults.map((result) => ({
+        tokenId: result.tokenId,
+        forestName: result.forestName,
+        amount: result.amount,
+        transactionHash: result.transactionHash,
+      })),
     };
 
     // Generate certificate hash
@@ -114,38 +209,31 @@ export async function POST(req: NextRequest) {
       userId: certificateData.userId,
       totalCredits: certificateData.totalCredits,
       totalValue: certificateData.totalValue,
-      exportDate: certificateData.exportDate,
+      retiredDate: certificateData.retiredDate,
       walletAddress: certificateData.walletAddress,
+      burnTransactions: certificateData.burnTransactions,
     });
     const certificateHash = crypto
       .createHash("sha256")
       .update(dataString)
       .digest("hex");
 
-    // Create certificate in database (wallet certificates don't have orderId)
-    const certificate = await (prisma as any).certificate.create({
-      data: {
-        certificateHash,
-        metadata: {
-          ...certificateData,
-          certificateHash,
-          type: "wallet_export",
-        } as any,
-        status: "active",
-      },
-    });
-
+    // Return certificate data without saving to database
     return NextResponse.json({
       success: true,
       certificate: {
-        id: certificate.id,
         certificateId,
         certificateHash,
         totalCredits,
         totalValue,
         tokenCount: walletTokens.length,
-        exportDate: certificateData.exportDate,
-        metadata: certificateData,
+        retiredDate: certificateData.retiredDate,
+        burnedOnBlockchain: true,
+        metadata: {
+          ...certificateData,
+          certificateHash,
+          type: "retirement_certificate",
+        },
       },
     });
   } catch (error: any) {
