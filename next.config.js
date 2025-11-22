@@ -1,16 +1,12 @@
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+  // Increase timeout for API routes (for large biomass predictions)
+  experimental: {
+    proxyTimeout: 24 * 60 * 60 * 1000, // 24 hours
   },
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "firebasestorage.googleapis.com",
-        pathname: "/**",
-      },
-    ],
-    unoptimized: true,
+  // For production builds
+  serverRuntimeConfig: {
+    apiTimeout: 24 * 60 * 60 * 1000, // 24 hours
   },
 };
 

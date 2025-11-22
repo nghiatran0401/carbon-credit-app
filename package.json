@@ -33,6 +33,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@stripe/react-stripe-js": "^3.7.0",
     "@stripe/stripe-js": "^7.5.0",
+    "@types/leaflet-draw": "^1.0.13",
     "@types/pdfkit": "^0.17.2",
     "bcryptjs": "^3.0.2",
     "canvas-confetti": "^1.9.3",
