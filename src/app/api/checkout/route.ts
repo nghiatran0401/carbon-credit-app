@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
         currency: "usd",
         product_data: {
           name: name,
+          metadata: {
+            seller: item.seller || name,
+          },
         },
         unit_amount: Math.round(price * 100),
       },
@@ -62,6 +65,8 @@ export async function POST(req: NextRequest) {
       totalPrice: total,
       totalCredits,
       currency: "USD",
+      buyer: String(userId),                          // <- added
+      seller: cartItems[0]?.seller || "Platform",    // <- added (fallback)
       items: {
         create: cartItems.map((item: any) => {
           const price = item.carbonCredit?.pricePerCredit || item.price || 0;
