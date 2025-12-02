@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
-const Stripe = require("stripe");
-const stripe = Stripe(stripeSecret);
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { userId, cartItems } = body;
-  if (!userId) return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+  if (!userId)
+    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
     return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
   }
@@ -24,38 +22,16 @@ export async function POST(req: NextRequest) {
     totalCredits += item.quantity;
   }
 
-  // Create Stripe Checkout Session
-  const line_items = cartItems.map((item: any) => {
+  // Validate prices
+  for (const item of cartItems) {
     const price = item.carbonCredit?.pricePerCredit || item.price || 0;
-    const name = item.carbonCredit?.forest?.name || item.name || "Carbon Credit";
+    const name =
+      item.carbonCredit?.forest?.name || item.name || "Carbon Credit";
 
     if (!price || price <= 0) {
       throw new Error(`Invalid price for item: ${name}`);
     }
-
-    return {
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: name,
-          metadata: {
-            seller: item.seller || name,
-          },
-        },
-        unit_amount: Math.round(price * 100),
-      },
-      quantity: item.quantity,
-    };
-  });
-
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    line_items,
-    mode: "payment",
-    success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/cart`,
-    metadata: { userId: String(userId) },
-  });
+  }
 
   // Create Order (pending)
   const order = await prisma.order.create({
@@ -65,8 +41,8 @@ export async function POST(req: NextRequest) {
       totalPrice: total,
       totalCredits,
       currency: "USD",
-      buyer: String(userId),                          // <- added
-      seller: cartItems[0]?.seller || "Platform",    // <- added (fallback)
+      buyer: String(userId), // <- added
+      seller: cartItems[0]?.seller || "Platform", // <- added (fallback)
       items: {
         create: cartItems.map((item: any) => {
           const price = item.carbonCredit?.pricePerCredit || item.price || 0;
@@ -85,7 +61,6 @@ export async function POST(req: NextRequest) {
   await prisma.payment.create({
     data: {
       orderId: order.id,
-      stripeSessionId: session.id,
       amount: total,
       currency: "USD",
       status: "pending",
@@ -98,9 +73,17 @@ export async function POST(req: NextRequest) {
     data: {
       orderId: order.id,
       event: "created",
-      message: `Order created and awaiting payment via Stripe session ${session.id}`,
+      message: `Order created and awaiting payment`,
     },
   });
 
-  return NextResponse.json({ sessionId: session.id, checkoutUrl: session.url });
+  // Return mock payment page URL
+  const checkoutUrl = `${baseUrl}/payment?orderId=${order.id}`;
+
+  return NextResponse.json({
+    orderId: order.id,
+    checkoutUrl,
+    totalPrice: total,
+    totalCredits,
+  });
 }
