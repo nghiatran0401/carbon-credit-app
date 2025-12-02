@@ -8,12 +8,70 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth-context";
+import { apiPost } from "@/lib/api";
 
+// Toggle between mock and real API
+const USE_MOCK_API = true;
 const BASE_URL = "https://judgmental-differently-norberto.ngrok-free.dev"; //Contact Nguyen Vinh Khang if you want to this server
 const BIOMASS_THRESHOLD = 10; // Mg/ha - areas with biomass > this are considered forest
 
+// Mock API function for development
+const mockPredictBiomass = async (bounds: Bounds, year: number) => {
+  console.log('🔧 Using MOCK API for biomass prediction');
+  
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // Generate mock biomass data
+  const rows = 50;
+  const cols = 50;
+  const biomass_prediction: number[][] = [];
+  
+  for (let i = 0; i < rows; i++) {
+    const row: number[] = [];
+    for (let j = 0; j < cols; j++) {
+      // Create a gradient pattern with some variation
+      const centerX = cols / 2;
+      const centerY = rows / 2;
+      const distance = Math.sqrt(Math.pow(i - centerY, 2) + Math.pow(j - centerX, 2));
+      const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
+      const value = 30 - (distance / maxDistance) * 20 + Math.random() * 10;
+      row.push(Math.max(0, value));
+    }
+    biomass_prediction.push(row);
+  }
+  
+  // Generate a simple visualization
+  const canvas = document.createElement('canvas');
+  canvas.width = cols;
+  canvas.height = rows;
+  const ctx = canvas.getContext('2d');
+  
+  if (ctx) {
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        const value = biomass_prediction[i][j];
+        const intensity = Math.floor((value / 40) * 255);
+        ctx.fillStyle = `rgb(0, ${intensity}, 0)`;
+        ctx.fillRect(j, i, 1, 1);
+      }
+    }
+  }
+  
+  const biomass_vis_base64 = canvas.toDataURL('image/png');
+  
+  return {
+    success: true,
+    biomass_shape: [rows, cols] as [number, number],
+    biomass_prediction,
+    biomass_vis_base64
+  };
+};
+
 export default function BiomassOnlyPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Refs for external control of map components
   const mapRef = useRef<any>(null);
@@ -57,6 +115,13 @@ export default function BiomassOnlyPage() {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [saveForm, setSaveForm] = useState({ name: "", description: "" });
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Blockchain results
+  const [blockchainResult, setBlockchainResult] = useState<{
+    transactionHash?: string;
+    tokenId?: number;
+    blockchainWarning?: string;
+  } | null>(null);
 
   // Generate forest mask - downsample for performance on large datasets
   const generateForestMask = (biomassData: number[][]) => {
@@ -363,25 +428,33 @@ export default function BiomassOnlyPage() {
       try {
           console.log('🚀 Starting analysis at:', new Date().toLocaleTimeString());
           
-          const res = await fetch(`${BASE_URL}/predict_biomass`, {
-              method: "POST",
-              headers: { 
-                  "Content-Type": "application/json", 
-                  "ngrok-skip-browser-warning": "true"
-              },
-              body: JSON.stringify({ bounds: selectedBounds, year: 2021 })
-              // Note: No timeout or signal - let it run as long as needed
-          });
+          let data;
           
-          console.log('✅ Response received at:', new Date().toLocaleTimeString());
-          
-          if (!res.ok) {
-              const text = await res.text();
-              console.error('❌ Error response:', text);
-              throw new Error(text || "Request failed");
+          if (USE_MOCK_API) {
+            // Use mock API for development
+            data = await mockPredictBiomass(selectedBounds, 2021);
+          } else {
+            // Use real API
+            const res = await fetch(`${BASE_URL}/predict_biomass`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json", 
+                    "ngrok-skip-browser-warning": "true"
+                },
+                body: JSON.stringify({ bounds: selectedBounds, year: 2021 })
+            });
+            
+            console.log('✅ Response received at:', new Date().toLocaleTimeString());
+            
+            if (!res.ok) {
+                const text = await res.text();
+                console.error('❌ Error response:', text);
+                throw new Error(text || "Request failed");
+            }
+            
+            data = await res.json();
           }
           
-          const data = await res.json();
           console.log('📊 Data parsed successfully');
           
           if (!data.success) throw new Error(data.error);
@@ -457,27 +530,78 @@ export default function BiomassOnlyPage() {
           toast({ title: "Error", description: "Please enter a name for the forest.", variant: "destructive" });
           return;
       }
+      
+      if (!user) {
+          toast({ title: "Error", description: "You must be logged in to save a forest.", variant: "destructive" });
+          return;
+      }
+      
+      if (!stats.forestBiomassMg) {
+          toast({ title: "Error", description: "No biomass data available to save.", variant: "destructive" });
+          return;
+      }
+      
       setIsSaving(true);
+      setBlockchainResult(null);
+      
       try {
-          const res = await fetch('/api/analysis', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  name: saveForm.name,
-                  description: saveForm.description,
-                  bounds: selectedBounds,
-                  mask: forestMask,
-                  maskShape: forestMaskShape,
-                  stats,
-                  biomassData: biomassPrediction 
-              })
+          // Convert biomass (Mg) to carbon credits (tCO₂e)
+          const carbonCreditAmount = Math.round(stats.forestBiomassMg / 3.67);
+          
+          console.log('💾 Saving forest to blockchain:', {
+              userId: user.email,
+              carbonCreditAmount,
+              forestName: saveForm.name
           });
-          if (!res.ok) throw new Error("Failed to save");
-          toast({ title: "Success", description: "Forest saved successfully!" });
+          
+          // Post to upload-assets API which handles database, blockchain, and JSON file
+          const result: any = await apiPost('/api/upload-assets', {
+              userId: user.email,
+              carbonCreditAmount,
+              name: saveForm.name,
+              forestName: saveForm.name,
+              description: saveForm.description,
+              // Include analysis data for JSON file
+              bounds: selectedBounds,
+              mask: forestMask,
+              maskShape: forestMaskShape,
+              stats,
+              biomassData: biomassPrediction
+          });
+          
+          // Store blockchain results
+          if (result.blockchainWarning) {
+              setBlockchainResult({ blockchainWarning: result.blockchainWarning });
+              toast({ 
+                  title: "Warning", 
+                  description: result.blockchainWarning, 
+                  variant: "destructive" 
+              });
+          } else if (result.blockchain) {
+              setBlockchainResult({
+                  transactionHash: result.blockchain.transactionHash,
+                  tokenId: result.blockchain.tokenId
+              });
+              toast({ 
+                  title: "Success", 
+                  description: `Forest saved successfully! ${carbonCreditAmount} tCO₂e credits minted.` 
+              });
+          } else {
+              toast({ 
+                  title: "Success", 
+                  description: "Forest saved successfully!" 
+              });
+          }
+          
           setIsSaveDialogOpen(false);
           setSaveForm({ name: "", description: "" });
-      } catch (e) {
-          toast({ title: "Error", description: "Failed to save forest.", variant: "destructive" });
+      } catch (e: any) {
+          console.error('❌ Save error:', e);
+          toast({ 
+              title: "Error", 
+              description: e.message || "Failed to save forest.", 
+              variant: "destructive" 
+          });
       } finally {
           setIsSaving(false);
       }
@@ -485,6 +609,14 @@ export default function BiomassOnlyPage() {
 
   return (
     <div className="min-h-screen w-full bg-[#0f1419] text-[#e0e0e0]">
+        {USE_MOCK_API && (
+            <div className="bg-yellow-900/30 border-b border-yellow-900/50 px-4 py-2 text-center">
+                <p className="text-yellow-300 text-sm">
+                    🔧 <strong>Development Mode:</strong> Using mock biomass prediction API. 
+                    <span className="ml-2 text-yellow-400 text-xs">Set USE_MOCK_API to false to use real API.</span>
+                </p>
+            </div>
+        )}
         <div className="max-w-[1600px] mx-auto px-0 md:px-4 py-0 md:py-4">
              <div className="flex flex-col md:flex-row h-[calc(100vh-90px)] md:h-[calc(100vh-130px)] overflow-hidden rounded-none md:rounded-lg md:border md:border-[#1e3a2a]" style={{ background: "#0f1419" }}>
                  
@@ -577,7 +709,7 @@ export default function BiomassOnlyPage() {
         <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
             <DialogContent className="bg-[#151b28] border-[#1e3a2a] text-gray-200 z-[2000]">
                 <DialogHeader>
-                    <DialogTitle>Save Forest Analysis</DialogTitle>
+                    <DialogTitle>Save Forest Analysis & Mint Carbon Credits</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
@@ -585,14 +717,47 @@ export default function BiomassOnlyPage() {
                         <Input id="name" value={saveForm.name} onChange={(e) => setSaveForm({...saveForm, name: e.target.value})} className="bg-[#0b1324] border-[#1e3a2a]" />
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="desc">Description</Label>
+                        <Label htmlFor="desc">Description (Optional)</Label>
                         <Textarea id="desc" value={saveForm.description} onChange={(e) => setSaveForm({...saveForm, description: e.target.value})} className="bg-[#0b1324] border-[#1e3a2a]" />
                     </div>
+                    {stats.forestBiomassMg && (
+                        <div className="bg-green-900/10 border border-green-900/20 rounded p-3">
+                            <div className="text-xs text-gray-400 uppercase font-bold">Carbon Credits to Mint</div>
+                            <div className="text-xl font-bold text-[#10b981]">{(stats.forestBiomassMg / 3.67).toFixed(2)} tCO₂e</div>
+                            <div className="text-xs text-gray-500 mt-1">Based on {stats.forestBiomassMg.toFixed(2)} Mg biomass</div>
+                        </div>
+                    )}
+                    {blockchainResult && (
+                        <div className={`p-4 rounded border ${blockchainResult.blockchainWarning ? 'bg-yellow-50 border-yellow-200' : 'bg-green-50 border-green-200'}`}>
+                            {blockchainResult.blockchainWarning ? (
+                                <p className="text-yellow-700 text-sm">{blockchainResult.blockchainWarning}</p>
+                            ) : (
+                                <>
+                                    <p className="text-green-600 font-semibold text-sm">✅ Blockchain Transaction Complete!</p>
+                                    {blockchainResult.transactionHash && (
+                                        <div className="mt-2 text-sm">
+                                            <p className="text-gray-700">
+                                                <span className="font-medium">Transaction Hash:</span>
+                                            </p>
+                                            <p className="text-gray-600 break-all font-mono text-xs mt-1">
+                                                {blockchainResult.transactionHash}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {blockchainResult.tokenId !== null && blockchainResult.tokenId !== undefined && (
+                                        <p className="text-gray-700 text-sm mt-2">
+                                            <span className="font-medium">Token ID:</span> {blockchainResult.tokenId}
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)} className="border-[#1e3a2a] text-gray-400 hover:bg-[#1e3a2a]">Cancel</Button>
                     <Button onClick={handleSaveForest} disabled={isSaving} className="bg-[#10b981] text-black hover:bg-[#059669]">
-                        {isSaving ? "Saving..." : "Save"}
+                        {isSaving ? "Saving..." : "Save & Mint Tokens"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

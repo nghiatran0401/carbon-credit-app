@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { blockchainService } from "@/lib/blockchain-service";
+import fs from "fs/promises";
+import path from "path";
 
 const prisma = new PrismaClient();
+const DATA_FILE = path.join(process.cwd(), "data", "saved_analyses.json");
 
 export async function POST(req: Request) {
-  const { userId, carbonCreditAmount, forestName } = await req.json();
+  const body = await req.json();
+  const { userId, carbonCreditAmount, forestName } = body;
   console.log("Received data:", { userId, carbonCreditAmount, forestName });
   if (!userId || !carbonCreditAmount || !forestName) {
     return NextResponse.json(
@@ -59,11 +63,30 @@ export async function POST(req: Request) {
           "Forest created but token minting failed: " + mintResult.error,
       });
     }
-
     console.log("Tokens minted successfully:", {
       tokenId: mintResult.tokenId,
       transactionHash: mintResult.transactionHash,
     });
+
+    // Also save to JSON file for analysis tracking (optional)
+    try {
+      const analyses = await getAnalyses();
+      const newAnalysis = {
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+        forestId: forest.id,
+        forestName: forest.name,
+        userId,
+        carbonCreditAmount,
+        ...body, // Include any additional data like bounds, mask, stats, biomassData
+      };
+      analyses.push(newAnalysis);
+      await saveAnalyses(analyses);
+      console.log("Analysis saved to JSON file");
+    } catch (jsonError) {
+      console.error("Failed to save to JSON (non-critical):", jsonError);
+      // Don't fail the request if JSON save fails
+    }
 
     return NextResponse.json({
       ...forest,
@@ -79,4 +102,18 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+}
+
+// Helper functions for JSON file operations
+async function getAnalyses() {
+  try {
+    const data = await fs.readFile(DATA_FILE, "utf-8");
+    return JSON.parse(data);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function saveAnalyses(analyses: any[]) {
+  await fs.writeFile(DATA_FILE, JSON.stringify(analyses, null, 2));
 }

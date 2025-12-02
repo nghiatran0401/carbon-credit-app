@@ -33,8 +33,8 @@ interface WalletData {
   totalTokenTypes: number;
 }
 
-const WALLET_ADDRESS = "0x5A57feFf398a8ea3F2E10144cF71fD9A88801cE7";
-const BUYER_ADDRESS = "0xC0D96df80AA7eFe04e4ed8D4170C87d75dAe047e";
+const WALLET_ADDRESS = "0x4fb783BdC5e49bcFDE68eAb8449D22dDa75Cdf0C";
+const BUYER_ADDRESS = "0x5807E2FaE6DD3559b7368E708fB511d109cfD3D4";
 const AUTHORIZED_EMAIL = "admin@gmail.com";
 
 export default function WalletPage() {

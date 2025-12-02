@@ -28,7 +28,7 @@ export function DesktopNav() {
         Marketplace
       </Link>
       
-      <Link href="/upload_assets" className="text-gray-600 hover:text-green-600">
+      <Link href="/biomass-only" className="text-gray-600 hover:text-green-600">
         Upload Assets
       </Link>
 
