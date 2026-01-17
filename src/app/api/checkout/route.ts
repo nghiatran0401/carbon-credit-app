@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
+import { env } from "@/lib/env";
+import Stripe from "stripe";
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-const stripeSecret = process.env.STRIPE_SECRET_KEY;
-const Stripe = require("stripe");
-const stripe = Stripe(stripeSecret);
+const baseUrl = env.NEXT_PUBLIC_BASE_URL;
+const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
   const order = await prisma.order.create({
     data: {
       userId,
-      status: "Pending",
+      status: "PENDING",
       totalPrice: total,
       totalCredits,
       currency: "USD",
@@ -88,7 +87,7 @@ export async function POST(req: NextRequest) {
       stripeSessionId: session.id,
       amount: total,
       currency: "USD",
-      status: "pending",
+      status: "PENDING",
       method: "card",
     },
   });

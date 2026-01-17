@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "./prisma";
 import * as crypto from "crypto";
 import type { Certificate, Order, User, CarbonCredit, Forest } from "../types";
 
@@ -18,8 +18,6 @@ function convertPrismaDates(obj: any): any {
   }
   return converted;
 }
-
-const prisma = new PrismaClient();
 
 export interface CertificateData {
   certificateId: string;

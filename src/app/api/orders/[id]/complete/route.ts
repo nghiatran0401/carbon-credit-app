@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const orderId = parseInt(params.id);
@@ -21,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    if (order.status === "Completed") {
+    if (order.status === "COMPLETED") {
       return NextResponse.json({ error: "Order is already completed" }, { status: 400 });
     }
 
@@ -29,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (order.payments && order.payments.length > 0) {
       await prisma.payment.update({
         where: { id: order.payments[0].id },
-        data: { status: "succeeded" },
+        data: { status: "SUCCEEDED" },
       });
     }
 
@@ -37,7 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     await prisma.order.update({
       where: { id: orderId },
       data: {
-        status: "Completed",
+        status: "COMPLETED",
         paidAt: new Date(),
       },
     });

@@ -1,18 +1,19 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { certificateService } from "@/lib/certificate-service";
 import { notificationService } from "@/lib/notification-service";
 import { orderAuditService } from "@/lib/order-audit-service";
 import { orderAuditMiddleware } from "@/lib/order-audit-middleware";
 import { carbonMovementService } from "@/lib/carbon-movement-service";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -30,8 +31,6 @@ export async function POST(req: Request) {
     console.error("Webhook signature verification failed.", err.message);
     return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
   }
-
-  const prisma = new PrismaClient();
 
   console.log(`🔔 Webhook received: ${event.type} at ${new Date().toISOString()}`);
 

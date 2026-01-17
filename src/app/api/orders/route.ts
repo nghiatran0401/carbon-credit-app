@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { notificationService } from "@/lib/notification-service";
-
-const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -33,6 +31,8 @@ export async function POST(req: Request) {
       userId,
       status,
       totalPrice: 0, // will update after items
+      buyer: String(userId),
+      seller: items[0]?.seller || "Platform", // fallback to Platform if no seller
       items: {
         create: items.map((item: any) => {
           const subtotal = item.quantity * item.pricePerCredit;

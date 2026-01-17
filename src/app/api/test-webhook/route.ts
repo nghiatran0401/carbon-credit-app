@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { orderAuditService } from "@/lib/order-audit-service";
-
-const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   console.log('🧪 Manual webhook test triggered');
@@ -76,8 +74,6 @@ export async function POST(req: Request) {
       success: false,
       message: error.message
     }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

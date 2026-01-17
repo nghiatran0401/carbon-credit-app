@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { notificationService } from "@/lib/notification-service";
-
-const prisma = new PrismaClient();
 
 export async function GET() {
   const credits = await prisma.carbonCredit.findMany({
@@ -28,7 +26,7 @@ export async function POST(req: Request) {
     // Get all users who might be interested in new credits
     const users = await prisma.user.findMany({
       where: {
-        role: "user", // Only notify regular users, not admins
+        role: "USER", // Only notify regular users, not admins
       },
     });
 

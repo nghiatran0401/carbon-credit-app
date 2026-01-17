@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { orderAuditService } from './order-audit-service';
-
-const prisma = new PrismaClient();
+import { prisma } from "./prisma";
+import { orderAuditService } from "./order-audit-service";
 
 class OrderAuditMiddleware {
   /**
@@ -29,16 +27,16 @@ class OrderAuditMiddleware {
         throw new Error(`Order ${orderId} not found`);
       }
 
-      if (order.status !== 'Completed' || !order.paidAt) {
-        return { exists: false, created: false, error: 'Order not completed' };
+      if (order.status !== "Completed" || !order.paidAt) {
+        return { exists: false, created: false, error: "Order not completed" };
       }
 
-  // Calculate total credits
-  const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
+      // Calculate total credits
+      const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Read buyer/seller from order
-  const buyer = (order as any).buyer;
-  const seller = (order as any).seller;
+      // Read buyer/seller from order
+      const buyer = (order as any).buyer;
+      const seller = (order as any).seller;
 
       // Check if audit record already exists
       try {
@@ -48,7 +46,7 @@ class OrderAuditMiddleware {
           totalPrice: order.totalPrice,
           paidAt: order.paidAt,
           buyer,
-          seller
+          seller,
         });
 
         if (verification.storedHash) {
@@ -66,12 +64,11 @@ class OrderAuditMiddleware {
         totalPrice: order.totalPrice,
         paidAt: order.paidAt,
         buyer,
-        seller
+        seller,
       });
 
       console.log(`✅ Created audit record for order ${orderId}`);
       return { exists: false, created: true };
-
     } catch (error: any) {
       console.error(`❌ Error ensuring audit for order ${orderId}:`, error.message);
       return { exists: false, created: false, error: error.message };
@@ -90,10 +87,10 @@ class OrderAuditMiddleware {
     try {
       const completedOrders = await prisma.order.findMany({
         where: {
-          status: 'Completed',
-          paidAt: { not: null }
+          status: "Completed",
+          paidAt: { not: null },
         },
-        orderBy: { id: 'desc' }
+        orderBy: { id: "desc" },
       });
 
       console.log(`🔄 Processing ${completedOrders.length} completed orders for audit records...`);
@@ -104,23 +101,22 @@ class OrderAuditMiddleware {
 
       for (const order of completedOrders) {
         const result = await this.ensureOrderAudit(order.id);
-        
+
         if (result.created) created++;
         else if (result.exists) existing++;
         else if (result.error) errors++;
       }
 
       console.log(`📊 Audit processing complete: ${created} created, ${existing} existing, ${errors} errors`);
-      
+
       return {
         processed: completedOrders.length,
         created,
         existing,
-        errors
+        errors,
       };
-
     } catch (error: any) {
-      console.error('Error processing completed orders:', error.message);
+      console.error("Error processing completed orders:", error.message);
       throw error;
     }
   }
@@ -130,10 +126,10 @@ class OrderAuditMiddleware {
    */
   async runBackgroundAuditCheck(): Promise<void> {
     try {
-      console.log('🕐 Running background audit check...');
+      console.log("🕐 Running background audit check...");
       await this.processAllCompletedOrders();
     } catch (error: any) {
-      console.error('Background audit check failed:', error.message);
+      console.error("Background audit check failed:", error.message);
     }
   }
 }

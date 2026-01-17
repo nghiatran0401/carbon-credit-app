@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "./prisma";
 import { Notification } from "@/types";
 
 export interface CreateNotificationData {
@@ -10,11 +10,7 @@ export interface CreateNotificationData {
 }
 
 export class NotificationService {
-  private prisma: PrismaClient;
-
-  constructor() {
-    this.prisma = new PrismaClient();
-  }
+  private prisma = prisma;
 
   private validateNotificationData(data: CreateNotificationData): void {
     if (!data.userId || data.userId <= 0) {

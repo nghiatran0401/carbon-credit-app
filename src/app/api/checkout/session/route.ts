@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { carbonMovementService } from "@/lib/carbon-movement-service";
 import { orderAuditMiddleware } from "@/lib/order-audit-middleware";
-
-const prisma = new PrismaClient();
 
 export async function GET(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get("session_id");
@@ -30,12 +28,12 @@ export async function GET(req: NextRequest) {
 
   // Fallback: If order is still pending, mark it as completed
   // This handles cases where the webhook didn't fire
-  if (payment.order.status === "Pending" && payment.status === "pending") {
+  if (payment.order.status === "PENDING" && payment.status === "PENDING") {
     // Update payment status
     await prisma.payment.update({
       where: { id: payment.id },
       data: {
-        status: "succeeded",
+        status: "SUCCEEDED",
       },
     });
 
@@ -43,7 +41,7 @@ export async function GET(req: NextRequest) {
     await prisma.order.update({
       where: { id: payment.order.id },
       data: {
-        status: "Completed",
+        status: "COMPLETED",
         paidAt: new Date(),
       },
     });
