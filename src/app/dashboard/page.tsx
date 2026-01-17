@@ -1,295 +1,188 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, Leaf, TrendingUp, DollarSign, Bookmark, Eye, Bookmark as BookmarkIcon, BookmarkCheck, Ruler, ShieldCheck, Tag, TreeDeciduous } from "lucide-react";
-import InteractiveMap from "@/components/interactive-map";
+import { Leaf, DollarSign, MapPin, TrendingUp, Trash2 } from "lucide-react";
+import BiomassMapBase from "@/components/biomass-map-base";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
 import useSWR from "swr";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { remove as removeDiacritics } from "diacritics";
+import { apiGet } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-
-  const fetcher = (url: string) => apiGet<any[]>(url);
-  const { data: forests, error, isLoading, mutate } = useSWR("/api/forests", fetcher);
-  const { data: bookmarksRaw, mutate: mutateBookmarks } = useSWR(user?.id ? `/api/bookmarks?userId=${user.id}` : null, apiGet);
-  const bookmarks = Array.isArray(bookmarksRaw) ? bookmarksRaw : [];
+  
+  const { data: savedForests, error, isLoading, mutate } = useSWR<any[]>("/api/analysis", apiGet);
   const [selectedForest, setSelectedForest] = useState<any | null>(null);
-  const [showForestInfo, setShowForestInfo] = useState(false);
-  // const [tab, setTab] = useState("all"); // Removed as per edit hint
-
-  // Helper to check if a forest is bookmarked
-  const isBookmarked = (forestId: number) => bookmarks.some((b: any) => b.forestId === forestId || b.forest?.id === forestId);
-  // Helper to get the correct forest ID
-  const getForestId = (forest: any) => {
-    if (!forest) return null;
-    if (typeof forest.id === "number") return forest.id;
-    if (typeof forest.forestId === "number") return forest.forestId;
-    if (forest.forest && typeof forest.forest.id === "number") return forest.forest.id;
-    return null;
-  };
-  const forestsSafe = forests || [];
-  // const filteredForests = tab === "favorites" ? forestsSafe.filter((f: any) => isBookmarked(f.id)) : forestsSafe; // Removed as per edit hint
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace("/auth");
-      return;
     }
-    if (forestsSafe.length && !selectedForest) {
-      setSelectedForest(forestsSafe[0]);
-    }
-  }, [isAuthenticated, router, forestsSafe, selectedForest]);
+  }, [isAuthenticated, router]);
+  
+  useEffect(() => {
+      if (savedForests && savedForests.length > 0 && !selectedForest) {
+          setSelectedForest(savedForests[0]);
+      }
+  }, [savedForests, selectedForest]);
 
-  // When tab changes, update selectedForest to the first in filteredForests // Removed as per edit hint
-  // useEffect(() => {
-  //   if (filteredForests.length && (!selectedForest || !filteredForests.some((f: any) => f.id === selectedForest.id))) {
-  //     setSelectedForest(filteredForests[0]);
-  //   }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [tab, bookmarksRaw, forestsSafe]);
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!confirm("Are you sure you want to delete this forest?")) return;
+      try {
+          await fetch(`/api/analysis?id=${id}`, { method: 'DELETE' });
+          toast({ title: "Forest deleted" });
+          mutate();
+          if (selectedForest?.id === id) setSelectedForest(null);
+      } catch(e) {
+          toast({ title: "Failed to delete", variant: "destructive" });
+      }
+  }
 
   if (!isAuthenticated) return null;
-  if (isLoading) return <div className="p-8 text-center">Loading...</div>;
-  if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;
-  if (!forestsSafe?.length) return <div className="p-8 text-center">No forest data available.</div>;
+  if (isLoading) return <div className="p-8 text-center">Loading forests...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">Failed to load data.</div>;
+  
+  const forests = savedForests || [];
 
-  const totalCredits = forestsSafe.reduce((sum, forest) => sum + (forest.credits?.reduce((cSum: number, c: any) => cSum + c.totalCredits, 0) || 0), 0);
-  const totalValue = forestsSafe.reduce((sum, forest) => sum + (forest.credits?.reduce((cSum: number, c: any) => cSum + c.totalCredits * c.pricePerCredit, 0) || 0), 0);
-  const totalArea = forestsSafe.reduce((sum, forest) => sum + (forest.area || 0), 0);
-
-  // Add/remove bookmark handlers
-  const handleBookmark = async (forestId: number | null) => {
-    if (!user?.id || !forestId) return;
-    if (isBookmarked(forestId)) {
-      await apiDelete("/api/bookmarks", { userId: user.id, forestId });
-      toast({ title: "Removed from favorites" });
-    } else {
-      await apiPost("/api/bookmarks", { userId: user.id, forestId });
-      toast({ title: "Added to favorites", description: "You can view all your favorites in the 'Favorites' tab." });
-    }
-    mutateBookmarks();
-  };
-
-  const normalize = (str: string) =>
-    removeDiacritics(str || "")
-      .toLowerCase()
-      .replace(/\s+/g, "");
+  // Calculate aggregate stats
+  const totalCredits = forests.reduce((sum: number, f: any) => sum + (f.stats?.forestBiomassMg ? f.stats.forestBiomassMg / 3.67 : 0), 0);
+  const totalArea = forests.reduce((sum: number, f: any) => sum + (f.stats?.forestAreaKm2 || 0), 0);
+  // Mock value calculation ($3 per credit)
+  const totalValue = totalCredits * 3; 
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Forest Carbon Credit Dashboard</h1>
-          <p className="text-gray-600">Monitor and manage carbon credits from Cần Giờ mangrove forests</p>
+        <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Forest Carbon Credit Dashboard</h1>
+                <p className="text-gray-600">Monitor your saved forest analyses</p>
+            </div>
+            <Button onClick={() => router.push('/biomass-only')}>
+                + New Analysis
+            </Button>
         </div>
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Carbon Credits</CardTitle>
-              <Leaf className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalCredits.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">tons CO₂ equivalent</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalValue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">USD at $3/credit</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Protected Area</CardTitle>
-              <MapPin className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalArea.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">hectares</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Zones</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{forestsSafe.length}</div>
-              <p className="text-xs text-muted-foreground">monitoring locations</p>
-            </CardContent>
-          </Card>
+            <OverviewCard title="Total Carbon Credits" icon={Leaf} value={totalCredits.toLocaleString(undefined, {maximumFractionDigits: 2})} unit="tCO₂e" />
+            <OverviewCard title="Total Value" icon={DollarSign} value={`$${totalValue.toLocaleString(undefined, {maximumFractionDigits: 2})}`} unit="USD" />
+            <OverviewCard title="Protected Area" icon={MapPin} value={totalArea.toFixed(2)} unit="km²" />
+            <OverviewCard title="Active Zones" icon={TrendingUp} value={forests.length} unit="forests" />
         </div>
 
         {/* Main Content */}
-        {/* Only show main content if not viewing forest info */}
-        {!showForestInfo && (
-          <>
-            {/* <Tabs value={tab} onValueChange={setTab} className="mb-4">
-              <TabsList>
-                <TabsTrigger value="all">All Forests</TabsTrigger>
-                <TabsTrigger value="favorites">Favorites</TabsTrigger>
-              </TabsList>
-            </Tabs> */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Interactive Map */}
-              <div className="lg:col-span-2">
-                <InteractiveMap forests={forestsSafe} bookmarks={bookmarks} selectedForest={selectedForest} onSelectForest={setSelectedForest} />
-              </div>
-
-              {/* Forest List Under the Map */}
-              {/* <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredForests.map((forest: any) => (
-                  <Card key={forest.id} className={`cursor-pointer transition-shadow ${selectedForest?.id === forest.id ? "ring-2 ring-green-500" : ""}`} onClick={() => setSelectedForest(forest)}>
-                    <CardHeader>
-                      <CardTitle className="text-lg">{forest.name}</CardTitle>
-                      <CardDescription>{forest.location}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm">Area</span>
-                        <span className="text-sm">{forest.area} ha</span>
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm">Status</span>
-                        <span className="text-sm">{forest.status}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Type</span>
-                        <span className="text-sm">{forest.type}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div> */}
-
-              {/* Forest Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TreeDeciduous className="h-6 w-6 text-green-600" />
-                    Selected Zone Details
-                  </CardTitle>
-                  <CardDescription className="text-lg font-bold text-gray-900">{selectedForest?.name}</CardDescription>
-                  <div className="flex items-center text-xs text-gray-500 mt-1">
-                    <MapPin className="h-3 w-3 mr-1" /> {selectedForest?.location}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4 pt-0">
-                  <div className="flex flex-col gap-3 text-sm">
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Ruler className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium">Area:</span>
-                      <span className="ml-auto font-semibold text-gray-900">{selectedForest?.area} ha</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Map View */}
+            <div className="lg:col-span-2 h-[600px] bg-white rounded-lg shadow overflow-hidden border relative">
+                {selectedForest ? (
+                    <BiomassMapBase 
+                        key={selectedForest.id} // Force re-render when forest changes
+                        bounds={selectedForest.bounds}
+                        mask={selectedForest.mask}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">Select a forest to view</div>
+                )}
+                {selectedForest && (
+                    <div className="absolute top-4 left-4 bg-white/90 p-3 rounded shadow backdrop-blur-sm z-[400] max-w-[300px]">
+                        <h3 className="font-bold text-lg truncate">{selectedForest.name}</h3>
+                        <p className="text-sm text-gray-600 line-clamp-2">{selectedForest.description}</p>
                     </div>
-
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <ShieldCheck className="h-4 w-4 text-green-500" />
-                      <span className="font-medium">Status:</span>
-                      <span className={`ml-auto font-semibold ${selectedForest?.status === "Active" ? "text-green-700" : "text-yellow-600"}`}>{selectedForest?.status}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Tag className="h-4 w-4 text-purple-500" />
-                      <span className="font-medium">Type:</span>
-                      <span className="ml-auto font-semibold text-gray-900">{selectedForest?.type}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Leaf className="h-4 w-4 text-green-500" />
-                      <span className="font-medium">Carbon Credits:</span>
-                      <span className="ml-auto font-bold text-green-700">
-                        {selectedForest?.carbonCredits || (Array.isArray(selectedForest?.credits) ? selectedForest.credits.reduce((sum: number, c: any) => sum + (c.totalCredits || 0), 0) : 0)} tCO₂
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <DollarSign className="h-4 w-4 text-yellow-500" />
-                      <span className="font-medium">Credit Value:</span>
-                      <span className="ml-auto font-bold text-yellow-700">
-                        $
-                        {selectedForest?.creditValue ||
-                          (Array.isArray(selectedForest?.credits) ? selectedForest.credits.reduce((sum: number, c: any) => sum + (c.totalCredits || 0) * (c.pricePerCredit || 0), 0).toLocaleString() : 0)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="pt-4 border-t">
-                    <p className="text-sm text-gray-600 mb-4">{selectedForest?.description}</p>
-                    <div className="flex space-x-2">
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowForestInfo(true)}>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
-                      <Button size="sm" variant={isBookmarked(getForestId(selectedForest)) ? "default" : "outline"} onClick={() => handleBookmark(getForestId(selectedForest))} disabled={!getForestId(selectedForest)}>
-                        {isBookmarked(getForestId(selectedForest)) ? <BookmarkCheck className="h-4 w-4" /> : <BookmarkIcon className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                )}
             </div>
-          </>
-        )}
 
-        {/* Forest Info Modal - now acts as a standalone popup */}
-        <Dialog open={showForestInfo} onOpenChange={setShowForestInfo}>
-          <DialogContent className="max-w-lg z-[2000]">
-            <DialogHeader>
-              <DialogTitle>Forest Information</DialogTitle>
-            </DialogHeader>
-            {selectedForest && (
-              <div className="space-y-2">
-                <div className="font-bold text-lg">{selectedForest.name}</div>
-                <div className="text-sm text-gray-600">{selectedForest.location}</div>
-                <div>
-                  Type: <span className="font-medium">{selectedForest.type}</span>
-                </div>
-                <div>
-                  Area: <span className="font-medium">{selectedForest.area} hectares</span>
-                </div>
-                <div>
-                  Status: <span className="font-medium">{selectedForest.status}</span>
-                </div>
-                <div>
-                  Last Updated: <span className="font-medium">{selectedForest.lastUpdated ? new Date(selectedForest.lastUpdated).toLocaleDateString() : "N/A"}</span>
-                </div>
-                <div>
-                  Description: <span className="font-medium">{selectedForest.description}</span>
-                </div>
-                <div className="pt-2">
-                  <div className="font-semibold mb-1">Credits:</div>
-                  <ul className="list-disc pl-5 text-sm">
-                    {(Array.isArray(selectedForest.credits) ? selectedForest.credits : []).map((credit: any) => (
-                      <li key={credit.id}>
-                        {credit.vintage} - {credit.certification}: {credit.totalCredits} total, {credit.availableCredits} available, ${credit.pricePerCredit}/credit
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+            {/* List & Details */}
+            <div className="flex flex-col gap-4 h-[600px]">
+                <Card className="flex-1 overflow-hidden flex flex-col">
+                    <CardHeader>
+                        <CardTitle>Saved Forests</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 pt-0">
+                        {forests.length === 0 ? (
+                            <div className="text-center text-gray-500 py-8">No forests saved yet.</div>
+                        ) : (
+                            forests.map((forest: any) => (
+                                <div 
+                                    key={forest.id} 
+                                    className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-slate-50 ${selectedForest?.id === forest.id ? 'border-green-500 bg-green-50 ring-1 ring-green-500' : 'border-gray-200'}`}
+                                    onClick={() => setSelectedForest(forest)}
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <h4 className="font-semibold truncate pr-2">{forest.name}</h4>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500 shrink-0" onClick={(e) => handleDelete(forest.id, e)}>
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mb-2 line-clamp-1">{forest.description || "No description"}</div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div className="flex items-center gap-1">
+                                            <Leaf className="h-3 w-3 text-green-500" />
+                                            <span>{forest.stats?.forestBiomassMg ? (forest.stats.forestBiomassMg / 3.67).toFixed(1) : 0} tCO₂</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <MapPin className="h-3 w-3 text-blue-500" />
+                                            <span>{forest.stats?.forestAreaKm2?.toFixed(2)} km²</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </CardContent>
+                </Card>
+                
+                {selectedForest && (
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">Detailed Stats</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm space-y-2">
+                             <div className="flex justify-between">
+                                 <span className="text-gray-500">Biomass</span>
+                                 <span className="font-mono font-medium">{selectedForest.stats?.forestBiomassMg?.toFixed(2)} Mg</span>
+                             </div>
+                             <div className="flex justify-between">
+                                 <span className="text-gray-500">Coverage</span>
+                                 <span className="font-mono font-medium">{selectedForest.stats?.forestCoveragePct?.toFixed(1)}%</span>
+                             </div>
+                             <div className="flex justify-between">
+                                 <span className="text-gray-500">Mean Density</span>
+                                 <span className="font-mono font-medium">{selectedForest.stats?.meanBiomassDensity?.toFixed(1)} Mg/ha</span>
+                             </div>
+                             <div className="pt-2 border-t flex justify-between items-center">
+                                 <span className="font-medium">Est. Value</span>
+                                 <span className="font-bold text-green-600">
+                                     ${((selectedForest.stats?.forestBiomassMg / 3.67) * 3).toLocaleString(undefined, {maximumFractionDigits: 0})}
+                                 </span>
+                             </div>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+        </div>
       </div>
     </div>
   );
+}
+
+function OverviewCard({ title, icon: Icon, value, unit }: any) {
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                <Icon className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{value}</div>
+                <p className="text-xs text-muted-foreground">{unit}</p>
+            </CardContent>
+        </Card>
+    )
 }

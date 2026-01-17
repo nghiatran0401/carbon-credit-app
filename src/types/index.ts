@@ -1,10 +1,26 @@
 // Shared types and interfaces for the app
 
 // User and Auth
-export interface User {
+// Internal User type (includes passwordHash for server-side use only)
+export interface UserInternal {
   id: number;
   email: string;
   passwordHash: string;
+  firstName: string;
+  lastName: string;
+  company?: string | null;
+  role: string;
+  emailVerified: boolean;
+  stripeCustomerId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  orders?: Order[];
+}
+
+// Public User type (for API responses - excludes sensitive data)
+export interface User {
+  id: number;
+  email: string;
   firstName: string;
   lastName: string;
   company?: string | null;

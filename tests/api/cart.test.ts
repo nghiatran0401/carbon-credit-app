@@ -21,7 +21,7 @@ const mockNextRequest = (body: any, method = "POST", searchParams?: Record<strin
 
 describe("Cart API", () => {
   const userId = 1;
-  const carbonCreditId = 1; // Adjust if needed to match seed data
+  const carbonCreditId = 1;
   let quantity = 2;
 
   it("GET /api/cart returns cart items", async () => {

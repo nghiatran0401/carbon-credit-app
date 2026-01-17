@@ -1,120 +1,183 @@
+// PostgreSQL Schema for Supabase
+// This is the target schema - use this after migration
+
 generator client {
   provider = "prisma-client-js"
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-}
-
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ForestStatus {
+  ACTIVE
+  MONITORING
+  INACTIVE
+}
+
+enum NotificationType {
+  order
+  credit
+  system
+  payment
+}
+
+enum CertificateStatus {
+  active
+  revoked
+  expired
+}
+
 model Bookmark {
-  id        Int    @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   userId    Int
   forestId  Int
   createdAt DateTime @default(now())
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  forest    Forest @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  forest    Forest   @relation(fields: [forestId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([forestId])
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String
-  firstName     String
-  lastName     String
-  company      String?
-  role         String   @default("user")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  orders       Order[]
-  bookmarks    Bookmark[]
-  cartItems    CartItem[]
-  emailVerified Boolean  @default(false)
+  id              Int           @id @default(autoincrement())
+  email           String        @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  company         String?
+  role            UserRole      @default(USER)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orders          Order[]
+  bookmarks       Bookmark[]
+  cartItems       CartItem[]
+  emailVerified   Boolean       @default(false)
   stripeCustomerId String?
-  notifications Notification[]
+  notifications   Notification[]
+
+  @@index([email])
+  @@index([role])
 }
 
 model Forest {
-  id          Int      @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   name        String
   location    String
   type        String
   area        Float
   description String
-  status      String
+  status      ForestStatus  @default(ACTIVE)
   lastUpdated DateTime
   credits     CarbonCredit[]
   bookmarks   Bookmark[]
+
+  @@index([status])
 }
 
 model CarbonCredit {
-  id               Int          @id @default(autoincrement())
+  id               Int            @id @default(autoincrement())
   forestId         Int
   vintage          Int
-  certification     String
+  certification    String
   totalCredits     Int
   availableCredits Int
   pricePerCredit   Float
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  forest           Forest   @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  forest           Forest         @relation(fields: [forestId], references: [id], onDelete: Cascade)
   orderItems       OrderItem[]
   cartItems        CartItem[]
-  symbol           String    @default("tCO₂")
-  retiredCredits   Int       @default(0)
+  symbol           String         @default("tCO₂")
+  retiredCredits   Int            @default(0)
   exchangeRates    ExchangeRate[]
+
+  @@index([forestId])
+  @@index([vintage])
+  @@index([certification])
 }
 
 model ExchangeRate {
   id             Int          @id @default(autoincrement())
   carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   carbonCreditId Int
-  rate           Float        
+  rate           Float
   currency       String       @default("USD")
   effectiveFrom  DateTime
   effectiveTo    DateTime?
   orderItems     OrderItem[]
+
+  @@index([carbonCreditId])
+  @@index([effectiveFrom])
 }
 
 model Order {
-  id         Int         @id @default(autoincrement())
-  userId     Int
-  createdAt  DateTime    @default(now())
-  status     String
-  totalPrice Float
-  totalCredits Int       @default(0)
-  currency   String      @default("USD")
-  totalUsd   Float       @default(0)
-  user       User        @relation(fields: [userId], references: [id])
-  items      OrderItem[]
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  createdAt       DateTime       @default(now())
+  status          OrderStatus    @default(PENDING)
+  totalPrice      Float
+  totalCredits    Int            @default(0)
+  currency        String         @default("USD")
+  totalUsd        Float          @default(0)
+  user            User           @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+  seller          String
+  buyer           String
   paymentIntentId String?
-  paidAt     DateTime?
+  paidAt          DateTime?
   shippingAddress String?
-  stripeSessionId String? @unique
-  failureReason String?
-  payments   Payment[]
-  orderHistory OrderHistory[]
-  certificate  Certificate?
+  stripeSessionId String?        @unique
+  failureReason   String?
+  payments        Payment[]
+  orderHistory    OrderHistory[]
+  certificate     Certificate?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
   @@index([stripeSessionId])
 }
 
 model OrderItem {
-  id             Int          @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   orderId        Int
   carbonCreditId Int
   quantity       Int
   pricePerCredit Float
   subtotal       Float
-  usdAmount      Float      @default(0)
+  usdAmount      Float         @default(0)
   exchangeRate   ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
   exchangeRateId Int?
-  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
-  retired        Boolean      @default(false)
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
+  retired        Boolean       @default(false)
+
+  @@index([orderId])
+  @@index([carbonCreditId])
 }
 
 model CartItem {
@@ -127,60 +190,72 @@ model CartItem {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   addedAt        DateTime      @default(now())
+
   @@unique([userId, carbonCreditId])
+  @@index([userId])
 }
 
 model Payment {
-  id                    Int      @id @default(autoincrement())
+  id                    Int          @id @default(autoincrement())
   orderId               Int
-  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stripeSessionId       String?  @unique
+  order                 Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripeSessionId       String?      @unique
   stripePaymentIntentId String?
   amount                Float
-  currency              String   @default("USD")
-  status                String   // e.g. "pending", "succeeded", "failed", "canceled", "refunded"
+  currency              String        @default("USD")
+  status                PaymentStatus @default(PENDING)
   failureReason         String?
-  method                String?  // e.g. "card"
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  method                String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([stripeSessionId])
 }
 
 model OrderHistory {
   id        Int      @id @default(autoincrement())
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId   Int
-  event     String   // e.g. "created", "paid", "failed", "refunded"
+  event     String
   message   String?
   createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 model Certificate {
-  id              String   @id @default(cuid())
-  orderId         Int      @unique
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  certificateHash  String   @unique // For internal record keeping
-  issuedAt        DateTime @default(now())
-  status          String   @default("active") // active, revoked, expired
-  metadata        Json?    // Additional certificate data
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id              String            @id @default(cuid())
+  orderId         Int               @unique
+  order           Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  certificateHash String            @unique
+  issuedAt        DateTime          @default(now())
+  status          CertificateStatus @default(active)
+  metadata        Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([orderId])
+  @@index([status])
 }
 
 model Notification {
-  id          String   @id @default(cuid())
-  userId      Int
-  type        String   // "order", "credit", "system", "payment"
-  title       String
-  message     String
-  data        Json?    // Additional data like orderId, creditId, etc.
-  read        Boolean  @default(false)
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id        String          @id @default(cuid())
+  userId    Int
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  read      Boolean         @default(false)
+  readAt    DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, read])
   @@index([userId, createdAt])
+  @@index([type])
 }
 
- 
