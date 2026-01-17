@@ -4,11 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "migrate": "npx prisma generate && npx prisma db push && npx tsx prisma/seed.ts",
-    "migrate:large": "npx prisma generate && npx prisma db push && npx tsx prisma/seed-large.ts",
-    "migrate:small": "SEED_PRESET=SMALL npx prisma generate && npx prisma db push && npx tsx prisma/seed-large.ts",
-    "migrate:medium": "SEED_PRESET=MEDIUM npx prisma generate && npx prisma db push && npx tsx prisma/seed-large.ts",
-    "migrate:extra-large": "SEED_PRESET=EXTRA_LARGE npx prisma generate && npx prisma db push && npx tsx prisma/seed-large.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -64,10 +59,10 @@
     "stripe": "^18.3.0",
     "swr": "^2.3.4",
     "tailwind-merge": "^2.0.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@faker-js/faker": "^9.9.0",
     "@tailwindcss/postcss": "^4",
     "@types/canvas-confetti": "^1.9.0",
     "@types/diacritics": "^1.3.3",

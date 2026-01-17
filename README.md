@@ -68,59 +68,6 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
    ```bash
    npx prisma db push
    ```
-2. (Optional) Seed the database with initial data:
-   ```bash
-   npx tsx prisma/seed.ts
-   ```
-
-### Performance Testing with Large Dataset
-
-For performance testing and stress testing the application, you can use different seed presets to generate realistic data at various scales:
-
-#### Available Presets
-
-```bash
-# Small dataset (quick testing)
-npm run migrate:small
-
-# Medium dataset (integration testing)
-npm run migrate:medium
-
-# Large dataset (performance testing) - DEFAULT
-npm run migrate:large
-
-# Extra large dataset (stress testing)
-npm run migrate:extra-large
-```
-
-#### Data Volumes by Preset
-
-| Preset      | Users | Forests | Credits | Orders | Notifications | Total Records |
-| ----------- | ----- | ------- | ------- | ------ | ------------- | ------------- |
-| Small       | 100   | 50      | 800     | 500    | 1,000         | ~3,000        |
-| Medium      | 500   | 250     | 3,000   | 2,500  | 12,500        | ~25,000       |
-| Large       | 1,000 | 500     | 4,000   | 5,000  | 50,000        | ~100,000      |
-| Extra Large | 5,000 | 1,000   | 10,000  | 25,000 | 500,000       | ~600,000      |
-
-#### Large Preset Details (Default)
-
-The large preset creates:
-
-- **1,000 users** (90% regular users, 10% admins)
-- **500 forests** across Vietnam with realistic locations and types
-- **4,000 carbon credits** (8 per forest across 4 years with 2 certifications each)
-- **16,000 exchange rates** (4 per credit)
-- **5,000 orders** with realistic statuses and payment flows
-- **5,000 payments** for completed orders
-- **15,000 order history entries** (3 per order)
-- **50,000 notifications** (50 per user)
-- **10,000 bookmarks** (10 per user)
-- **5,000 cart items** (5 per user)
-- **~2,500 certificates** (for completed orders)
-
-The seed uses [Faker.js](https://fakerjs.dev/) to generate realistic data.
-
-**⚠️ Warning**: The extra-large preset will generate approximately **600,000+ database records** and may take 10-15 minutes to complete. Ensure your database can handle this volume of data.
 
 ### Database Management with Prisma Studio
 
@@ -178,7 +125,7 @@ Vitest will run all tests in the `tests/` directory, including full CRUD API tes
 - `src/hooks/` - Custom React hooks
 - `src/lib/` - Utility functions and API helpers
 - `src/types/` - Shared TypeScript types/interfaces (matches Prisma schema)
-- `prisma/` - Prisma schema and seed script
+- `prisma/` - Prisma schema
 - `public/` - Static assets
 - `tests/` - API and integration tests (Vitest)
 
@@ -220,11 +167,6 @@ All main types/interfaces are defined in [`src/types/index.ts`](src/types/index.
 - `npm run lint` — Run ESLint
 - `npm test` — Run Vitest tests
 - `npm run test:ui` — Launch the Vitest interactive UI for running and debugging tests
-- `npm run migrate` — Push schema to DB && Seed the database with sample data
-- `npm run migrate:small` — Push schema to DB && Seed with small dataset (~3K records)
-- `npm run migrate:medium` — Push schema to DB && Seed with medium dataset (~25K records)
-- `npm run migrate:large` — Push schema to DB && Seed with large dataset (~100K records)
-- `npm run migrate:extra-large` — Push schema to DB && Seed with extra large dataset (~600K records)
 
 ## Testing
 
