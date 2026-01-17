@@ -22,7 +22,7 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 - [Next.js](https://nextjs.org/) (App Router)
 - [React](https://react.dev/)
 - [TypeScript](https://www.typescriptlang.org/)
-- [Prisma](https://www.prisma.io/) ORM + MySQL
+- [Prisma](https://www.prisma.io/) ORM + [Supabase](https://supabase.com/) (PostgreSQL)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [SWR](https://swr.vercel.app/) for data fetching
 - [Socket.IO](https://socket.io/) for real-time notifications
@@ -35,7 +35,7 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 
 - Node.js (v18 or higher recommended)
 - npm (v8 or higher)
-- MySQL database (local or remote)
+- Supabase account (free tier available)
 
 ### Installation
 
@@ -51,8 +51,12 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 3. Set up your environment variables in `.env`:
 
    ```env
-   # Database Configuration
-   DATABASE_URL="mysql://user:password@localhost:3306/carbon_credit"
+   # Supabase Database Configuration
+   DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+
+   # Supabase API
+   NEXT_PUBLIC_SUPABASE_URL="https://[PROJECT-REF].supabase.co"
+   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 
    # Stripe Configuration
    STRIPE_SECRET_KEY="sk_test_..."
@@ -64,7 +68,9 @@ A modern web application for exploring, analyzing, and trading carbon credits. B
 
 ### Database Setup
 
-1. Push the schema to your database:
+1. Create a Supabase project at https://supabase.com
+2. Get your connection string from Supabase Dashboard → Settings → Database
+3. Push the schema to your database:
    ```bash
    npx prisma db push
    ```
