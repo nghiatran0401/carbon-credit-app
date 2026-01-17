@@ -65,7 +65,7 @@ model Bookmark {
 model User {
   id              Int           @id @default(autoincrement())
   email           String        @unique
-  passwordHash    String
+  supabaseUserId  String?       @unique // Link to Supabase auth.users.id
   firstName       String
   lastName        String
   company         String?
@@ -81,6 +81,7 @@ model User {
 
   @@index([email])
   @@index([role])
+  @@index([supabaseUserId])
 }
 
 model Forest {

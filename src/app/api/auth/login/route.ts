@@ -1,18 +1,30 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { createClient } from "@/lib/supabase/server";
 
-export async function POST(req: Request) {
-  const { email, password } = await req.json();
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+/**
+ * This endpoint is not needed for Supabase auth
+ * Login happens entirely client-side via supabase.auth.signInWithPassword()
+ *
+ * This endpoint can be used to verify the current session and get user info
+ */
+export async function GET(req: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: supabaseUser },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !supabaseUser) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    return NextResponse.json({
+      id: supabaseUser.id,
+      email: supabaseUser.email,
+      emailVerified: supabaseUser.email_confirmed_at !== null,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: "Authentication check failed" }, { status: 500 });
   }
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
-  }
-  // Return user info (omit passwordHash)
-  const { passwordHash, ...userInfo } = user;
-  return NextResponse.json(userInfo);
 }

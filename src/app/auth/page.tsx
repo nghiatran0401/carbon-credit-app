@@ -20,8 +20,13 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [company, setCompany] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const { isAuthenticated, login } = useAuth();
+  const [activeTab, setActiveTab] = useState("login");
+  const { isAuthenticated, login, signup } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -30,7 +35,7 @@ export default function AuthPage() {
     }
   }, [isAuthenticated, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -39,6 +44,37 @@ export default function AuthPage() {
       router.replace("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      if (signup) {
+        await signup(email, password, firstName, lastName, company || undefined);
+        router.replace("/dashboard");
+      } else {
+        setError("Signup is not available");
+      }
+    } catch (err: any) {
+      setError(err.message || "Signup failed");
     } finally {
       setIsLoading(false);
     }
@@ -56,7 +92,7 @@ export default function AuthPage() {
           <p className="text-gray-600">Join the carbon credit revolution</p>
         </div>
 
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Sign In</TabsTrigger>
             <TabsTrigger value="register">Sign Up</TabsTrigger>
@@ -69,7 +105,8 @@ export default function AuthPage() {
                 <CardDescription>Sign in to your EcoCredit account</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                {error && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded">{error}</div>}
+                <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
@@ -96,7 +133,6 @@ export default function AuthPage() {
                   <Button variant="outline" type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? "Signing in..." : "Sign In"}
                   </Button>
-                  {error && <div className="text-red-600 text-sm text-center">{error}</div>}
                 </form>
 
                 <div className="text-center">
@@ -133,18 +169,19 @@ export default function AuthPage() {
                 <CardDescription>Join EcoCredit and start trading carbon credits</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <form onSubmit={handleSubmit} className="space-y-4">
+                {error && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded">{error}</div>}
+                <form onSubmit={handleSignup} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First name</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input id="firstName" placeholder="John" className="pl-10" required />
+                        <Input id="firstName" placeholder="John" className="pl-10" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lastName">Last name</Label>
-                      <Input id="lastName" placeholder="Doe" required />
+                      <Input id="lastName" placeholder="Doe" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
                     </div>
                   </div>
 
@@ -152,7 +189,7 @@ export default function AuthPage() {
                     <Label htmlFor="company">Company (optional)</Label>
                     <div className="relative">
                       <Building className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="company" placeholder="Your Company" className="pl-10" />
+                      <Input id="company" placeholder="Your Company" className="pl-10" value={company} onChange={(e) => setCompany(e.target.value)} />
                     </div>
                   </div>
 
@@ -160,7 +197,7 @@ export default function AuthPage() {
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="email" type="email" placeholder="your@email.com" className="pl-10" required />
+                      <Input id="email" type="email" placeholder="your@email.com" className="pl-10" required value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
                   </div>
 
@@ -168,7 +205,7 @@ export default function AuthPage() {
                     <Label htmlFor="password">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="password" type="password" placeholder="••••••••" className="pl-10" required />
+                      <Input id="password" type="password" placeholder="••••••••" className="pl-10" required value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                   </div>
 
@@ -176,7 +213,7 @@ export default function AuthPage() {
                     <Label htmlFor="confirmPassword">Confirm Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="confirmPassword" type="password" placeholder="••••••••" className="pl-10" required />
+                      <Input id="confirmPassword" type="password" placeholder="••••••••" className="pl-10" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                     </div>
                   </div>
 

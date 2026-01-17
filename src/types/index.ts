@@ -1,26 +1,11 @@
 // Shared types and interfaces for the app
 
 // User and Auth
-// Internal User type (includes passwordHash for server-side use only)
-export interface UserInternal {
-  id: number;
-  email: string;
-  passwordHash: string;
-  firstName: string;
-  lastName: string;
-  company?: string | null;
-  role: string;
-  emailVerified: boolean;
-  stripeCustomerId?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  orders?: Order[];
-}
-
-// Public User type (for API responses - excludes sensitive data)
+// User type (Supabase handles authentication, no password storage needed)
 export interface User {
   id: number;
   email: string;
+  supabaseUserId?: string | null; // Link to Supabase auth.users.id
   firstName: string;
   lastName: string;
   company?: string | null;
@@ -35,7 +20,9 @@ export interface User {
 export interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
+  loading?: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup?: (email: string, password: string, firstName: string, lastName: string, company?: string) => Promise<void>;
   logout: () => void;
 }
 

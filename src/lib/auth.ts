@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from './supabase/server'
 import { prisma } from './prisma'
 
 export interface AuthenticatedUser {
@@ -6,28 +7,46 @@ export interface AuthenticatedUser {
   email: string
   role: string
   emailVerified: boolean
+  supabaseUserId: string
 }
 
 /**
- * Get authenticated user from request
- * This is a placeholder - implement proper session/token validation
- * TODO: Implement JWT or session-based authentication
+ * Get authenticated user from request using Supabase session
  */
 export async function getAuthenticatedUser(req: NextRequest): Promise<AuthenticatedUser | null> {
-  // TODO: Implement actual authentication
-  // For now, this is a placeholder that should be replaced with:
-  // 1. JWT token validation
-  // 2. Session validation
-  // 3. API key validation
-  
-  // Example implementation:
-  // const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  // if (!token) return null
-  // const decoded = verifyJWT(token)
-  // const user = await prisma.user.findUnique({ where: { id: decoded.userId } })
-  // return user
-  
-  return null
+  try {
+    const supabase = await createClient()
+    const { data: { user: supabaseUser }, error } = await supabase.auth.getUser()
+    
+    if (error || !supabaseUser) {
+      return null
+    }
+
+    // Get user from database using Supabase user ID (preferred) or email (fallback)
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { supabaseUserId: supabaseUser.id },
+          { email: supabaseUser.email! },
+        ]
+      }
+    })
+
+    if (!dbUser) {
+      return null
+    }
+
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role,
+      emailVerified: dbUser.emailVerified,
+      supabaseUserId: supabaseUser.id,
+    }
+  } catch (error) {
+    console.error('Error getting authenticated user:', error)
+    return null
+  }
 }
 
 /**
