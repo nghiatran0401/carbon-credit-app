@@ -46,7 +46,7 @@ export default function MarketplacePage() {
 
   if (!isAuthenticated) {
     // Instead of returning null, render a loading or redirecting state
-    return <div className="p-8 text-center">Redirecting to login...</div>;
+    return <div className="p-8 text-center">Redirecting to sign in...</div>;
   }
   if (isLoading) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;

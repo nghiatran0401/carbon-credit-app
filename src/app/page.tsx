@@ -181,7 +181,7 @@ export default function LandingPage() {
             <div className="space-y-8">
               <div className="space-y-4">
                 <h1 className="text-3xl leading-tight font-semibold text-gray-900 sm:text-4xl lg:text-5xl">
-                  EcoCredit – Vietnam's Carbon Credit Platform
+                  EcoCredit – Vietnam&apos;s Carbon Credit Platform
                 </h1>
                 <p className="text-lg text-gray-600 leading-relaxed">
                   Turn forest protection into climate action. Explore trusted
@@ -361,7 +361,7 @@ export default function LandingPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-3 max-w-2xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
-                Join Vietnam's net-zero future
+                Join Vietnam&apos;s net-zero future
               </p>
               <h2 className="text-3xl font-semibold leading-tight">
                 Protect forests. Offset carbon. Build trust.

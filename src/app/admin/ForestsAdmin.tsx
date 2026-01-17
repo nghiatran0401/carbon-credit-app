@@ -171,7 +171,7 @@ export default function ForestsAdmin() {
                 <option value="Mountain">Mountain</option>
                 <option value="Other">Other</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">Choose the forest's ecological type.</p>
+              <p className="text-xs text-gray-500 mt-1">Choose the forest&apos;s ecological type.</p>
             </div>
             <div>
               <label htmlFor="area" className="block text-sm font-medium mb-1">

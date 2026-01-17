@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import * as crypto from "crypto";
 import type { Certificate, Order, User, CarbonCredit, Forest } from "../types";
+import { OrderStatus } from "@prisma/client";
 
 // Helper function to convert Prisma Date to string
 function convertPrismaDates(obj: any): any {
@@ -73,7 +74,7 @@ export class CertificateService {
       throw new Error(`Order ${orderId} not found`);
     }
 
-    if (order.status !== "Completed") {
+    if (order.status !== OrderStatus.COMPLETED) {
       throw new Error(`Order ${orderId} is not completed`);
     }
 

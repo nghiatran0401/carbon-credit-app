@@ -4,7 +4,23 @@ import { prisma } from "@/lib/prisma";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const email = url.searchParams.get("email");
-  
+  const supabaseUserId = url.searchParams.get("supabaseUserId");
+
+  // Query by supabaseUserId first (more reliable for linking)
+  if (supabaseUserId) {
+    const user = await prisma.user.findUnique({
+      where: { supabaseUserId },
+      include: {
+        orders: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        },
+      },
+    });
+    return NextResponse.json(user || null);
+  }
+
+  // Fallback to email query
   if (email) {
     const user = await prisma.user.findUnique({
       where: { email },
@@ -40,7 +56,10 @@ export async function PUT(req: Request) {
     }
 
     const updateData: any = {};
-    if (role !== undefined) updateData.role = role;
+    if (role !== undefined) {
+      // Convert lowercase role to uppercase enum value (ADMIN, USER)
+      updateData.role = role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER';
+    }
     if (emailVerified !== undefined) updateData.emailVerified = emailVerified;
 
     if (Object.keys(updateData).length === 0) {

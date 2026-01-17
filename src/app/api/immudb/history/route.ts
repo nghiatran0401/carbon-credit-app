@@ -13,6 +13,13 @@ export async function GET(request: NextRequest) {
     }, { status: 400 });
   }
   
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      message: 'ImmuDB service not available',
+    }, { status: 500 });
+  }
+  
   try {
     const history = await immudbService.getHistory(hash);
     

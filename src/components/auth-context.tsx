@@ -18,8 +18,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setIsAuthenticated(true);
-        // Fetch user from database
-        fetchUserFromDb(session.user.email!);
+        // Fetch user from database using supabaseUserId for better linking
+        fetchUserFromDb(session.user.email!, session.user.id);
       } else {
         setIsAuthenticated(false);
         setUser(null);
@@ -33,7 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setIsAuthenticated(true);
-        fetchUserFromDb(session.user.email!);
+        // Fetch user from database using supabaseUserId for better linking
+        fetchUserFromDb(session.user.email!, session.user.id);
       } else {
         setIsAuthenticated(false);
         setUser(null);
@@ -43,15 +44,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserFromDb = async (email: string) => {
+  const fetchUserFromDb = async (email: string, supabaseUserId?: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/users?email=${encodeURIComponent(email)}`);
+      // Try to fetch by supabaseUserId first (more reliable), then fallback to email
+      const queryParam = supabaseUserId ? `supabaseUserId=${encodeURIComponent(supabaseUserId)}` : `email=${encodeURIComponent(email)}`;
+
+      const res = await fetch(`/api/users?${queryParam}`);
       if (res.ok) {
         const userData = await res.json();
-        setUser(userData);
+        if (userData) {
+          setUser(userData);
+          return true; // User found
+        }
       }
+      return false; // User not found
     } catch (error) {
       console.error("Error fetching user:", error);
+      return false; // Error occurred
     }
   };
 
@@ -65,12 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (data.user) {
       setIsAuthenticated(true);
-      await fetchUserFromDb(data.user.email!);
+      await fetchUserFromDb(data.user.email!, data.user.id);
     }
   };
 
   const signup = async (email: string, password: string, firstName: string, lastName: string, company?: string) => {
-    // Step 1: Create user in Supabase Auth
+    // Create user in Supabase Auth
+    // The database trigger will automatically create the User record
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -85,26 +95,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) throw error;
 
-    // Step 2: Create user record in database (only if Supabase signup succeeded)
-    if (data.user) {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          firstName,
-          lastName,
-          company,
-        }),
-      });
+    if (!data.user) {
+      throw new Error("Failed to create account");
+    }
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to create user in database");
-      }
+    // Database trigger automatically creates User record
+    // Wait a moment for the trigger to complete, then fetch the user
+    setIsAuthenticated(true);
 
-      setIsAuthenticated(true);
-      await fetchUserFromDb(data.user.email!);
+    // Retry fetching user with exponential backoff (trigger may take a moment)
+    let retries = 0;
+    const maxRetries = 5;
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    let userFound = false;
+
+    while (retries < maxRetries && !userFound) {
+      await delay(retries * 200); // 0ms, 200ms, 400ms, 600ms, 800ms
+
+      userFound = await fetchUserFromDb(data.user.email!, data.user.id);
+      retries++;
+    }
+
+    // If user still not found after retries, log warning but don't fail
+    // The trigger should have created it, but we'll let it sync eventually
+    if (!userFound) {
+      console.warn("User record not found immediately after signup. It may be created by trigger shortly.");
+      // Still set authenticated state - user can use the app
+      // The user record will be fetched on next page load or auth state change
     }
   };
 
@@ -114,11 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, signup, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ isAuthenticated, user, login, logout, signup, loading }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

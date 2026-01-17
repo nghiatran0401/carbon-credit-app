@@ -30,7 +30,7 @@ export default function UsersAdmin() {
   if (!users?.length) return <div className="p-8 text-center">No users found.</div>;
 
   const totalUsers = users.length;
-  const totalAdmins = users.filter((u) => u.role === "admin").length;
+  const totalAdmins = users.filter((u) => u.role?.toLowerCase() === "admin").length;
   const verifiedUsers = users.filter((u) => u.emailVerified).length;
 
   const handleSelect = (id: number) => {
@@ -103,7 +103,7 @@ export default function UsersAdmin() {
   };
 
   const getRoleBadge = (role: string) => {
-    return role === "admin" ? <Badge variant="default">Admin</Badge> : <Badge variant="secondary">User</Badge>;
+    return role?.toLowerCase() === "admin" ? <Badge variant="default">Admin</Badge> : <Badge variant="secondary">User</Badge>;
   };
 
   const getVerificationBadge = (verified: boolean) => {

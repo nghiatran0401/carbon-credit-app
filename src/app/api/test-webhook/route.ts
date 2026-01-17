@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     // Find the most recent completed order without audit record
     const completedOrders = await prisma.order.findMany({
       where: {
-        status: 'Completed',
+        status: 'COMPLETED',
         paidAt: { not: null }
       },
       include: {

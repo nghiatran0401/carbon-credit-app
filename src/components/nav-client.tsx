@@ -16,17 +16,20 @@ export function DesktopNav() {
   const cartCount = Array.isArray(cartData) ? cartData.length : cartData ? 1 : 0;
   return (
     <div className="hidden lg:flex items-center space-x-6">
-      <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
-        Dashboard
-      </Link>
-      <Link href="/marketplace" className="text-gray-600 hover:text-green-600">
-        Marketplace
-      </Link>
-
-      <Link href="/history" className="text-gray-600 hover:text-green-600">
-        History
-      </Link>
-      {isAuthenticated && user?.role === "admin" && (
+      {isAuthenticated && (
+        <>
+          <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
+            Dashboard
+          </Link>
+          <Link href="/marketplace" className="text-gray-600 hover:text-green-600">
+            Marketplace
+          </Link>
+          <Link href="/history" className="text-gray-600 hover:text-green-600">
+            History
+          </Link>
+        </>
+      )}
+      {isAuthenticated && user?.role?.toLowerCase() === "admin" && (
         <Link href="/admin" className="text-gray-600 hover:text-green-600">
           Admin
         </Link>
@@ -52,7 +55,7 @@ export function DesktopNav() {
         </button>
       ) : (
         <Link href="/auth" className="text-gray-600 hover:text-green-600">
-          Login
+          Sign In
         </Link>
       )}
     </div>
@@ -61,13 +64,16 @@ export function DesktopNav() {
 
 export function MobileNavWrapper() {
   const { isAuthenticated, user, logout } = useAuth();
-  const links = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/marketplace", label: "Marketplace" },
-    { href: "/history", label: "History" },
-    { href: "/about", label: "About" },
-  ];
-  if (isAuthenticated && user?.role === "admin") {
+  const links = [];
+  if (isAuthenticated) {
+    links.push(
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/marketplace", label: "Marketplace" },
+      { href: "/history", label: "History" }
+    );
+  }
+  links.push({ href: "/about", label: "About" });
+  if (isAuthenticated && user?.role?.toLowerCase() === "admin") {
     links.push({ href: "/admin", label: "Admin" });
   }
   // Don't add logout to links array since MobileNav handles it separately

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Leaf, Mail, Lock, User, Building, Globe } from "lucide-react";
+import { Leaf, Mail, Lock, Eye, EyeOff, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
@@ -20,14 +20,54 @@ export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [company, setCompany] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("login");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const { isAuthenticated, login, signup } = useAuth();
   const router = useRouter();
+
+  // Password strength calculation
+  const getPasswordStrength = (pwd: string) => {
+    if (pwd.length === 0) return { strength: 0, label: "", color: "" };
+    if (pwd.length < 8) return { strength: 1, label: "Weak", color: "bg-red-500" };
+    if (pwd.length < 12 && !/[A-Z]/.test(pwd) && !/[0-9]/.test(pwd)) return { strength: 2, label: "Fair", color: "bg-yellow-500" };
+    if (pwd.length >= 12 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd)) return { strength: 4, label: "Strong", color: "bg-green-500" };
+    return { strength: 3, label: "Good", color: "bg-blue-500" };
+  };
+
+  const passwordStrength = activeTab === "register" ? getPasswordStrength(password) : null;
+
+  // Email validation
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setEmailError(null);
+      return false;
+    }
+    if (!emailRegex.test(email)) {
+      setEmailError("Please enter a valid email address");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  };
+
+  // Password validation
+  const validatePassword = (pwd: string) => {
+    if (!pwd) {
+      setPasswordError(null);
+      return false;
+    }
+    if (pwd.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      return false;
+    }
+    setPasswordError(null);
+    return true;
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -37,13 +77,24 @@ export default function AuthPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
+    setSuccess(null);
+    setEmailError(null);
+    setPasswordError(null);
+
+    // Validate inputs
+    if (!validateEmail(email) || !validatePassword(password)) {
+      if (!email) setEmailError("Email is required");
+      if (!password) setPasswordError("Password is required");
+      return;
+    }
+
+    setIsLoading(true);
     try {
       await login(email, password);
       router.replace("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || "Invalid email or password. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -51,225 +102,385 @@ export default function AuthPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
+    setSuccess(null);
+    setEmailError(null);
+    setPasswordError(null);
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      setIsLoading(false);
+    // Validate inputs
+    if (!validateEmail(email)) {
+      if (!email) setEmailError("Email is required");
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      setIsLoading(false);
+    if (!validatePassword(password)) {
+      if (!password) setPasswordError("Password is required");
       return;
     }
 
+    setIsLoading(true);
     try {
       if (signup) {
-        await signup(email, password, firstName, lastName, company || undefined);
-        router.replace("/dashboard");
+        // For simple signup, generate default names from email (can be updated in profile later)
+        const emailParts = email.split("@")[0].split(".");
+        const defaultFirstName = emailParts[0] || "User";
+        const defaultLastName = emailParts.slice(1).join(" ") || "";
+        
+        await signup(email, password, defaultFirstName, defaultLastName);
+        
+        // Show success message
+        setSuccess("Account created successfully! Redirecting to dashboard...");
+        
+        // Clear form
+        setPassword("");
+        setShowPassword(false);
+        
+        // Redirect to dashboard after a brief delay
+        setTimeout(() => {
+          router.replace("/dashboard");
+        }, 1500);
       } else {
         setError("Signup is not available");
       }
     } catch (err: any) {
-      setError(err.message || "Signup failed");
+      setError(err.message || "Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-6">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Leaf className="h-10 w-10 text-green-600" />
+        <div className="text-center mb-8 transition-all duration-500">
+          <div className="flex items-center justify-center space-x-3 mb-4">
+            <div className="p-2 bg-green-100 rounded-xl">
+              <Leaf className="h-8 w-8 text-green-600" />
+            </div>
             <span className="text-3xl font-bold text-green-800">EcoCredit</span>
           </div>
-          <p className="text-gray-600">Join the carbon credit revolution</p>
+          <p className="text-gray-600 text-sm">Join the carbon credit revolution</p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Sign In</TabsTrigger>
-            <TabsTrigger value="register">Sign Up</TabsTrigger>
+        <Tabs 
+          value={activeTab} 
+          onValueChange={(value) => {
+            setActiveTab(value);
+            setError(null);
+            setEmailError(null);
+            setPasswordError(null);
+            setSuccess(null);
+            // Don't clear success - let it show on sign in tab after signup
+          }} 
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-2 bg-white/80 backdrop-blur-sm">
+            <TabsTrigger value="login" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Sign In</TabsTrigger>
+            <TabsTrigger value="register" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Sign Up</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="login">
-            <Card>
-              <CardHeader>
-                <CardTitle>Welcome back</CardTitle>
-                <CardDescription>Sign in to your EcoCredit account</CardDescription>
+          <TabsContent value="login" className="transition-all duration-300">
+            <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+              <CardHeader className="space-y-1 pb-4">
+                <CardTitle className="text-2xl font-semibold">Welcome back</CardTitle>
+                <CardDescription className="text-base">Sign in to your EcoCredit account</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {error && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded">{error}</div>}
-                <form onSubmit={handleLogin} className="space-y-4">
+              <CardContent className="space-y-5">
+                {success && (
+                  <div className="flex items-center gap-2 text-green-700 text-sm bg-green-50 p-3 rounded-lg border border-green-200 transition-all duration-300">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                    <span>{success}</span>
+                  </div>
+                )}
+                {error && (
+                  <div className="flex items-center gap-2 text-red-700 text-sm bg-red-50 p-3 rounded-lg border border-red-200 transition-all duration-300">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+                <form onSubmit={handleLogin} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="login-email" className="text-sm font-medium text-gray-700">
+                      Email address
+                    </Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="email" type="email" placeholder="your@email.com" className="pl-10" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input 
+                        id="login-email" 
+                        type="email" 
+                        placeholder="your@email.com" 
+                        className={`pl-10 h-11 ${emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        required 
+                        value={email} 
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) validateEmail(e.target.value);
+                        }}
+                        onBlur={() => validateEmail(email)}
+                      />
                     </div>
+                    {emailError && (
+                      <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                        <XCircle className="h-3 w-3" />
+                        {emailError}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="login-password" className="text-sm font-medium text-gray-700">
+                      Password
+                    </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="password" type="password" placeholder="••••••••" className="pl-10" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input 
+                        id="login-password" 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="Enter your password" 
+                        className={`pl-10 pr-10 h-11 ${passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        required 
+                        value={password} 
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (passwordError) validatePassword(e.target.value);
+                        }}
+                        onBlur={() => validatePassword(password)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
+                    {passwordError && (
+                      <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                        <XCircle className="h-3 w-3" />
+                        {passwordError}
+                      </p>
+                    )}
                   </div>
 
+                  <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Checkbox id="remember" />
-                    <Label htmlFor="remember" className="text-sm">
+                      <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer">
                       Remember me
                     </Label>
+                    </div>
+                    <Link href="#" className="text-sm text-green-600 hover:text-green-700 hover:underline">
+                      Forgot password?
+                    </Link>
                   </div>
 
-                  <Button variant="outline" type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign In"}
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200" 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Signing in...
+                      </>
+                    ) : (
+                      "Sign in"
+                    )}
                   </Button>
                 </form>
 
-                <div className="text-center">
-                  <Link href="/forgot-password" className="text-sm text-green-600 hover:underline">
-                    Forgot your password?
-                  </Link>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-gray-500">Or</span>
+                  </div>
                 </div>
 
-                <Separator />
-
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                    </svg>
-                    Continue with Google
-                  </Button>
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <Mail className="w-4 h-4 mr-2" />
-                    Continue with Microsoft
-                  </Button>
+                <div className="text-center text-sm text-gray-600">
+                    <p>
+                      Don&apos;t have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("register")}
+                      className="text-green-600 hover:text-green-700 font-medium hover:underline transition-colors"
+                    >
+                      Sign up
+                    </button>
+                  </p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="register">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create account</CardTitle>
-                <CardDescription>Join EcoCredit and start trading carbon credits</CardDescription>
+          <TabsContent value="register" className="transition-all duration-300">
+            <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+              <CardHeader className="space-y-1 pb-4">
+                <CardTitle className="text-2xl font-semibold">Create your account</CardTitle>
+                <CardDescription className="text-base">Start trading carbon credits today</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {error && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded">{error}</div>}
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input id="firstName" placeholder="John" className="pl-10" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-                      </div>
+              <CardContent className="space-y-5">
+                {success && (
+                  <div className="flex items-center gap-2 text-green-700 text-sm bg-green-50 p-3 rounded-lg border border-green-200 transition-all duration-300">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                    <span>{success}</span>
+                  </div>
+                )}
+                {error && (
+                  <div className="flex items-center gap-2 text-red-700 text-sm bg-red-50 p-3 rounded-lg border border-red-200 transition-all duration-300">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+                <form onSubmit={handleSignup} className="space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email" className="text-sm font-medium text-gray-700">
+                      Email address
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input 
+                        id="register-email" 
+                        type="email" 
+                        placeholder="your@email.com" 
+                        className={`pl-10 h-11 ${emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        required 
+                        value={email} 
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) validateEmail(e.target.value);
+                        }}
+                        onBlur={() => validateEmail(email)}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last name</Label>
-                      <Input id="lastName" placeholder="Doe" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
-                    </div>
+                    {emailError && (
+                      <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                        <XCircle className="h-3 w-3" />
+                        {emailError}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="company">Company (optional)</Label>
+                    <Label htmlFor="register-password" className="text-sm font-medium text-gray-700">
+                      Password
+                    </Label>
                     <div className="relative">
-                      <Building className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="company" placeholder="Your Company" className="pl-10" value={company} onChange={(e) => setCompany(e.target.value)} />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input 
+                        id="register-password" 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="Create a strong password" 
+                        className={`pl-10 pr-10 h-11 ${passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        required 
+                        value={password} 
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (passwordError) validatePassword(e.target.value);
+                        }}
+                        onBlur={() => validatePassword(password)}
+                        minLength={8}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
+                    {passwordStrength && password.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex gap-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          {[1, 2, 3, 4].map((level) => (
+                            <div
+                              key={level}
+                              className={`flex-1 transition-all duration-300 ${
+                                level <= passwordStrength.strength
+                                  ? passwordStrength.color
+                                  : "bg-transparent"
+                              }`}
+                            />
+                          ))}
+                  </div>
+                        <p className={`text-xs ${passwordStrength.strength >= 3 ? "text-green-600" : passwordStrength.strength >= 2 ? "text-yellow-600" : "text-red-600"}`}>
+                          {passwordStrength.label}
+                          {passwordStrength.strength < 3 && " - Use 12+ characters with uppercase and numbers for better security"}
+                        </p>
+                    </div>
+                    )}
+                    {passwordError && (
+                      <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                        <XCircle className="h-3 w-3" />
+                        {passwordError}
+                      </p>
+                    )}
+                    {!passwordError && password.length === 0 && (
+                      <p className="text-xs text-gray-500">Must be at least 8 characters</p>
+                    )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="email" type="email" placeholder="your@email.com" className="pl-10" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="password" type="password" placeholder="••••••••" className="pl-10" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input id="confirmPassword" type="password" placeholder="••••••••" className="pl-10" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="terms" required />
-                    <Label htmlFor="terms" className="text-sm">
-                      I agree to the{" "}
-                      <Link href="/terms" className="text-green-600 hover:underline">
+                  <div className="flex items-start space-x-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <Checkbox id="terms" className="mt-0.5" />
+                    <Label htmlFor="terms" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
+                      By creating an account, you agree to our{" "}
+                      <Link href="#" className="text-green-600 hover:underline">
                         Terms of Service
                       </Link>{" "}
                       and{" "}
-                      <Link href="/privacy" className="text-green-600 hover:underline">
+                      <Link href="#" className="text-green-600 hover:underline">
                         Privacy Policy
                       </Link>
                     </Label>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="newsletter" />
-                    <Label htmlFor="newsletter" className="text-sm">
-                      Subscribe to our newsletter for updates
-                    </Label>
-                  </div>
-
-                  <Button variant="outline" type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Creating account..." : "Create Account"}
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200" 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating account...
+                      </>
+                    ) : (
+                      "Create account"
+                    )}
                   </Button>
                 </form>
 
-                <Separator />
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-gray-500">Or</span>
+                  </div>
+                </div>
 
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                    </svg>
-                    Continue with Google
-                  </Button>
-                  <Button variant="outline" className="w-full bg-transparent">
-                    <Mail className="w-4 h-4 mr-2" />
-                    Continue with Microsoft
-                  </Button>
+                <div className="text-center text-sm text-gray-600">
+                  <p>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("login")}
+                      className="text-green-600 hover:text-green-700 font-medium hover:underline transition-colors"
+                    >
+                      Sign in
+                    </button>
+                  </p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        <div className="text-center mt-6 text-sm text-gray-600">
-          <p>
-            By signing up, you&apos;re joining the fight against climate change. <Globe className="inline h-4 w-4 text-green-600" />
-          </p>
-        </div>
       </div>
     </div>
   );

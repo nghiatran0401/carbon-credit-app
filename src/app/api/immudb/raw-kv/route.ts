@@ -7,6 +7,13 @@ export async function GET(request: NextRequest) {
   const prefix = searchParams.get('prefix') || '';
   const limit = parseInt(searchParams.get('limit') || '100');
   
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      message: 'ImmuDB service not available',
+    }, { status: 500 });
+  }
+  
   try {
     await immudbService.ensureConnected();
     

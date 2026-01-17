@@ -264,7 +264,7 @@ export default function ImmudbTestPage() {
               <p className="text-sm">{connectionStatus.message}</p>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Click "Test Connection" to check status</p>
+            <p className="text-sm text-gray-500">Click &quot;Test Connection&quot; to check status</p>
           )}
         </CardContent>
       </Card>

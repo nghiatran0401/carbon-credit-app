@@ -4,6 +4,15 @@ import { getImmudbService } from '@/lib/immudb-service';
 export async function GET() {
   const immudbService = getImmudbService();
   
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      connected: false,
+      message: 'ImmuDB service not available',
+      timestamp: new Date().toISOString(),
+    }, { status: 500 });
+  }
+  
   try {
     await immudbService.ensureConnected();
     const isConnected = await immudbService.isConnected();

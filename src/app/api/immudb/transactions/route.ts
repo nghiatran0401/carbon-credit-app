@@ -4,6 +4,13 @@ import { getImmudbService, TransactionHash } from '@/lib/immudb-service';
 export async function POST(request: NextRequest) {
   const immudbService = getImmudbService();
   
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      message: 'ImmuDB service not available',
+    }, { status: 500 });
+  }
+  
   try {
     const body = await request.json();
     const { hash, transactionType, blockNumber, metadata } = body;
@@ -42,6 +49,14 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const immudbService = getImmudbService();
+  
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      message: 'ImmuDB service not available',
+    }, { status: 500 });
+  }
+  
   const { searchParams } = new URL(request.url);
   const hash = searchParams.get('hash');
   const limit = parseInt(searchParams.get('limit') || '100');

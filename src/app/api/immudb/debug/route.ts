@@ -5,6 +5,14 @@ export async function GET() {
   const immudbService = getImmudbService();
   const logs: string[] = [];
   
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      logs: ['❌ ImmuDB service not available'],
+      error: 'ImmuDB service not available'
+    }, { status: 500 });
+  }
+  
   try {
     logs.push('Starting ImmuDB debug test...');
     
@@ -61,7 +69,7 @@ export async function GET() {
     return NextResponse.json({
       success: false,
       logs,
-      error: error.toString()
+      error: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
   }
 }

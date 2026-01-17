@@ -5,6 +5,14 @@ import { getImmudbService } from '@/lib/immudb-service';
 export async function POST(request: NextRequest) {
   const immudbService = getImmudbService();
   
+  if (!immudbService) {
+    return NextResponse.json({
+      success: false,
+      error: 'ImmuDB service not available',
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
+  }
+  
   try {
     const { command, key, value, prefix, limit } = await request.json();
     
@@ -87,7 +95,7 @@ export async function POST(request: NextRequest) {
     console.error('CLI command failed:', error);
     return NextResponse.json({
       success: false,
-      error: error.toString(),
+      error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     }, { status: 500 });
   }

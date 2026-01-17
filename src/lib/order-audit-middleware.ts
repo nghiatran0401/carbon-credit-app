@@ -27,7 +27,7 @@ class OrderAuditMiddleware {
         throw new Error(`Order ${orderId} not found`);
       }
 
-      if (order.status !== "Completed" || !order.paidAt) {
+      if (order.status !== "COMPLETED" || !order.paidAt) {
         return { exists: false, created: false, error: "Order not completed" };
       }
 
@@ -87,7 +87,7 @@ class OrderAuditMiddleware {
     try {
       const completedOrders = await prisma.order.findMany({
         where: {
-          status: "Completed",
+          status: "COMPLETED",
           paidAt: { not: null },
         },
         orderBy: { id: "desc" },

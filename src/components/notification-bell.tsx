@@ -120,7 +120,7 @@ export function NotificationBell() {
           <div className="p-8 text-center text-gray-500">
             <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No notifications yet</p>
-            <p className="text-sm">We'll notify you when something important happens</p>
+            <p className="text-sm">We&apos;ll notify you when something important happens</p>
           </div>
         ) : !hasFilteredNotifications ? (
           <div className="p-8 text-center text-gray-500">

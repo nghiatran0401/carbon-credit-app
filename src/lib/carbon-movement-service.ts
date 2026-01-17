@@ -1,5 +1,6 @@
 import { neo4jService } from './neo4j-service';
 import { prisma } from './prisma';
+import { OrderStatus } from '@prisma/client';
 
 export interface MovementNode {
   id: string;
@@ -43,7 +44,7 @@ class CarbonMovementService {
         {
           id: user.id,
           email: user.email,
-          name: user.name || 'Unknown',
+          name: `${user.firstName} ${user.lastName}`.trim() || 'Unknown',
           role: user.role,
           createdAt: user.createdAt.toISOString()
         }
@@ -74,16 +75,18 @@ class CarbonMovementService {
          SET f.name = $name,
              f.location = $location,
              f.area = $area,
-             f.carbonCapacity = $carbonCapacity,
-             f.createdAt = $createdAt,
+             f.type = $type,
+             f.status = $status,
+             f.lastUpdated = $lastUpdated,
              f.updatedAt = datetime()`,
         {
           id: forest.id,
           name: forest.name,
           location: forest.location,
           area: forest.area,
-          carbonCapacity: forest.carbonCapacity,
-          createdAt: forest.createdAt.toISOString()
+          type: forest.type,
+          status: forest.status,
+          lastUpdated: forest.lastUpdated.toISOString()
         }
       );
 
@@ -114,19 +117,23 @@ class CarbonMovementService {
       await session.run(
         `MERGE (c:CarbonCredit {id: $id})
          SET c.serialNumber = $serialNumber,
-             c.amount = $amount,
+             c.totalCredits = $totalCredits,
+             c.availableCredits = $availableCredits,
+             c.retiredCredits = $retiredCredits,
              c.pricePerCredit = $pricePerCredit,
              c.vintage = $vintage,
-             c.retired = $retired,
+             c.certification = $certification,
              c.createdAt = $createdAt,
              c.updatedAt = datetime()`,
         {
           id: credit.id,
-          serialNumber: credit.serialNumber,
-          amount: credit.amount,
+          serialNumber: `CC-${credit.id}`,
+          totalCredits: credit.totalCredits,
+          availableCredits: credit.availableCredits,
+          retiredCredits: credit.retiredCredits,
           pricePerCredit: credit.pricePerCredit,
           vintage: credit.vintage,
-          retired: credit.retired,
+          certification: credit.certification,
           createdAt: credit.createdAt.toISOString()
         }
       );
@@ -240,7 +247,7 @@ class CarbonMovementService {
         );
 
         // If order is completed, create ownership transfer
-        if (order.status === 'Completed' && order.paidAt) {
+        if (order.status === OrderStatus.COMPLETED && order.paidAt) {
           await session.run(
             `MATCH (u:User {id: $userId})
              MATCH (c:CarbonCredit {id: $creditId})

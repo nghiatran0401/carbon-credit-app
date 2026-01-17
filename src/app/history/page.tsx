@@ -36,12 +36,12 @@ function ordersToCSV(orders: any[]): string {
 export default function HistoryPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
-  const { data: usersRaw } = useSWR(user?.role === "admin" ? "/api/users" : null, apiGet);
+  const { data: usersRaw } = useSWR(user?.role?.toLowerCase() === "admin" ? "/api/users" : null, apiGet);
   const users = Array.isArray(usersRaw) ? usersRaw : [];
   const [selectedUser, setSelectedUser] = useState<string>("all");
 
   // For admin: fetch all orders, for user: fetch only their orders
-  const ordersUrl = user?.role === "admin" ? "/api/orders" : user?.id ? `/api/orders?userId=${user.id}` : null;
+  const ordersUrl = user?.role?.toLowerCase() === "admin" ? "/api/orders" : user?.id ? `/api/orders?userId=${user.id}` : null;
   const { data: ordersRaw, isLoading, error, mutate } = useSWR(ordersUrl, apiGet);
   const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
 
@@ -58,7 +58,7 @@ export default function HistoryPage() {
   // For admin: filter by selected user
   const filteredOrders = useMemo(() => {
     let filtered = orders;
-    if (user?.role === "admin" && selectedUser !== "all") {
+    if (user?.role?.toLowerCase() === "admin" && selectedUser !== "all") {
       filtered = filtered.filter((order: any) => String(order.user?.id) === selectedUser);
     }
     return filtered.filter((order: any) => {
@@ -86,7 +86,7 @@ export default function HistoryPage() {
   };
 
   if (!isAuthenticated) {
-    return <div className="p-8 text-center">Redirecting to login...</div>;
+    return <div className="p-8 text-center">Redirecting to sign in...</div>;
   }
   if (isLoading) return <div className="p-8 text-center">Loading history...</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;
@@ -122,7 +122,7 @@ export default function HistoryPage() {
               <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
-          {user?.role === "admin" && (
+          {user?.role?.toLowerCase() === "admin" && (
             <Select
               value={selectedUser}
               onValueChange={(val) => {
@@ -143,7 +143,7 @@ export default function HistoryPage() {
               </SelectContent>
             </Select>
           )}
-          {user?.role === "admin" && (
+          {user?.role?.toLowerCase() === "admin" && (
             <Button variant="outline" onClick={handleDownloadCSV} className="flex items-center gap-2">
               <Download className="h-4 w-4" /> Download CSV
             </Button>
@@ -161,7 +161,7 @@ export default function HistoryPage() {
                 <div className="text-sm text-gray-500 mt-1 md:mt-0">
                   Placed: {new Date(order.createdAt).toLocaleString()}
                   <br />
-                  {user?.role === "admin" && <span>User: {order.user?.email}</span>}
+                  {user?.role?.toLowerCase() === "admin" && <span>User: {order.user?.email}</span>}
                 </div>
               </CardHeader>
               <CardContent>

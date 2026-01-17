@@ -68,7 +68,8 @@ export async function requireAuth(req: NextRequest): Promise<AuthenticatedUser> 
 export async function requireAdmin(req: NextRequest): Promise<AuthenticatedUser> {
   const user = await requireAuth(req)
   
-  if (user.role !== 'admin') {
+  // Check for both uppercase (from Prisma enum) and lowercase (from API)
+  if (user.role?.toLowerCase() !== 'admin') {
     throw new Error('Forbidden: Admin access required')
   }
   
@@ -84,7 +85,8 @@ export async function requireOwnershipOrAdmin(
 ): Promise<AuthenticatedUser> {
   const user = await requireAuth(req)
   
-  if (user.id !== resourceUserId && user.role !== 'admin') {
+  // Check for both uppercase (from Prisma enum) and lowercase (from API)
+  if (user.id !== resourceUserId && user.role?.toLowerCase() !== 'admin') {
     throw new Error('Forbidden: You do not have access to this resource')
   }
   

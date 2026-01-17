@@ -190,7 +190,8 @@ export default function AdminPage() {
     return null;
   }
 
-  if (user?.role !== "admin") {
+  // Check for both uppercase (from Prisma enum) and lowercase (from API)
+  if (user?.role?.toLowerCase() !== "admin") {
     return <div className="p-8 text-center text-red-600">Access denied. Admins only.</div>;
   }
 

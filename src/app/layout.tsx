@@ -8,7 +8,7 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-context";
 import { NotificationProvider } from "@/components/notification-context";
 import { SocketProvider } from "@/components/socket-provider";
-import { DesktopNav, MobileNavWrapper } from "@/components/nav-client";
+import { ConditionalNav } from "@/components/conditional-nav";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -94,19 +94,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <NotificationProvider>
             <SocketProvider>
-              {/* Header */}
-              <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-[10000]">
-                <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-                  <Link href="/">
-                    <div className="flex items-center space-x-2">
-                      <Leaf className="h-8 w-8 text-green-600" />
-                      <span className="text-2xl font-bold text-green-800">EcoCredit</span>
-                    </div>
-                  </Link>
-                  <DesktopNav />
-                  <MobileNavWrapper />
-                </div>
-              </nav>
+              {/* Header - Conditionally rendered based on route */}
+              <ConditionalNav />
 
               {/* Main Content */}
               {children}

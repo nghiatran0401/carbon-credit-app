@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         await prisma.payment.update({
           where: { id: payment.id },
           data: {
-            status: "succeeded",
+            status: "SUCCEEDED",
             amount: session.amount_total ? session.amount_total / 100 : payment.amount,
             currency: session.currency ? session.currency.toUpperCase() : payment.currency,
             stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
         const order = await prisma.order.update({
           where: { id: payment.orderId },
           data: {
-            status: "Completed",
+            status: "COMPLETED",
             paidAt: new Date(),
           },
           include: {
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
         await prisma.payment.update({
           where: { id: payment.id },
           data: {
-            status: "failed",
+            status: "FAILED",
             failureReason: paymentIntent.last_payment_error?.message || "Unknown error",
           },
         });
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
         const order = await prisma.order.update({
           where: { id: payment.orderId },
           data: {
-            status: "Failed",
+            status: "FAILED",
           },
         });
         // Add OrderHistory event
