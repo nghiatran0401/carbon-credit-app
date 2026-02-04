@@ -3,14 +3,30 @@
 import type React from "react";
 
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Leaf, Mail, Lock, Eye, EyeOff, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Leaf,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-context";
 import { useRouter } from "next/navigation";
@@ -26,19 +42,23 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState("login");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const { isAuthenticated, login, signup } = useAuth();
+  const { isAuthenticated, login, signup, loading } = useAuth();
   const router = useRouter();
 
   // Password strength calculation
   const getPasswordStrength = (pwd: string) => {
     if (pwd.length === 0) return { strength: 0, label: "", color: "" };
-    if (pwd.length < 8) return { strength: 1, label: "Weak", color: "bg-red-500" };
-    if (pwd.length < 12 && !/[A-Z]/.test(pwd) && !/[0-9]/.test(pwd)) return { strength: 2, label: "Fair", color: "bg-yellow-500" };
-    if (pwd.length >= 12 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd)) return { strength: 4, label: "Strong", color: "bg-green-500" };
+    if (pwd.length < 8)
+      return { strength: 1, label: "Weak", color: "bg-red-500" };
+    if (pwd.length < 12 && !/[A-Z]/.test(pwd) && !/[0-9]/.test(pwd))
+      return { strength: 2, label: "Fair", color: "bg-yellow-500" };
+    if (pwd.length >= 12 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd))
+      return { strength: 4, label: "Strong", color: "bg-green-500" };
     return { strength: 3, label: "Good", color: "bg-blue-500" };
   };
 
-  const passwordStrength = activeTab === "register" ? getPasswordStrength(password) : null;
+  const passwordStrength =
+    activeTab === "register" ? getPasswordStrength(password) : null;
 
   // Email validation
   const validateEmail = (email: string) => {
@@ -70,10 +90,11 @@ export default function AuthPage() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
+    // Only check authentication after initial loading is complete
+    if (!loading && isAuthenticated) {
       router.replace("/dashboard");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, loading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,10 +113,10 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      router.replace("/dashboard");
+      // Refresh the page to trigger auth context re-check and redirect
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setError(err.message || "Invalid email or password. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -125,29 +146,37 @@ export default function AuthPage() {
         const emailParts = email.split("@")[0].split(".");
         const defaultFirstName = emailParts[0] || "User";
         const defaultLastName = emailParts.slice(1).join(" ") || "";
-        
+
         await signup(email, password, defaultFirstName, defaultLastName);
-        
+
         // Show success message
         setSuccess("Account created successfully! Redirecting to dashboard...");
-        
-        // Clear form
-        setPassword("");
-        setShowPassword(false);
-        
-        // Redirect to dashboard after a brief delay
+
+        // Refresh the page to trigger auth context re-check and redirect
         setTimeout(() => {
-          router.replace("/dashboard");
-        }, 1500);
+          window.location.href = "/dashboard";
+        }, 1000);
       } else {
         setError("Signup is not available");
+        setIsLoading(false);
       }
     } catch (err: any) {
       setError(err.message || "Failed to create account. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading spinner while checking authentication status
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
@@ -160,11 +189,13 @@ export default function AuthPage() {
             </div>
             <span className="text-3xl font-bold text-green-800">EcoCredit</span>
           </div>
-          <p className="text-gray-600 text-sm">Join the carbon credit revolution</p>
+          <p className="text-gray-600 text-sm">
+            Join the carbon credit revolution
+          </p>
         </div>
 
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onValueChange={(value) => {
             setActiveTab(value);
             setError(null);
@@ -172,19 +203,33 @@ export default function AuthPage() {
             setPasswordError(null);
             setSuccess(null);
             // Don't clear success - let it show on sign in tab after signup
-          }} 
+          }}
           className="w-full"
         >
           <TabsList className="grid w-full grid-cols-2 bg-white/80 backdrop-blur-sm">
-            <TabsTrigger value="login" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Sign In</TabsTrigger>
-            <TabsTrigger value="register" className="data-[state=active]:bg-green-600 data-[state=active]:text-white">Sign Up</TabsTrigger>
+            <TabsTrigger
+              value="login"
+              className="data-[state=active]:bg-green-600 data-[state=active]:text-white"
+            >
+              Sign In
+            </TabsTrigger>
+            <TabsTrigger
+              value="register"
+              className="data-[state=active]:bg-green-600 data-[state=active]:text-white"
+            >
+              Sign Up
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="login" className="transition-all duration-300">
             <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-2xl font-semibold">Welcome back</CardTitle>
-                <CardDescription className="text-base">Sign in to your EcoCredit account</CardDescription>
+                <CardTitle className="text-2xl font-semibold">
+                  Welcome back
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Sign in to your EcoCredit account
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 {success && (
@@ -201,18 +246,21 @@ export default function AuthPage() {
                 )}
                 <form onSubmit={handleLogin} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="login-email"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Email address
                     </Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input 
-                        id="login-email" 
-                        type="email" 
-                        placeholder="your@email.com" 
+                      <Input
+                        id="login-email"
+                        type="email"
+                        placeholder="your@email.com"
                         className={`pl-10 h-11 ${emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
-                        required 
-                        value={email} 
+                        required
+                        value={email}
                         onChange={(e) => {
                           setEmail(e.target.value);
                           if (emailError) validateEmail(e.target.value);
@@ -229,18 +277,21 @@ export default function AuthPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="login-password"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Password
                     </Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input 
-                        id="login-password" 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="Enter your password" 
+                      <Input
+                        id="login-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
                         className={`pl-10 pr-10 h-11 ${passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
-                        required 
-                        value={password} 
+                        required
+                        value={password}
                         onChange={(e) => {
                           setPassword(e.target.value);
                           if (passwordError) validatePassword(e.target.value);
@@ -251,9 +302,15 @@ export default function AuthPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                     {passwordError && (
@@ -265,20 +322,26 @@ export default function AuthPage() {
                   </div>
 
                   <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="remember" />
-                      <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer">
-                      Remember me
-                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="remember" />
+                      <Label
+                        htmlFor="remember"
+                        className="text-sm text-gray-600 cursor-pointer"
+                      >
+                        Remember me
+                      </Label>
                     </div>
-                    <Link href="#" className="text-sm text-green-600 hover:text-green-700 hover:underline">
+                    <Link
+                      href="#"
+                      className="text-sm text-green-600 hover:text-green-700 hover:underline"
+                    >
                       Forgot password?
                     </Link>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200" 
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
                     disabled={isLoading}
                   >
                     {isLoading ? (
@@ -302,8 +365,8 @@ export default function AuthPage() {
                 </div>
 
                 <div className="text-center text-sm text-gray-600">
-                    <p>
-                      Don&apos;t have an account?{" "}
+                  <p>
+                    Don&apos;t have an account?{" "}
                     <button
                       type="button"
                       onClick={() => setActiveTab("register")}
@@ -320,8 +383,12 @@ export default function AuthPage() {
           <TabsContent value="register" className="transition-all duration-300">
             <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-2xl font-semibold">Create your account</CardTitle>
-                <CardDescription className="text-base">Start trading carbon credits today</CardDescription>
+                <CardTitle className="text-2xl font-semibold">
+                  Create your account
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Start trading carbon credits today
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 {success && (
@@ -338,18 +405,21 @@ export default function AuthPage() {
                 )}
                 <form onSubmit={handleSignup} className="space-y-5">
                   <div className="space-y-2">
-                    <Label htmlFor="register-email" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="register-email"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Email address
                     </Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input 
-                        id="register-email" 
-                        type="email" 
-                        placeholder="your@email.com" 
+                      <Input
+                        id="register-email"
+                        type="email"
+                        placeholder="your@email.com"
                         className={`pl-10 h-11 ${emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
-                        required 
-                        value={email} 
+                        required
+                        value={email}
                         onChange={(e) => {
                           setEmail(e.target.value);
                           if (emailError) validateEmail(e.target.value);
@@ -366,18 +436,21 @@ export default function AuthPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="register-password" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="register-password"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Password
                     </Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input 
-                        id="register-password" 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="Create a strong password" 
+                      <Input
+                        id="register-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a strong password"
                         className={`pl-10 pr-10 h-11 ${passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
-                        required 
-                        value={password} 
+                        required
+                        value={password}
                         onChange={(e) => {
                           setPassword(e.target.value);
                           if (passwordError) validatePassword(e.target.value);
@@ -389,9 +462,15 @@ export default function AuthPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                     {passwordStrength && password.length > 0 && (
@@ -407,12 +486,15 @@ export default function AuthPage() {
                               }`}
                             />
                           ))}
-                  </div>
-                        <p className={`text-xs ${passwordStrength.strength >= 3 ? "text-green-600" : passwordStrength.strength >= 2 ? "text-yellow-600" : "text-red-600"}`}>
+                        </div>
+                        <p
+                          className={`text-xs ${passwordStrength.strength >= 3 ? "text-green-600" : passwordStrength.strength >= 2 ? "text-yellow-600" : "text-red-600"}`}
+                        >
                           {passwordStrength.label}
-                          {passwordStrength.strength < 3 && " - Use 12+ characters with uppercase and numbers for better security"}
+                          {passwordStrength.strength < 3 &&
+                            " - Use 12+ characters with uppercase and numbers for better security"}
                         </p>
-                    </div>
+                      </div>
                     )}
                     {passwordError && (
                       <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
@@ -421,13 +503,18 @@ export default function AuthPage() {
                       </p>
                     )}
                     {!passwordError && password.length === 0 && (
-                      <p className="text-xs text-gray-500">Must be at least 8 characters</p>
+                      <p className="text-xs text-gray-500">
+                        Must be at least 8 characters
+                      </p>
                     )}
                   </div>
 
                   <div className="flex items-start space-x-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <Checkbox id="terms" className="mt-0.5" />
-                    <Label htmlFor="terms" className="text-xs text-gray-600 cursor-pointer leading-relaxed">
+                    <Label
+                      htmlFor="terms"
+                      className="text-xs text-gray-600 cursor-pointer leading-relaxed"
+                    >
                       By creating an account, you agree to our{" "}
                       <Link href="#" className="text-green-600 hover:underline">
                         Terms of Service
@@ -439,9 +526,9 @@ export default function AuthPage() {
                     </Label>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200" 
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
                     disabled={isLoading}
                   >
                     {isLoading ? (
@@ -480,7 +567,6 @@ export default function AuthPage() {
             </Card>
           </TabsContent>
         </Tabs>
-
       </div>
     </div>
   );
