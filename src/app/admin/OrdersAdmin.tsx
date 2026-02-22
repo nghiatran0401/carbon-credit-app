@@ -1,20 +1,24 @@
-"use client";
-import useSWR from "swr";
-import { useState } from "react";
-import { apiGet, apiPut, apiDelete } from "@/lib/api";
-import type { Order, OrderItem } from "@/types";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
+'use client';
+import useSWR from 'swr';
+import { useState, useRef } from 'react';
+import { apiGet, apiPut, apiDelete } from '@/lib/api';
+import type { Order, OrderItem } from '@/types';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 export default function OrdersAdmin() {
   const fetcher = (url: string) => apiGet<Order[]>(url);
-  const { data: orders, error, isLoading, mutate } = useSWR("/api/orders", fetcher);
+  const { data: orders, error, isLoading, mutate } = useSWR('/api/orders', fetcher);
   const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState({ title: '', description: '' });
+  const confirmCallbackRef = useRef<(() => void) | null>(null);
   const { toast } = useToast();
 
   if (isLoading) return <div className="p-8 text-center">Loading...</div>;
@@ -23,11 +27,13 @@ export default function OrdersAdmin() {
 
   const totalOrders = orders.length;
   const totalValue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-  const pendingOrders = orders.filter((o) => o.status === "pending").length;
-  const completedOrders = orders.filter((o) => o.status === "completed").length;
+  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
+  const completedOrders = orders.filter((o) => o.status === 'completed').length;
 
   const handleSelect = (id: number) => {
-    setSelectedOrders((prev) => (prev.includes(id) ? prev.filter((oid) => oid !== id) : [...prev, id]));
+    setSelectedOrders((prev) =>
+      prev.includes(id) ? prev.filter((oid) => oid !== id) : [...prev, id],
+    );
   };
 
   const openOrderModal = (order: Order) => {
@@ -43,56 +49,89 @@ export default function OrdersAdmin() {
   const handleStatusUpdate = async (orderId: number, newStatus: string) => {
     setStatusUpdateLoading(true);
     try {
-      await apiPut("/api/orders", { id: orderId, status: newStatus });
-      toast({ title: "Status Updated", description: `Order status updated to ${newStatus}`, variant: "default" });
+      await apiPut('/api/orders', { id: orderId, status: newStatus });
+      toast({
+        title: 'Status Updated',
+        description: `Order status updated to ${newStatus}`,
+        variant: 'default',
+      });
       mutate();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-      console.error("Status update error:", err);
+    } catch (err: unknown) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Status update failed',
+        variant: 'destructive',
+      });
+      console.error('Status update error:', err);
     } finally {
       setStatusUpdateLoading(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this order? This action cannot be undone.")) {
-      return;
-    }
-    try {
-      await apiDelete("/api/orders", { id });
-      toast({ title: "Order Deleted", description: "Order was deleted successfully.", variant: "default" });
-      mutate();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-      console.error("Order delete error:", err);
-    }
+  const handleDelete = (id: number) => {
+    setConfirmConfig({
+      title: 'Delete order',
+      description: 'Are you sure you want to delete this order? This action cannot be undone.',
+    });
+    confirmCallbackRef.current = async () => {
+      try {
+        await apiDelete('/api/orders', { id });
+        toast({
+          title: 'Order Deleted',
+          description: 'Order was deleted successfully.',
+          variant: 'default',
+        });
+        mutate();
+      } catch (err: unknown) {
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Delete failed',
+          variant: 'destructive',
+        });
+        console.error('Order delete error:', err);
+      }
+    };
+    setConfirmOpen(true);
   };
 
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Delete ${selectedOrders.length} selected orders? This cannot be undone.`)) return;
-
-    try {
-      for (const id of selectedOrders) {
-        await apiDelete("/api/orders", { id });
+  const handleBulkDelete = () => {
+    setConfirmConfig({
+      title: 'Delete selected orders',
+      description: `Delete ${selectedOrders.length} selected orders? This cannot be undone.`,
+    });
+    confirmCallbackRef.current = async () => {
+      try {
+        for (const id of selectedOrders) {
+          await apiDelete('/api/orders', { id });
+        }
+        setSelectedOrders([]);
+        toast({
+          title: 'Bulk Delete',
+          description: `${selectedOrders.length} orders were deleted successfully.`,
+          variant: 'default',
+        });
+        mutate();
+      } catch (err: unknown) {
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Bulk delete failed',
+          variant: 'destructive',
+        });
+        console.error('Bulk delete error:', err);
       }
-      setSelectedOrders([]);
-      toast({ title: "Bulk Delete", description: `${selectedOrders.length} orders were deleted successfully.`, variant: "default" });
-      mutate();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-      console.error("Bulk delete error:", err);
-    }
+    };
+    setConfirmOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      pending: "secondary",
-      completed: "default",
-      cancelled: "destructive",
-      failed: "destructive",
-      processing: "outline",
+    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+      pending: 'secondary',
+      completed: 'default',
+      cancelled: 'destructive',
+      failed: 'destructive',
+      processing: 'outline',
     };
-    return <Badge variant={variants[status] || "outline"}>{status}</Badge>;
+    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
   };
 
   return (
@@ -103,7 +142,8 @@ export default function OrdersAdmin() {
             Total Orders: <b>{totalOrders}</b>
           </span>
           <span>
-            Total Value: <b>${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b>
+            Total Value:{' '}
+            <b>${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b>
           </span>
           <span>
             Pending: <b>{pendingOrders}</b>
@@ -112,7 +152,11 @@ export default function OrdersAdmin() {
             Completed: <b>{completedOrders}</b>
           </span>
         </div>
-        <Button variant="destructive" onClick={handleBulkDelete} disabled={selectedOrders.length === 0}>
+        <Button
+          variant="destructive"
+          onClick={handleBulkDelete}
+          disabled={selectedOrders.length === 0}
+        >
           Delete Selected ({selectedOrders.length})
         </Button>
       </div>
@@ -133,7 +177,11 @@ export default function OrdersAdmin() {
             {orders.map((order) => (
               <tr key={order.id} className="border-b hover:bg-gray-50">
                 <td>
-                  <input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => handleSelect(order.id)} />
+                  <input
+                    type="checkbox"
+                    checked={selectedOrders.includes(order.id)}
+                    onChange={() => handleSelect(order.id)}
+                  />
                 </td>
                 <td>{order.id}</td>
                 <td>{order.user?.email || order.userId}</td>
@@ -141,10 +189,20 @@ export default function OrdersAdmin() {
                 <td>{new Date(order.createdAt).toLocaleString()}</td>
                 <td>${order.totalPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                 <td>
-                  <Button size="sm" variant="outline" onClick={() => openOrderModal(order)} className="mr-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openOrderModal(order)}
+                    className="mr-1"
+                  >
                     View
                   </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleDelete(order.id)} disabled={statusUpdateLoading}>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDelete(order.id)}
+                    disabled={statusUpdateLoading}
+                  >
                     Delete
                   </Button>
                 </td>
@@ -177,7 +235,10 @@ export default function OrdersAdmin() {
                       <strong>Created:</strong> {new Date(selectedOrder.createdAt).toLocaleString()}
                     </div>
                     <div>
-                      <strong>Total Price:</strong> ${selectedOrder.totalPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      <strong>Total Price:</strong> $
+                      {selectedOrder.totalPrice.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
                     </div>
                     {selectedOrder.paidAt && (
                       <div>
@@ -186,7 +247,8 @@ export default function OrdersAdmin() {
                     )}
                     {selectedOrder.failureReason && (
                       <div>
-                        <strong>Failure Reason:</strong> <span className="text-red-600">{selectedOrder.failureReason}</span>
+                        <strong>Failure Reason:</strong>{' '}
+                        <span className="text-red-600">{selectedOrder.failureReason}</span>
                       </div>
                     )}
                   </div>
@@ -198,10 +260,11 @@ export default function OrdersAdmin() {
                       <strong>Email:</strong> {selectedOrder.user?.email}
                     </div>
                     <div>
-                      <strong>Name:</strong> {selectedOrder.user?.firstName} {selectedOrder.user?.lastName}
+                      <strong>Name:</strong> {selectedOrder.user?.firstName}{' '}
+                      {selectedOrder.user?.lastName}
                     </div>
                     <div>
-                      <strong>Company:</strong> {selectedOrder.user?.company || "N/A"}
+                      <strong>Company:</strong> {selectedOrder.user?.company || 'N/A'}
                     </div>
                   </div>
                 </div>
@@ -211,8 +274,14 @@ export default function OrdersAdmin() {
               <div>
                 <h3 className="font-semibold mb-2">Update Status</h3>
                 <div className="flex gap-2">
-                  {["pending", "processing", "completed", "cancelled", "failed"].map((status) => (
-                    <Button key={status} size="sm" variant={selectedOrder.status === status ? "default" : "outline"} onClick={() => handleStatusUpdate(selectedOrder.id, status)} disabled={statusUpdateLoading}>
+                  {['pending', 'processing', 'completed', 'cancelled', 'failed'].map((status) => (
+                    <Button
+                      key={status}
+                      size="sm"
+                      variant={selectedOrder.status === status ? 'default' : 'outline'}
+                      onClick={() => handleStatusUpdate(selectedOrder.id, status)}
+                      disabled={statusUpdateLoading}
+                    >
                       {status.charAt(0).toUpperCase() + status.slice(1)}
                     </Button>
                   ))}
@@ -237,7 +306,9 @@ export default function OrdersAdmin() {
                     <tbody>
                       {selectedOrder.items?.map((item) => (
                         <tr key={item.id} className="border-t">
-                          <td className="p-2">{item.carbonCredit?.forest?.name || "Unknown Forest"}</td>
+                          <td className="p-2">
+                            {item.carbonCredit?.forest?.name || 'Unknown Forest'}
+                          </td>
                           <td className="p-2">{item.carbonCredit?.certification}</td>
                           <td className="p-2">{item.carbonCredit?.vintage}</td>
                           <td className="p-2 text-right">{item.quantity.toLocaleString()}</td>
@@ -259,7 +330,8 @@ export default function OrdersAdmin() {
                       <div key={payment.id} className="border rounded p-3 text-sm">
                         <div className="flex justify-between items-center">
                           <div>
-                            <strong>Payment #{payment.id}</strong> - {getStatusBadge(payment.status)}
+                            <strong>Payment #{payment.id}</strong> -{' '}
+                            {getStatusBadge(payment.status)}
                           </div>
                           <div>
                             ${payment.amount.toFixed(2)} {payment.currency}
@@ -267,9 +339,15 @@ export default function OrdersAdmin() {
                         </div>
                         <div className="text-gray-600 mt-1">
                           {payment.method && <span>Method: {payment.method}</span>}
-                          {payment.failureReason && <span className="text-red-600 ml-2">Reason: {payment.failureReason}</span>}
+                          {payment.failureReason && (
+                            <span className="text-red-600 ml-2">
+                              Reason: {payment.failureReason}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-gray-500 text-xs mt-1">{new Date(payment.createdAt).toLocaleString()}</div>
+                        <div className="text-gray-500 text-xs mt-1">
+                          {new Date(payment.createdAt).toLocaleString()}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -287,9 +365,13 @@ export default function OrdersAdmin() {
                           <div>
                             <strong>{history.event}</strong>
                           </div>
-                          <div className="text-gray-500 text-xs">{new Date(history.createdAt).toLocaleString()}</div>
+                          <div className="text-gray-500 text-xs">
+                            {new Date(history.createdAt).toLocaleString()}
+                          </div>
                         </div>
-                        {history.message && <div className="text-gray-600 mt-1">{history.message}</div>}
+                        {history.message && (
+                          <div className="text-gray-600 mt-1">{history.message}</div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -299,6 +381,20 @@ export default function OrdersAdmin() {
           </DialogContent>
         </Dialog>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          setConfirmOpen(open);
+          if (!open) confirmCallbackRef.current = null;
+        }}
+        title={confirmConfig.title}
+        description={confirmConfig.description}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={() => confirmCallbackRef.current?.()}
+      />
     </div>
   );
 }
