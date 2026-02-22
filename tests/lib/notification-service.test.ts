@@ -1,39 +1,27 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { NotificationService } from "@/lib/notification-service";
-import { PrismaClient } from "@prisma/client";
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { NotificationService } from '@/lib/notification-service';
 
-// Mock Prisma
-vi.mock("@prisma/client", () => ({
-  PrismaClient: vi.fn(),
+const { mockPrisma } = vi.hoisted(() => ({
+  mockPrisma: {
+    notification: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+  },
 }));
 
-// Mock socket server
-vi.mock("@/lib/socket-server", () => ({
-  getSocketServer: vi.fn(() => ({
-    sendNotificationToUser: vi.fn(),
-  })),
+vi.mock('@/lib/prisma', () => ({
+  prisma: mockPrisma,
 }));
 
-describe("NotificationService", () => {
+describe('NotificationService', () => {
   let notificationService: NotificationService;
-  let mockPrisma: any;
 
   beforeEach(() => {
-    // Reset mocks
     vi.clearAllMocks();
-
-    // Create mock Prisma client
-    mockPrisma = {
-      notification: {
-        create: vi.fn(),
-        findMany: vi.fn(),
-        count: vi.fn(),
-        update: vi.fn(),
-        updateMany: vi.fn(),
-      },
-    };
-
-    (PrismaClient as any).mockImplementation(() => mockPrisma);
     notificationService = new NotificationService();
   });
 
@@ -41,49 +29,49 @@ describe("NotificationService", () => {
     vi.restoreAllMocks();
   });
 
-  describe("createNotification", () => {
+  describe('createNotification', () => {
     const mockNotificationData = {
       userId: 1,
-      type: "order" as const,
-      title: "Test Notification",
-      message: "This is a test notification",
+      type: 'order' as const,
+      title: 'Test Notification',
+      message: 'This is a test notification',
       data: { orderId: 123 },
     };
 
     const mockPrismaNotification = {
-      id: "test-id",
+      id: 'test-id',
       userId: 1,
-      type: "order",
-      title: "Test Notification",
-      message: "This is a test notification",
+      type: 'order',
+      title: 'Test Notification',
+      message: 'This is a test notification',
       data: { orderId: 123 },
       read: false,
       readAt: null,
-      createdAt: new Date("2024-01-01T00:00:00Z"),
-      updatedAt: new Date("2024-01-01T00:00:00Z"),
+      createdAt: new Date('2024-01-01T00:00:00Z'),
+      updatedAt: new Date('2024-01-01T00:00:00Z'),
       user: {
         id: 1,
-        email: "test@example.com",
-        firstName: "Test",
-        lastName: "User",
+        email: 'test@example.com',
+        firstName: 'Test',
+        lastName: 'User',
       },
     };
 
-    it("should create notification successfully", async () => {
+    it('should create notification successfully', async () => {
       mockPrisma.notification.create.mockResolvedValue(mockPrismaNotification);
 
       const result = await notificationService.createNotification(mockNotificationData);
 
       expect(result).toBeDefined();
-      expect(result.id).toBe("test-id");
-      expect(result.type).toBe("order");
+      expect(result.id).toBe('test-id');
+      expect(result.type).toBe('order');
       expect(result.read).toBe(false);
       expect(mockPrisma.notification.create).toHaveBeenCalledWith({
         data: {
           userId: 1,
-          type: "order",
-          title: "Test Notification",
-          message: "This is a test notification",
+          type: 'order',
+          title: 'Test Notification',
+          message: 'This is a test notification',
           data: { orderId: 123 },
         },
         include: {
@@ -92,8 +80,8 @@ describe("NotificationService", () => {
       });
     });
 
-    it("should handle different notification types", async () => {
-      const types = ["order", "credit", "payment", "system"] as const;
+    it('should handle different notification types', async () => {
+      const types = ['order', 'credit', 'payment', 'system'] as const;
 
       for (const type of types) {
         mockPrisma.notification.create.mockResolvedValue({
@@ -111,18 +99,20 @@ describe("NotificationService", () => {
       }
     });
 
-    it("should handle notification creation errors", async () => {
-      mockPrisma.notification.create.mockRejectedValue(new Error("Database error"));
+    it('should handle notification creation errors', async () => {
+      mockPrisma.notification.create.mockRejectedValue(new Error('Database error'));
 
-      await expect(notificationService.createNotification(mockNotificationData)).rejects.toThrow("Database error");
+      await expect(notificationService.createNotification(mockNotificationData)).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
-  describe("getUserNotifications", () => {
-    it("should fetch user notifications with pagination", async () => {
+  describe('getUserNotifications', () => {
+    it('should fetch user notifications with pagination', async () => {
       const mockNotifications = [
-        { id: "1", userId: 1, type: "order", title: "Test 1", read: false },
-        { id: "2", userId: 1, type: "credit", title: "Test 2", read: true },
+        { id: '1', userId: 1, type: 'order', title: 'Test 1', read: false },
+        { id: '2', userId: 1, type: 'credit', title: 'Test 2', read: true },
       ];
 
       mockPrisma.notification.findMany.mockResolvedValue(mockNotifications);
@@ -131,22 +121,22 @@ describe("NotificationService", () => {
 
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({
-        id: "1",
+        id: '1',
         userId: 1,
-        type: "order",
-        title: "Test 1",
+        type: 'order',
+        title: 'Test 1',
         read: false,
       });
       expect(result[1]).toMatchObject({
-        id: "2",
+        id: '2',
         userId: 1,
-        type: "credit",
-        title: "Test 2",
+        type: 'credit',
+        title: 'Test 2',
         read: true,
       });
       expect(mockPrisma.notification.findMany).toHaveBeenCalledWith({
         where: { userId: 1 },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: 10,
         skip: 5,
         include: {
@@ -155,14 +145,14 @@ describe("NotificationService", () => {
       });
     });
 
-    it("should use default pagination when not provided", async () => {
+    it('should use default pagination when not provided', async () => {
       mockPrisma.notification.findMany.mockResolvedValue([]);
 
       await notificationService.getUserNotifications(1);
 
       expect(mockPrisma.notification.findMany).toHaveBeenCalledWith({
         where: { userId: 1 },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: 50,
         skip: 0,
         include: {
@@ -172,8 +162,8 @@ describe("NotificationService", () => {
     });
   });
 
-  describe("getUnreadCount", () => {
-    it("should return correct unread count", async () => {
+  describe('getUnreadCount', () => {
+    it('should return correct unread count', async () => {
       mockPrisma.notification.count.mockResolvedValue(5);
 
       const result = await notificationService.getUnreadCount(1);
@@ -188,29 +178,29 @@ describe("NotificationService", () => {
     });
   });
 
-  describe("markAsRead", () => {
-    it("should mark notification as read", async () => {
+  describe('markAsRead', () => {
+    it('should mark notification as read', async () => {
       const mockUpdatedNotification = {
-        id: "test-id",
+        id: 'test-id',
         userId: 1,
-        type: "order",
-        title: "Test",
-        message: "Test message",
+        type: 'order',
+        title: 'Test',
+        message: 'Test message',
         read: true,
-        readAt: new Date("2024-01-01T00:00:00Z"),
-        createdAt: new Date("2024-01-01T00:00:00Z"),
-        updatedAt: new Date("2024-01-01T00:00:00Z"),
-        user: { id: 1, email: "test@example.com" },
+        readAt: new Date('2024-01-01T00:00:00Z'),
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        user: { id: 1, email: 'test@example.com' },
       };
 
       mockPrisma.notification.update.mockResolvedValue(mockUpdatedNotification);
 
-      const result = await notificationService.markAsRead("test-id");
+      const result = await notificationService.markAsRead('test-id');
 
       expect(result.read).toBe(true);
       expect(result.readAt).toBeDefined();
       expect(mockPrisma.notification.update).toHaveBeenCalledWith({
-        where: { id: "test-id" },
+        where: { id: 'test-id' },
         data: {
           read: true,
           readAt: expect.any(Date),
@@ -222,8 +212,8 @@ describe("NotificationService", () => {
     });
   });
 
-  describe("markAllAsRead", () => {
-    it("should mark all notifications as read for user", async () => {
+  describe('markAllAsRead', () => {
+    it('should mark all notifications as read for user', async () => {
       mockPrisma.notification.updateMany.mockResolvedValue({ count: 5 });
 
       await notificationService.markAllAsRead(1);
@@ -241,92 +231,115 @@ describe("NotificationService", () => {
     });
   });
 
-  describe("Helper methods", () => {
-    it("should create order notification", async () => {
+  describe('Helper methods', () => {
+    it('should create order notification', async () => {
       mockPrisma.notification.create.mockResolvedValue({
-        id: "order-1",
+        id: 'order-1',
         userId: 1,
-        type: "order",
-        title: "Order Update - #123",
-        message: "Order completed successfully",
-        data: { orderId: 123, event: "completed" },
+        type: 'order',
+        title: 'Order Update - #123',
+        message: 'Order completed successfully',
+        data: { orderId: 123, event: 'completed' },
         read: false,
         readAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        user: { id: 1, email: "test@example.com" },
+        user: { id: 1, email: 'test@example.com' },
       });
 
-      const result = await notificationService.createOrderNotification(1, 123, "completed", "Order completed successfully");
+      const result = await notificationService.createOrderNotification(
+        1,
+        123,
+        'completed',
+        'Order completed successfully',
+      );
 
-      expect(result.type).toBe("order");
-      expect(result.title).toBe("Order Update - #123");
-      expect(result.data.orderId).toBe(123);
+      expect(result.type).toBe('order');
+      expect(result.title).toBe('Order Update - #123');
+      expect((result.data as Record<string, unknown>)?.orderId).toBe(123);
     });
 
-    it("should create credit notification", async () => {
+    it('should create credit notification', async () => {
       mockPrisma.notification.create.mockResolvedValue({
-        id: "credit-1",
+        id: 'credit-1',
         userId: 1,
-        type: "credit",
-        title: "New Credits Available",
-        message: "New Gold Standard credits available in Test Forest",
-        data: { creditId: 456, forestName: "Test Forest", event: "New Gold Standard credits available" },
+        type: 'credit',
+        title: 'New Credits Available',
+        message: 'New Gold Standard credits available in Test Forest',
+        data: {
+          creditId: 456,
+          forestName: 'Test Forest',
+          event: 'New Gold Standard credits available',
+        },
         read: false,
         readAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        user: { id: 1, email: "test@example.com" },
+        user: { id: 1, email: 'test@example.com' },
       });
 
-      const result = await notificationService.createCreditNotification(1, 456, "Test Forest", "New Gold Standard credits available");
+      const result = await notificationService.createCreditNotification(
+        1,
+        456,
+        'Test Forest',
+        'New Gold Standard credits available',
+      );
 
-      expect(result.type).toBe("credit");
-      expect(result.title).toBe("New Credits Available");
-      expect(result.data.forestName).toBe("Test Forest");
+      expect(result.type).toBe('credit');
+      expect(result.title).toBe('New Credits Available');
+      expect((result.data as Record<string, unknown>)?.forestName).toBe('Test Forest');
     });
 
-    it("should create payment notification", async () => {
+    it('should create payment notification', async () => {
       mockPrisma.notification.create.mockResolvedValue({
-        id: "payment-1",
+        id: 'payment-1',
         userId: 1,
-        type: "payment",
-        title: "Payment Succeeded",
-        message: "Payment received for order #123",
-        data: { orderId: 123, status: "succeeded" },
+        type: 'payment',
+        title: 'Payment Succeeded',
+        message: 'Payment received for order #123',
+        data: { orderId: 123, status: 'succeeded' },
         read: false,
         readAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        user: { id: 1, email: "test@example.com" },
+        user: { id: 1, email: 'test@example.com' },
       });
 
-      const result = await notificationService.createPaymentNotification(1, 123, "succeeded", "Payment received for order #123");
+      const result = await notificationService.createPaymentNotification(
+        1,
+        123,
+        'succeeded',
+        'Payment received for order #123',
+      );
 
-      expect(result.type).toBe("payment");
-      expect(result.title).toBe("Payment Succeeded");
-      expect(result.data.status).toBe("succeeded");
+      expect(result.type).toBe('payment');
+      expect(result.title).toBe('Payment Succeeded');
+      expect((result.data as Record<string, unknown>)?.status).toBe('succeeded');
     });
 
-    it("should create system notification", async () => {
+    it('should create system notification', async () => {
       mockPrisma.notification.create.mockResolvedValue({
-        id: "system-1",
+        id: 'system-1',
         userId: 1,
-        type: "system",
-        title: "System Maintenance",
-        message: "Scheduled maintenance in 1 hour",
+        type: 'system',
+        title: 'System Maintenance',
+        message: 'Scheduled maintenance in 1 hour',
         data: {},
         read: false,
         readAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        user: { id: 1, email: "test@example.com" },
+        user: { id: 1, email: 'test@example.com' },
       });
 
-      const result = await notificationService.createSystemNotification(1, "System Maintenance", "Scheduled maintenance in 1 hour");
+      const result = await notificationService.createSystemNotification(
+        1,
+        'System Maintenance',
+        'Scheduled maintenance in 1 hour',
+      );
 
-      expect(result.type).toBe("system");
-      expect(result.title).toBe("System Maintenance");
+      expect(result.type).toBe('system');
+      expect(result.title).toBe('System Maintenance');
     });
   });
 });

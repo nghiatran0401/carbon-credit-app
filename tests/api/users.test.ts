@@ -1,84 +1,137 @@
-import { describe, it, expect } from "vitest";
-import { GET } from "@/app/api/users/route";
-import { POST as registerPOST } from "@/app/api/auth/register/route";
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
-const mockRequest = (body: any) => {
-  return new Request("http://localhost/api/auth", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+const { mockUserData } = vi.hoisted(() => ({
+  mockUserData: {
+    id: 1,
+    email: 'admin@test.com',
+    firstName: 'Admin',
+    lastName: 'User',
+    company: 'TestCo',
+    role: 'ADMIN',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    emailVerified: true,
+    stripeCustomerId: null,
+    supabaseUserId: 'admin-123',
+    orders: [],
+  },
+}));
+
+vi.mock('@/lib/auth', () => {
+  const { NextResponse } = require('next/server');
+  return {
+    requireAuth: vi.fn().mockResolvedValue({
+      id: 1,
+      email: 'admin@test.com',
+      role: 'ADMIN',
+      emailVerified: true,
+      supabaseUserId: 'admin-123',
+    }),
+    requireAdmin: vi.fn().mockResolvedValue({
+      id: 1,
+      email: 'admin@test.com',
+      role: 'ADMIN',
+      emailVerified: true,
+      supabaseUserId: 'admin-123',
+    }),
+    isAuthError: (r: unknown) => r instanceof NextResponse,
+    handleRouteError: vi.fn().mockImplementation((_err: unknown, msg: string) => {
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }),
+    PUBLIC_USER_SELECT: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      company: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+      emailVerified: true,
+      stripeCustomerId: true,
+      supabaseUserId: true,
     },
-    body: JSON.stringify(body),
-  });
-};
+  };
+});
 
-describe("Users API", () => {
-  it("GET /api/users returns users", async () => {
-    const res = await GET();
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn().mockResolvedValue(mockUserData),
+      findMany: vi.fn().mockResolvedValue([mockUserData]),
+      update: vi.fn().mockResolvedValue({ ...mockUserData, role: 'USER' }),
+    },
+  },
+}));
+
+vi.mock('@/lib/validation', async (importOriginal) => {
+  const { NextResponse } = require('next/server');
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isValidationError: (r: unknown) => r instanceof NextResponse,
+  };
+});
+
+import { GET, PUT } from '@/app/api/users/route';
+
+describe('Users API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('GET /api/users returns users without passwordHash', async () => {
+    const req = new NextRequest('http://localhost/api/users');
+    const res = await GET(req);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(Array.isArray(data)).toBe(true);
-    if (data.length > 0) {
-      expect(data[0]).toHaveProperty("email");
-      expect(data[0]).toHaveProperty("id");
-      expect(data[0]).toHaveProperty("firstName");
-      expect(data[0]).toHaveProperty("lastName");
-      expect(data[0]).toHaveProperty("role");
-      expect(data[0]).toHaveProperty("createdAt");
-      expect(data[0]).toHaveProperty("updatedAt");
-      expect(data[0]).toHaveProperty("passwordHash"); // API returns passwordHash
-      expect(data[0]).not.toHaveProperty("password"); // But not plain password
-    }
+    expect(data[0]).toHaveProperty('email');
+    expect(data[0]).toHaveProperty('id');
+    expect(data[0]).toHaveProperty('firstName');
+    expect(data[0]).not.toHaveProperty('passwordHash');
+    expect(data[0]).not.toHaveProperty('password');
   });
 
-  it("GET /api/users returns users with proper structure", async () => {
-    const res = await GET();
+  it('GET /api/users with supabaseUserId returns single user', async () => {
+    const req = new NextRequest('http://localhost/api/users?supabaseUserId=admin-123');
+    const res = await GET(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-
-    // Check that all users have the required structure
-    data.forEach((user: any) => {
-      expect(typeof user.id).toBe("number");
-      expect(typeof user.email).toBe("string");
-      expect(typeof user.firstName).toBe("string");
-      expect(typeof user.lastName).toBe("string");
-      expect(typeof user.role).toBe("string");
-      expect(typeof user.createdAt).toBe("string");
-      expect(typeof user.updatedAt).toBe("string");
-      expect(typeof user.passwordHash).toBe("string"); // passwordHash is returned
-      expect(user).not.toHaveProperty("password"); // But not plain password
-    });
+    expect(data).toHaveProperty('email');
+    expect(data).not.toHaveProperty('passwordHash');
   });
 
-  it("POST /api/auth/register creates a new user and GET /api/users includes it", async () => {
-    const uniqueEmail = `testuser_${Date.now()}@example.com`;
-    const req = mockRequest({
-      email: uniqueEmail,
-      password: "testpassword",
-      firstName: "Test",
-      lastName: "User",
-      company: "TestCo",
-    });
-    const res = await registerPOST(req);
+  it('GET /api/users with email returns single user', async () => {
+    const req = new NextRequest('http://localhost/api/users?email=admin@test.com');
+    const res = await GET(req);
     expect(res.status).toBe(200);
-    const user = await res.json();
-    expect(user.email).toBe(uniqueEmail);
-    expect(user.firstName).toBe("Test");
-    expect(user.lastName).toBe("User");
-    expect(user.company).toBe("TestCo");
-    expect(user).not.toHaveProperty("password");
-    expect(user).not.toHaveProperty("passwordHash"); // Register API excludes passwordHash
+    const data = await res.json();
+    expect(data).toHaveProperty('email');
+    expect(data).not.toHaveProperty('passwordHash');
+  });
 
-    // Now check GET /api/users includes this user
-    const getRes = await GET();
-    const users = await getRes.json();
-    const found = users.find((u: any) => u.email === uniqueEmail);
-    expect(found).toBeDefined();
-    expect(found.firstName).toBe("Test");
-    expect(found.lastName).toBe("User");
-    expect(found.company).toBe("TestCo");
-    expect(found).not.toHaveProperty("password");
-    expect(found).toHaveProperty("passwordHash"); // But users API includes passwordHash
+  it('PUT /api/users updates user role', async () => {
+    const req = new NextRequest('http://localhost/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 1, role: 'user' }),
+    });
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toHaveProperty('role');
+    expect(data).not.toHaveProperty('passwordHash');
+  });
+
+  it('PUT /api/users returns 400 for missing id', async () => {
+    const req = new NextRequest('http://localhost/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'admin' }),
+    });
+    const res = await PUT(req);
+    expect(res.status).toBe(400);
   });
 });

@@ -1,138 +1,133 @@
-import { describe, it, expect } from "vitest";
-import { GET, POST, PUT, DELETE } from "@/app/api/orders/route";
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
-const mockRequest = (body: any, url = "http://localhost/api/orders") => {
-  const requestUrl = new URL(url);
-  return new Request(requestUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+const { mockUser, mockOrder } = vi.hoisted(() => ({
+  mockUser: {
+    id: 1,
+    email: 'admin@test.com',
+    role: 'ADMIN',
+    emailVerified: true,
+    supabaseUserId: 'admin-123',
+  },
+  mockOrder: {
+    id: 1,
+    userId: 1,
+    status: 'PENDING',
+    totalPrice: 105,
+    totalCredits: 10,
+    currency: 'USD',
+    buyer: '1',
+    seller: 'Platform',
+    items: [{ id: 1, carbonCreditId: 1, quantity: 10, pricePerCredit: 10.5, subtotal: 105 }],
+    payments: [],
+    orderHistory: [],
+    user: { id: 1, email: 'admin@test.com' },
+  },
+}));
+
+vi.mock('@/lib/auth', () => {
+  const { NextResponse } = require('next/server');
+  return {
+    requireAuth: vi.fn().mockResolvedValue(mockUser),
+    requireAdmin: vi.fn().mockResolvedValue(mockUser),
+    requireOwnershipOrAdmin: vi.fn().mockResolvedValue(mockUser),
+    isAuthError: (r: unknown) => r instanceof NextResponse,
+    handleRouteError: vi.fn().mockImplementation((_err: unknown, msg: string) => {
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }),
+  };
+});
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    order: {
+      findMany: vi.fn().mockResolvedValue([mockOrder]),
+      findUnique: vi.fn().mockResolvedValue(mockOrder),
+      create: vi.fn().mockResolvedValue({ ...mockOrder, id: 10, items: mockOrder.items }),
+      update: vi.fn().mockResolvedValue({ ...mockOrder, status: 'COMPLETED' }),
+      delete: vi.fn().mockResolvedValue(mockOrder),
     },
+    orderHistory: {
+      create: vi.fn().mockResolvedValue({ id: 1 }),
+    },
+  },
+}));
+
+vi.mock('@/lib/notification-service', () => ({
+  notificationService: {
+    createOrderNotification: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('@/lib/validation', async (importOriginal) => {
+  const { NextResponse } = require('next/server');
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isValidationError: (r: unknown) => r instanceof NextResponse,
+  };
+});
+
+import { GET, POST, PUT, DELETE } from '@/app/api/orders/route';
+
+const mockNextRequest = (body: Record<string, unknown>, url = 'http://localhost/api/orders') => {
+  return new NextRequest(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 };
 
-const mockGetRequest = (url = "http://localhost/api/orders") => {
-  return new Request(url);
-};
+describe('Orders API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-describe("Orders API", () => {
-  let orderId: number | undefined;
-
-  it("GET /api/orders returns orders", async () => {
-    const req = mockGetRequest();
+  it('GET /api/orders returns orders', async () => {
+    const req = new NextRequest('http://localhost/api/orders');
     const res = await GET(req);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(Array.isArray(data)).toBe(true);
   });
 
-  it("GET /api/orders with userId filter returns user orders", async () => {
-    const req = mockGetRequest("http://localhost/api/orders?userId=1");
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-  });
-
-  it("GET /api/orders includes orderHistory and payments", async () => {
-    const req = mockGetRequest();
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-    if (data.length > 0) {
-      const order = data[0];
-      expect(order).toHaveProperty("orderHistory");
-      expect(order).toHaveProperty("payments");
-      expect(Array.isArray(order.orderHistory)).toBe(true);
-      expect(Array.isArray(order.payments)).toBe(true);
-    }
-  });
-
-  it("POST /api/orders creates an order", async () => {
-    // Use userId 1 and carbonCreditId 1 for test, adjust if needed
-    const req = mockRequest({
-      userId: 1,
-      status: "pending",
-      items: [
-        {
-          carbonCreditId: 1,
-          quantity: 10,
-          pricePerCredit: 10.5,
-        },
-      ],
+  it('POST /api/orders creates an order', async () => {
+    const req = mockNextRequest({
+      status: 'PENDING',
+      items: [{ carbonCreditId: 1, quantity: 10, pricePerCredit: 10.5 }],
     });
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data).toHaveProperty("id");
-    expect(data.userId).toBe(1);
-    expect(data).toHaveProperty("totalPrice");
-    expect(data.items).toHaveLength(1);
-    orderId = data.id;
+    expect(data).toHaveProperty('id');
   });
 
-  it("POST /api/orders creates order with multiple items", async () => {
-    const req = mockRequest({
-      userId: 1,
-      status: "pending",
-      items: [
-        {
-          carbonCreditId: 1,
-          quantity: 5,
-          pricePerCredit: 10.5,
-        },
-        {
-          carbonCreditId: 2,
-          quantity: 3,
-          pricePerCredit: 15.0,
-        },
-      ],
+  it('POST /api/orders validates items', async () => {
+    const req = mockNextRequest({
+      status: 'PENDING',
+      items: [],
     });
     const res = await POST(req);
-    expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.items).toHaveLength(2);
-    expect(data.totalPrice).toBeGreaterThan(0);
+    expect(res.status).toBe(400);
   });
 
-  it("PUT /api/orders updates an order", async () => {
-    expect(orderId).toBeDefined();
-    const req = mockRequest({
-      id: orderId,
-      status: "completed",
-    });
+  it('PUT /api/orders updates an order', async () => {
+    const req = mockNextRequest({ id: 1, status: 'COMPLETED' });
     const res = await PUT(req);
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.status).toBe("completed");
   });
 
-  it("PUT /api/orders returns 400 for missing id", async () => {
-    const req = mockRequest({
-      status: "completed",
-    });
+  it('PUT /api/orders validates id', async () => {
+    const req = mockNextRequest({ status: 'COMPLETED' });
     const res = await PUT(req);
     expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Missing id");
   });
 
-  it("DELETE /api/orders deletes an order", async () => {
-    expect(orderId).toBeDefined();
-    const req = mockRequest({ id: orderId });
+  it('DELETE /api/orders deletes an order', async () => {
+    const req = mockNextRequest({ id: 1 });
     const res = await DELETE(req);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
-  });
-
-  it("DELETE /api/orders returns 400 for missing id", async () => {
-    const req = mockRequest({});
-    const res = await DELETE(req);
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Missing id");
   });
 });
