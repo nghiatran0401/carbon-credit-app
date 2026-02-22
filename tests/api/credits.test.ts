@@ -58,12 +58,6 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-vi.mock('@/lib/notification-service', () => ({
-  notificationService: {
-    createCreditNotification: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
 vi.mock('@/lib/validation', async (importOriginal) => {
   const { NextResponse } = require('next/server');
   const actual = (await importOriginal()) as Record<string, unknown>;

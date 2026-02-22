@@ -44,13 +44,6 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits �
 - Full order audit trail (status changes, payment events, failures)
 - Immutable transaction ledger via ImmuDB
 
-**Real-time & Notifications**
-
-- Adaptive polling with exponential backoff
-- Notification filtering by type (order, credit, payment, system)
-- Bulk operations (mark all as read)
-- Optimistic UI updates with error fallback
-
 **Security & Auth**
 
 - User authentication with Supabase (login/register)
@@ -217,7 +210,6 @@ The database is managed with [Prisma](https://www.prisma.io/) and includes the f
 - **Payment** — PayOS payment tracking with status and failure handling
 - **OrderHistory** — immutable audit log of order state transitions
 - **Certificate** — verifiable purchase certificates with hash integrity
-- **Notification** — in-app notification system with read tracking
 - **CartItem** — per-user shopping cart
 - **Bookmark** — saved forest projects
 - **ExchangeRate** — currency conversion rates for credits
@@ -279,15 +271,6 @@ All routes are under `/api/` and follow RESTful conventions.
 | DELETE | `/api/cart`             | Remove item from cart       |
 | POST   | `/api/checkout`         | Initiate PayOS checkout     |
 | GET    | `/api/checkout/session` | Get checkout session status |
-
-### Notifications
-
-| Method | Endpoint                           | Description                     |
-| ------ | ---------------------------------- | ------------------------------- |
-| GET    | `/api/notifications`               | List notifications              |
-| POST   | `/api/notifications`               | Create a notification           |
-| PUT    | `/api/notifications/[id]`          | Update notification (mark read) |
-| POST   | `/api/notifications/mark-all-read` | Mark all as read                |
 
 ### Other
 

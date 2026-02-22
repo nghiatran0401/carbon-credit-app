@@ -83,14 +83,6 @@ export const bookmarkCreateSchema = z.object({
   forestId: z.number().int().positive(),
 });
 
-export const notificationCreateSchema = z.object({
-  userId: z.number().int().positive(),
-  type: z.enum(['order', 'credit', 'system', 'payment']),
-  title: z.string().min(1).max(200),
-  message: z.string().min(1).max(1000),
-  data: z.record(z.unknown()).optional(),
-});
-
 /**
  * Validate request body against a schema.
  * Returns parsed data on success, or a 400 NextResponse on failure.

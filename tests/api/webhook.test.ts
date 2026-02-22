@@ -68,13 +68,6 @@ vi.mock('@/lib/certificate-service', () => ({
   },
 }));
 
-vi.mock('@/lib/notification-service', () => ({
-  notificationService: {
-    createOrderNotification: vi.fn().mockResolvedValue(undefined),
-    createPaymentNotification: vi.fn().mockResolvedValue(undefined),
-  },
-}));
-
 vi.mock('@/lib/order-audit-middleware', () => ({
   orderAuditMiddleware: {
     ensureOrderAudit: vi.fn().mockResolvedValue({ created: false, exists: true }),

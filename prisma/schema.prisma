@@ -41,13 +41,6 @@ enum ForestStatus {
   INACTIVE
 }
 
-enum NotificationType {
-  order
-  credit
-  system
-  payment
-}
-
 enum CertificateStatus {
   active
   revoked
@@ -81,7 +74,6 @@ model User {
   bookmarks      Bookmark[]
   cartItems      CartItem[]
   emailVerified  Boolean        @default(false)
-  notifications  Notification[]
 
   @@index([email])
   @@index([role])
@@ -253,24 +245,6 @@ model Certificate {
 
   @@index([orderId])
   @@index([status])
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  userId    Int
-  type      NotificationType
-  title     String
-  message   String
-  data      Json?
-  read      Boolean          @default(false)
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, read])
-  @@index([userId, createdAt])
-  @@index([type])
 }
 
 model WebhookEvent {

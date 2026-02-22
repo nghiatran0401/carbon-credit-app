@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { notificationService } from '@/lib/notification-service';
 import { requireAdmin, isAuthError, handleRouteError } from '@/lib/auth';
 import {
   carbonCreditCreateSchema,
@@ -38,28 +37,6 @@ export async function POST(req: NextRequest) {
         forest: true,
       },
     });
-
-    try {
-      const users = await prisma.user.findMany({
-        where: { role: 'USER' },
-        select: { id: true },
-      });
-
-      for (const user of users) {
-        try {
-          await notificationService.createCreditNotification(
-            user.id,
-            credit.id,
-            credit.forest?.name || 'Unknown Forest',
-            `New ${credit.certification} credits available (${credit.availableCredits} credits)`,
-          );
-        } catch (notifError) {
-          console.error(`Failed to create notification for user ${user.id}:`, notifError);
-        }
-      }
-    } catch (notifError) {
-      console.error('Error creating credit notifications:', notifError);
-    }
 
     return NextResponse.json(credit);
   } catch (error) {

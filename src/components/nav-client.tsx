@@ -1,13 +1,11 @@
-"use client";
-import Link from "next/link";
-import { useAuth } from "@/components/auth-context";
-import { MobileNav } from "@/components/mobile-nav";
-import { ShoppingCart } from "lucide-react";
-import useSWR from "swr";
-import { apiGet } from "@/lib/api";
-import { useRouter } from "next/navigation";
-import { NotificationBell } from "@/components/notification-bell";
-
+'use client';
+import Link from 'next/link';
+import { useAuth } from '@/components/auth-context';
+import { MobileNav } from '@/components/mobile-nav';
+import { ShoppingCart } from 'lucide-react';
+import useSWR from 'swr';
+import { apiGet } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 export function DesktopNav() {
   const { isAuthenticated, user, logout } = useAuth();
   const router = useRouter();
@@ -29,7 +27,7 @@ export function DesktopNav() {
           </Link>
         </>
       )}
-      {isAuthenticated && user?.role?.toLowerCase() === "admin" && (
+      {isAuthenticated && user?.role?.toLowerCase() === 'admin' && (
         <Link href="/admin" className="text-gray-600 hover:text-green-600">
           Admin
         </Link>
@@ -38,16 +36,18 @@ export function DesktopNav() {
       {isAuthenticated && (
         <Link href="/cart" className="relative text-gray-600 hover:text-green-600">
           <ShoppingCart className="h-6 w-6" />
-          {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-green-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">{cartCount}</span>}
+          {cartCount > 0 && (
+            <span className="absolute -top-2 -right-2 bg-green-600 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+              {cartCount}
+            </span>
+          )}
         </Link>
       )}
-      {/* Notification Bell */}
-      {isAuthenticated && <NotificationBell />}
       {isAuthenticated ? (
         <button
           onClick={() => {
             logout();
-            router.push("/");
+            router.push('/');
           }}
           className="text-gray-600 hover:text-red-600 border border-gray-300 rounded px-3 py-1 ml-2"
         >
@@ -67,14 +67,14 @@ export function MobileNavWrapper() {
   const links = [];
   if (isAuthenticated) {
     links.push(
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/marketplace", label: "Marketplace" },
-      { href: "/history", label: "History" }
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/marketplace', label: 'Marketplace' },
+      { href: '/history', label: 'History' },
     );
   }
-  links.push({ href: "/about", label: "About" });
-  if (isAuthenticated && user?.role?.toLowerCase() === "admin") {
-    links.push({ href: "/admin", label: "Admin" });
+  links.push({ href: '/about', label: 'About' });
+  if (isAuthenticated && user?.role?.toLowerCase() === 'admin') {
+    links.push({ href: '/admin', label: 'Admin' });
   }
   // Don't add logout to links array since MobileNav handles it separately
   return <MobileNav links={links} isAuthenticated={isAuthenticated} logout={logout} />;

@@ -6,8 +6,3 @@ export const DEFAULT_PRICE_PER_CREDIT = 3;
 
 // Pagination
 export const DEFAULT_PAGE_SIZE = 5;
-
-// Notification polling intervals (milliseconds)
-export const POLL_INTERVAL_MIN_MS = 30_000;
-export const POLL_INTERVAL_MAX_MS = 300_000;
-export const POLL_FETCH_GUARD_MS = 5_000;

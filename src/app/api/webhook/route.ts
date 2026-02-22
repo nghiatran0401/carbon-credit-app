@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { certificateService } from '@/lib/certificate-service';
-import { notificationService } from '@/lib/notification-service';
 import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { paymentService } from '@/lib/payment-service';
@@ -121,33 +120,12 @@ export async function POST(req: NextRequest) {
         console.error(`Failed to track movement for order ${order.id}:`, movementError);
       }
 
-      try {
-        await notificationService.createOrderNotification(
-          order.userId,
-          order.id,
-          'Payment Completed',
-          `Your order #${order.id} has been paid successfully.`,
-        );
-      } catch (notifError) {
-        console.error('Error creating order notification:', notifError);
-      }
-
       if (order.userId) {
         await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
       }
 
       try {
         await certificateService.generateCertificate(order.id);
-        try {
-          await notificationService.createPaymentNotification(
-            order.userId,
-            order.id,
-            'Successful',
-            `Payment received for order #${order.id}. Your certificate is ready!`,
-          );
-        } catch (notifError) {
-          console.error('Error creating payment notification:', notifError);
-        }
       } catch (certError) {
         console.error('Error generating certificate for order:', order.id, certError);
       }
@@ -164,17 +142,6 @@ export async function POST(req: NextRequest) {
           message: `Payment failed via PayOS webhook (orderCode: ${orderCode})`,
         },
       });
-
-      try {
-        await notificationService.createPaymentNotification(
-          order.userId,
-          order.id,
-          'Failed',
-          `Payment failed for order #${order.id}. Please try again.`,
-        );
-      } catch (notifError) {
-        console.error('Error creating payment failure notification:', notifError);
-      }
     }
 
     return NextResponse.json({

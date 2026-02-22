@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { notificationService } from '@/lib/notification-service';
 import {
   requireAuth,
   requireAdmin,
@@ -103,17 +102,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    try {
-      await notificationService.createOrderNotification(
-        userId,
-        createdOrder.id,
-        'Order Created',
-        `Your order #${createdOrder.id} has been created successfully. Total: $${totalPrice.toFixed(2)}`,
-      );
-    } catch (notifError) {
-      console.error('Error creating order notification:', notifError);
-    }
-
     return NextResponse.json(orderWithUser);
   } catch (error) {
     return handleRouteError(error, 'Failed to create order');
@@ -166,17 +154,6 @@ export async function PUT(req: NextRequest) {
           message: `Order status changed from ${currentOrder.status} to ${status}`,
         },
       });
-
-      try {
-        await notificationService.createOrderNotification(
-          currentOrder.userId,
-          Number(id),
-          'Status Updated',
-          `Your order #${id} status has been updated to ${status}`,
-        );
-      } catch (notifError) {
-        console.error('Error creating status update notification:', notifError);
-      }
 
       const updatedOrderWithHistory = await prisma.order.findUnique({
         where: { id: Number(id) },

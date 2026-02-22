@@ -198,43 +198,6 @@ export interface ForestZone {
   status?: string;
 }
 
-// Notification Types
-export interface Notification {
-  id: string;
-  userId: number;
-  type: 'order' | 'credit' | 'system' | 'payment';
-  title: string;
-  message: string;
-  data?: NotificationData;
-  read: boolean;
-  readAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  user?: User;
-}
-
-// Notification Data
-export interface NotificationData {
-  orderId?: number;
-  creditId?: number;
-  forestName?: string;
-  event?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-export interface NotificationContextType {
-  notifications: Notification[];
-  unreadCount: number;
-  isLoading: boolean;
-  error: string | null;
-  markAsRead: (notificationId: string) => Promise<void>;
-  markAllAsRead: () => Promise<void>;
-  fetchNotifications: (force?: boolean) => Promise<void>;
-  addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  clearError: () => void;
-}
-
 // API Response Types
 export interface ApiResponse<T> {
   data?: T;
