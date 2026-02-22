@@ -32,7 +32,7 @@ export default function ImmudbAdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionHash | null>(null);
   const [filterType, setFilterType] = useState('all');
-  
+
   const { toast } = useToast();
 
   const loadDashboardData = async () => {
@@ -49,23 +49,21 @@ export default function ImmudbAdminPage() {
 
         // Calculate stats
         const typeCount: Record<string, number> = {};
-        transactions.forEach(tx => {
+        transactions.forEach((tx) => {
           typeCount[tx.transactionType] = (typeCount[tx.transactionType] || 0) + 1;
         });
 
         setStats({
           totalTransactions: transactions.length,
           transactionTypes: typeCount,
-          recentTransactions: transactions
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 10)
+          recentTransactions: transactions.sort((a, b) => b.timestamp - a.timestamp).slice(0, 10),
         });
       }
     } catch (error) {
       toast({
-        title: "Load Error",
+        title: 'Load Error',
         description: `Failed to load dashboard data: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -79,13 +77,14 @@ export default function ImmudbAdminPage() {
       return;
     }
 
-    const filtered = allTransactions.filter(tx => 
-      tx.hash.toLowerCase().includes(query.toLowerCase()) ||
-      tx.transactionType.toLowerCase().includes(query.toLowerCase()) ||
-      (tx.blockNumber && tx.blockNumber.toString().includes(query)) ||
-      (tx.metadata && JSON.stringify(tx.metadata).toLowerCase().includes(query.toLowerCase()))
+    const filtered = allTransactions.filter(
+      (tx) =>
+        tx.hash.toLowerCase().includes(query.toLowerCase()) ||
+        tx.transactionType.toLowerCase().includes(query.toLowerCase()) ||
+        (tx.blockNumber && tx.blockNumber.toString().includes(query)) ||
+        (tx.metadata && JSON.stringify(tx.metadata).toLowerCase().includes(query.toLowerCase())),
     );
-    
+
     setFilteredTransactions(filtered);
   };
 
@@ -94,7 +93,7 @@ export default function ImmudbAdminPage() {
     if (type === 'all') {
       setFilteredTransactions(allTransactions);
     } else {
-      const filtered = allTransactions.filter(tx => tx.transactionType === type);
+      const filtered = allTransactions.filter((tx) => tx.transactionType === type);
       setFilteredTransactions(filtered);
     }
   };
@@ -109,10 +108,14 @@ export default function ImmudbAdminPage() {
 
   useEffect(() => {
     loadDashboardData();
+    // Intentional: run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     handleSearch(searchQuery);
+    // handleSearch filters allTransactions; listing it would cause unnecessary re-runs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, allTransactions]);
 
   return (
@@ -195,18 +198,17 @@ export default function ImmudbAdminPage() {
             <CardContent>
               <div className="space-y-2">
                 {stats?.recentTransactions.map((tx, index) => (
-                  <div key={index} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
+                  <div
+                    key={index}
+                    className="flex justify-between items-center p-2 hover:bg-gray-50 rounded"
+                  >
                     <div>
                       <div className="font-mono text-sm">{truncateHash(tx.hash)}</div>
                       <div className="text-xs text-gray-600">
                         {tx.transactionType} • {formatTimestamp(tx.timestamp)}
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedTransaction(tx)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => setSelectedTransaction(tx)}>
                       View
                     </Button>
                   </div>
@@ -232,7 +234,7 @@ export default function ImmudbAdminPage() {
                   placeholder="Search by hash, type, block number, or metadata..."
                 />
               </div>
-              
+
               <div>
                 <Label>Filter by type</Label>
                 <div className="flex flex-wrap gap-2 mt-2">
@@ -331,11 +333,7 @@ export default function ImmudbAdminPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Transaction Details</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedTransaction(null)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedTransaction(null)}>
                   Close
                 </Button>
               </div>
@@ -347,11 +345,13 @@ export default function ImmudbAdminPage() {
                   {selectedTransaction.hash}
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Type</Label>
-                  <div><Badge>{selectedTransaction.transactionType}</Badge></div>
+                  <div>
+                    <Badge>{selectedTransaction.transactionType}</Badge>
+                  </div>
                 </div>
                 <div>
                   <Label>Timestamp</Label>
@@ -366,14 +366,15 @@ export default function ImmudbAdminPage() {
                 </div>
               )}
 
-              {selectedTransaction.metadata && Object.keys(selectedTransaction.metadata).length > 0 && (
-                <div>
-                  <Label>Metadata</Label>
-                  <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
-                    {JSON.stringify(selectedTransaction.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {selectedTransaction.metadata &&
+                Object.keys(selectedTransaction.metadata).length > 0 && (
+                  <div>
+                    <Label>Metadata</Label>
+                    <pre className="text-xs bg-gray-100 p-2 rounded overflow-x-auto">
+                      {JSON.stringify(selectedTransaction.metadata, null, 2)}
+                    </pre>
+                  </div>
+                )}
             </CardContent>
           </Card>
         </div>

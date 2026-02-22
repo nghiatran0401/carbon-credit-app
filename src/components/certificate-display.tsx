@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Download, CheckCircle, Leaf, Shield, Users, MapPin } from "lucide-react";
-import type { Certificate } from "@/types";
-import { pdfCertificateGenerator } from "@/lib/pdf-certificate-generator";
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Download, CheckCircle, Leaf, Shield, Users, MapPin } from 'lucide-react';
+import type { Certificate, CertificateMetadata } from '@/types';
+import { pdfCertificateGenerator } from '@/lib/pdf-certificate-generator';
 
 interface CertificateDisplayProps {
   certificate: Certificate;
@@ -15,7 +15,7 @@ interface CertificateDisplayProps {
 }
 
 export function CertificateDisplay({ certificate, onDownload }: CertificateDisplayProps) {
-  const metadata = certificate.metadata as any;
+  const metadata = certificate.metadata as CertificateMetadata | undefined;
 
   if (!metadata) {
     return (
@@ -35,14 +35,14 @@ export function CertificateDisplay({ certificate, onDownload }: CertificateDispl
       try {
         const pdfBlob = await pdfCertificateGenerator.generatePDFCertificate(certificate);
         const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = `carbon-credit-certificate-${certificate.id}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
       } catch (error) {
-        console.error("Error generating PDF:", error);
-        alert("Failed to generate PDF certificate. Please try again.");
+        console.error('Error generating PDF:', error);
+        alert('Failed to generate PDF certificate. Please try again.');
       }
     }
   };
@@ -52,12 +52,14 @@ export function CertificateDisplay({ certificate, onDownload }: CertificateDispl
       <CardHeader className="text-center pb-4">
         <div className="flex items-center justify-center space-x-2 mb-4">
           <Leaf className="h-8 w-8 text-green-600" />
-          <CardTitle className="text-2xl font-bold text-green-800">Carbon Credit Certificate</CardTitle>
+          <CardTitle className="text-2xl font-bold text-green-800">
+            Carbon Credit Certificate
+          </CardTitle>
         </div>
         <div className="flex items-center justify-center space-x-4 text-sm">
           <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
-            {certificate.status === "active" ? "Valid" : certificate.status}
+            {certificate.status === 'active' ? 'Valid' : certificate.status}
           </Badge>
           <span className="text-gray-600">ID: {certificate.id}</span>
         </div>
@@ -86,9 +88,13 @@ export function CertificateDisplay({ certificate, onDownload }: CertificateDispl
           <div className="space-y-3">
             <div>
               <h3 className="font-semibold text-gray-900 mb-2">Purchase Details</h3>
-              <p className="text-lg font-bold text-green-700">${metadata.totalValue.toFixed(2)}</p>
+              <p className="text-lg font-bold text-green-700">
+                ${(metadata.totalValue ?? 0).toFixed(2)}
+              </p>
               <p className="text-sm text-gray-600">{metadata.totalCredits} credits purchased</p>
-              <p className="text-xs text-gray-500">Issued: {new Date(certificate.issuedAt).toLocaleDateString()}</p>
+              <p className="text-xs text-gray-500">
+                Issued: {new Date(certificate.issuedAt).toLocaleDateString()}
+              </p>
             </div>
           </div>
         </div>
@@ -99,8 +105,11 @@ export function CertificateDisplay({ certificate, onDownload }: CertificateDispl
         <div>
           <h3 className="font-semibold text-gray-900 mb-3">Carbon Credits</h3>
           <div className="space-y-2">
-            {metadata.items?.map((item: any, index: number) => (
-              <div key={index} className="flex justify-between items-center p-3 bg-white rounded-lg border">
+            {metadata.items?.map((item, index) => (
+              <div
+                key={index}
+                className="flex justify-between items-center p-3 bg-white rounded-lg border"
+              >
                 <div className="flex items-center space-x-3">
                   <Shield className="h-5 w-5 text-blue-600" />
                   <div>

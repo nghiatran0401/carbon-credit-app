@@ -1,16 +1,59 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
+/** CLI command payload sent to API */
+interface CLIPayload {
+  command: string;
+  key?: string;
+  value?: string;
+  prefix?: string;
+  limit?: number;
+}
+
+/** Entry from SCAN/HISTORY entriesList */
+interface CLIEntry {
+  key?: string;
+  value?: string | unknown;
+  tx?: number;
+}
+
+/** Result shape from GET */
+interface CLIGetResult {
+  key?: string;
+  value?: string | unknown;
+  tx?: number;
+}
+
+/** Result shape from COUNT */
+interface CLICountResult {
+  count?: number;
+  prefix?: string;
+}
+
+/** Result shape from SET */
+interface CLISetResult {
+  id?: number;
+  ts?: number;
+}
+
+type CLICommandResult =
+  | CLIEntry[]
+  | CLIGetResult
+  | CLICountResult
+  | CLISetResult
+  | Record<string, unknown>;
+
 interface CLIResult {
   success: boolean;
   command: string;
-  result: any;
+  result: CLICommandResult;
   timestamp: string;
   error?: string;
 }
@@ -24,22 +67,22 @@ export default function ImmudbCLIPage() {
   const executeCommand = async () => {
     if (!command.trim()) {
       toast({
-        title: "Error",
-        description: "Please enter a command",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Please enter a command',
+        variant: 'destructive',
       });
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       // Parse the command
       const parts = command.trim().split(' ');
       const cmd = parts[0].toLowerCase();
-      
-      let payload: any = { command: cmd };
-      
+
+      let payload: CLIPayload = { command: cmd };
+
       switch (cmd) {
         case 'get':
           payload.key = parts[1];
@@ -64,33 +107,32 @@ export default function ImmudbCLIPage() {
       const response = await fetch('/api/immudb/cli', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
-      
-      setHistory(prev => [result, ...prev.slice(0, 19)]); // Keep last 20 commands
-      
+
+      setHistory((prev) => [result, ...prev.slice(0, 19)]); // Keep last 20 commands
+
       if (result.success) {
         toast({
-          title: "Command Executed",
+          title: 'Command Executed',
           description: result.command,
         });
       } else {
         toast({
-          title: "Command Failed",
+          title: 'Command Failed',
           description: result.error,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
-      
+
       setCommand('');
-      
     } catch (error) {
       toast({
-        title: "Execution Error",
+        title: 'Execution Error',
         description: `Failed to execute command: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -110,70 +152,97 @@ export default function ImmudbCLIPage() {
     { label: 'Get sample key', cmd: 'get tx_debug_test_1761637733905' },
   ];
 
-  const formatResult = (result: any, command: string) => {
-    if (!result) return 'null';
-    
+  const formatResult = (
+    result: CLICommandResult | null | undefined,
+    command: string,
+  ): ReactNode => {
+    if (!result || typeof result !== 'object') return 'null';
+
     const cmd = command.split(' ')[0].toLowerCase();
-    
+    const resultObj = result as Record<string, unknown>;
+
     switch (cmd) {
       case 'scan':
-        if (result.entriesList && Array.isArray(result.entriesList)) {
-          return result.entriesList.map((entry: any, index: number) => (
+        if (resultObj.entriesList && Array.isArray(resultObj.entriesList)) {
+          return (resultObj.entriesList as CLIEntry[]).map((entry: CLIEntry, index: number) => (
             <div key={index} className="mb-2 p-2 bg-gray-50 rounded">
-              <div className="font-mono text-sm"><strong>Key:</strong> {entry.key}</div>
-              <div className="font-mono text-xs text-gray-600 break-all">
-                <strong>Value:</strong> {typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value)}
+              <div className="font-mono text-sm">
+                <strong>Key:</strong> {entry.key}
               </div>
-              <div className="text-xs text-gray-500"><strong>TX:</strong> {entry.tx}</div>
+              <div className="font-mono text-xs text-gray-600 break-all">
+                <strong>Value:</strong>{' '}
+                {typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value)}
+              </div>
+              <div className="text-xs text-gray-500">
+                <strong>TX:</strong> {entry.tx}
+              </div>
             </div>
           ));
         }
         break;
-        
+
       case 'get':
-        if (result.key && result.value) {
+        if (resultObj.key !== undefined && resultObj.value !== undefined) {
           return (
             <div className="p-2 bg-gray-50 rounded">
-              <div className="font-mono text-sm"><strong>Key:</strong> {result.key}</div>
-              <div className="font-mono text-xs break-all">
-                <strong>Value:</strong> {typeof result.value === 'string' ? result.value : JSON.stringify(result.value)}
+              <div className="font-mono text-sm">
+                <strong>Key:</strong> {String(resultObj.key)}
               </div>
-              <div className="text-xs text-gray-500"><strong>TX:</strong> {result.tx}</div>
+              <div className="font-mono text-xs break-all">
+                <strong>Value:</strong>{' '}
+                {typeof resultObj.value === 'string'
+                  ? resultObj.value
+                  : JSON.stringify(resultObj.value)}
+              </div>
+              <div className="text-xs text-gray-500">
+                <strong>TX:</strong> {String(resultObj.tx ?? '')}
+              </div>
             </div>
           );
         }
         break;
-        
+
       case 'history':
-        if (result.entriesList && Array.isArray(result.entriesList)) {
-          return result.entriesList.map((entry: any, index: number) => (
+        if (resultObj.entriesList && Array.isArray(resultObj.entriesList)) {
+          return (resultObj.entriesList as CLIEntry[]).map((entry: CLIEntry, index: number) => (
             <div key={index} className="mb-1 p-2 bg-gray-50 rounded">
               <div className="font-mono text-xs">
-                <strong>TX {entry.tx}:</strong> {typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value)}
+                <strong>TX {entry.tx}:</strong>{' '}
+                {typeof entry.value === 'string' ? entry.value : JSON.stringify(entry.value)}
               </div>
             </div>
           ));
         }
         break;
-        
+
       case 'count':
         return (
           <div className="p-2 bg-blue-50 rounded">
-            <div className="text-lg font-bold">{result.count} keys</div>
-            <div className="text-sm text-gray-600">Prefix: {result.prefix}</div>
+            <div className="text-lg font-bold">{(resultObj as CLICountResult).count} keys</div>
+            <div className="text-sm text-gray-600">
+              Prefix: {(resultObj as CLICountResult).prefix}
+            </div>
           </div>
         );
-        
+
       case 'set':
         return (
           <div className="p-2 bg-green-50 rounded">
-            <div className="text-sm"><strong>Transaction ID:</strong> {result.id}</div>
-            <div className="text-xs text-gray-600"><strong>Timestamp:</strong> {result.ts}</div>
+            <div className="text-sm">
+              <strong>Transaction ID:</strong> {(resultObj as CLISetResult).id}
+            </div>
+            <div className="text-xs text-gray-600">
+              <strong>Timestamp:</strong> {(resultObj as CLISetResult).ts}
+            </div>
           </div>
         );
     }
-    
-    return <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto">{JSON.stringify(result, null, 2)}</pre>;
+
+    return (
+      <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto">
+        {JSON.stringify(result, null, 2)}
+      </pre>
+    );
   };
 
   return (
@@ -206,18 +275,13 @@ export default function ImmudbCLIPage() {
               {isLoading ? 'Executing...' : 'Execute'}
             </Button>
           </div>
-          
+
           {/* Quick Commands */}
           <div>
             <div className="text-sm font-medium mb-2">Quick Commands:</div>
             <div className="flex flex-wrap gap-2">
               {quickCommands.map((qc, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCommand(qc.cmd)}
-                >
+                <Button key={index} variant="outline" size="sm" onClick={() => setCommand(qc.cmd)}>
                   {qc.label}
                 </Button>
               ))}
@@ -236,20 +300,20 @@ export default function ImmudbCLIPage() {
             <div>
               <div className="font-mono font-bold">GET &lt;key&gt;</div>
               <div className="text-gray-600 mb-2">Retrieve value for a key</div>
-              
+
               <div className="font-mono font-bold">SET &lt;key&gt; &lt;value&gt;</div>
               <div className="text-gray-600 mb-2">Store a key-value pair</div>
-              
+
               <div className="font-mono font-bold">SCAN [prefix] [limit]</div>
               <div className="text-gray-600">Scan keys with optional prefix</div>
             </div>
             <div>
               <div className="font-mono font-bold">HISTORY &lt;key&gt;</div>
               <div className="text-gray-600 mb-2">Get history of a key</div>
-              
+
               <div className="font-mono font-bold">VERIFY &lt;key&gt;</div>
               <div className="text-gray-600 mb-2">Cryptographically verify a key</div>
-              
+
               <div className="font-mono font-bold">COUNT [prefix]</div>
               <div className="text-gray-600">Count keys with optional prefix</div>
             </div>
@@ -271,17 +335,17 @@ export default function ImmudbCLIPage() {
                     <span className="text-green-600">immudb&gt;</span> {item.command}
                   </div>
                   <div className="flex space-x-2">
-                    <Badge variant={item.success ? "default" : "destructive"}>
-                      {item.success ? "Success" : "Error"}
+                    <Badge variant={item.success ? 'default' : 'destructive'}>
+                      {item.success ? 'Success' : 'Error'}
                     </Badge>
-                    <span className="text-xs text-gray-500">{new Date(item.timestamp).toLocaleTimeString()}</span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(item.timestamp).toLocaleTimeString()}
+                    </span>
                   </div>
                 </div>
-                
+
                 {item.success ? (
-                  <div className="mt-2">
-                    {formatResult(item.result, item.command)}
-                  </div>
+                  <div className="mt-2">{formatResult(item.result, item.command)}</div>
                 ) : (
                   <div className="mt-2 p-2 bg-red-50 rounded text-red-700 text-sm">
                     {item.error}

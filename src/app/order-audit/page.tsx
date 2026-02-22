@@ -35,7 +35,7 @@ export default function OrderAuditPage() {
   const [verifyOrderId, setVerifyOrderId] = useState('');
   const [verificationResult, setVerificationResult] = useState<any>(null);
   const [selectedAudit, setSelectedAudit] = useState<OrderAudit | null>(null);
-  
+
   const { toast } = useToast();
 
   const loadAudits = async () => {
@@ -43,25 +43,25 @@ export default function OrderAuditPage() {
     try {
       const response = await fetch('/api/orders/audit');
       const data = await response.json();
-      
+
       if (data.success) {
         setAudits(data.audits);
         toast({
-          title: "Audits Loaded",
+          title: 'Audits Loaded',
           description: `Found ${data.count} order audit records`,
         });
       } else {
         toast({
-          title: "Load Failed",
+          title: 'Load Failed',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Load Error",
+        title: 'Load Error',
         description: `Failed to load audits: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -71,9 +71,9 @@ export default function OrderAuditPage() {
   const verifyOrder = async () => {
     if (!verifyOrderId.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please enter an order ID to verify",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please enter an order ID to verify',
+        variant: 'destructive',
       });
       return;
     }
@@ -83,32 +83,32 @@ export default function OrderAuditPage() {
       const response = await fetch('/api/orders/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: parseInt(verifyOrderId) })
+        body: JSON.stringify({ orderId: parseInt(verifyOrderId) }),
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         setVerificationResult(data);
         toast({
-          title: data.verification.isValid ? "Verification Passed" : "Verification Failed",
-          description: data.verification.isValid 
-            ? "Order integrity verified successfully" 
-            : "Order data has been tampered with or audit record not found",
-          variant: data.verification.isValid ? "default" : "destructive",
+          title: data.verification.isValid ? 'Verification Passed' : 'Verification Failed',
+          description: data.verification.isValid
+            ? 'Order integrity verified successfully'
+            : 'Order data has been tampered with or audit record not found',
+          variant: data.verification.isValid ? 'default' : 'destructive',
         });
       } else {
         toast({
-          title: "Verification Error",
+          title: 'Verification Error',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Verification Error",
+        title: 'Verification Error',
         description: `Failed to verify order: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -128,6 +128,8 @@ export default function OrderAuditPage() {
 
   useEffect(() => {
     loadAudits();
+    // Intentional: run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -154,7 +156,9 @@ export default function OrderAuditPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-blue-900">Total Audited Orders</CardTitle>
+                <CardTitle className="text-sm font-medium text-blue-900">
+                  Total Audited Orders
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-900">{audits.length}</div>
@@ -164,7 +168,9 @@ export default function OrderAuditPage() {
 
             <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-green-900">Total Credits Audited</CardTitle>
+                <CardTitle className="text-sm font-medium text-green-900">
+                  Total Credits Audited
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-900">
@@ -176,11 +182,15 @@ export default function OrderAuditPage() {
 
             <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-purple-900">Total Value Audited</CardTitle>
+                <CardTitle className="text-sm font-medium text-purple-900">
+                  Total Value Audited
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-purple-900">
-                  {formatCurrency(audits.reduce((sum, audit) => sum + audit.transactionData.totalPrice, 0))}
+                  {formatCurrency(
+                    audits.reduce((sum, audit) => sum + audit.transactionData.totalPrice, 0),
+                  )}
                 </div>
                 <p className="text-xs text-purple-700">Transaction value</p>
               </CardContent>
@@ -203,14 +213,14 @@ export default function OrderAuditPage() {
               <div>
                 <Label className="text-sm font-medium">Storage</Label>
                 <p className="text-sm text-gray-600">
-                  Each completed order generates a unique hash stored immutably in ImmuDB. 
-                  Any tampering with the original order data will result in a different hash.
+                  Each completed order generates a unique hash stored immutably in ImmuDB. Any
+                  tampering with the original order data will result in a different hash.
                 </p>
               </div>
               <div>
                 <Label className="text-sm font-medium">Key Pattern</Label>
                 <div className="font-mono text-sm bg-gray-100 p-3 rounded">
-                  order_[orderId] → {"{"} hash, timestamp, orderData {"}"}
+                  order_[orderId] → {'{'} hash, timestamp, orderData {'}'}
                 </div>
               </div>
             </CardContent>
@@ -235,18 +245,18 @@ export default function OrderAuditPage() {
                       <div>
                         <div className="text-sm font-medium">Credits / Value</div>
                         <div className="text-sm">{audit.transactionData.totalCredits} credits</div>
-                        <div className="text-sm text-gray-600">{formatCurrency(audit.transactionData.totalPrice)}</div>
+                        <div className="text-sm text-gray-600">
+                          {formatCurrency(audit.transactionData.totalPrice)}
+                        </div>
                       </div>
                       <div>
                         <div className="text-sm font-medium">Paid At</div>
-                        <div className="text-sm">{formatTimestamp(new Date(audit.transactionData.paidAt).getTime())}</div>
+                        <div className="text-sm">
+                          {formatTimestamp(new Date(audit.transactionData.paidAt).getTime())}
+                        </div>
                       </div>
                       <div className="flex items-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedAudit(audit)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setSelectedAudit(audit)}>
                           View Hash
                         </Button>
                       </div>
@@ -283,23 +293,29 @@ export default function OrderAuditPage() {
                   {isLoading ? 'Verifying...' : 'Verify'}
                 </Button>
               </div>
-              
+
               {verificationResult && (
                 <div className="space-y-4">
-                  <div className={`p-4 rounded-lg ${
-                    verificationResult.verification.isValid 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-red-50 border-red-200'
-                  }`}>
+                  <div
+                    className={`p-4 rounded-lg ${
+                      verificationResult.verification.isValid
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-red-50 border-red-200'
+                    }`}
+                  >
                     <div className="flex items-center space-x-2 mb-2">
-                      <Badge variant={verificationResult.verification.isValid ? "default" : "destructive"}>
+                      <Badge
+                        variant={
+                          verificationResult.verification.isValid ? 'default' : 'destructive'
+                        }
+                      >
                         {verificationResult.verification.isValid ? 'VERIFIED' : 'TAMPERED'}
                       </Badge>
                       <span className="font-medium">Order #{verificationResult.orderId}</span>
                     </div>
                     <p className="text-sm">
-                      {verificationResult.verification.isValid 
-                        ? 'Order data integrity verified. No tampering detected.' 
+                      {verificationResult.verification.isValid
+                        ? 'Order data integrity verified. No tampering detected.'
                         : 'Order data has been modified or audit record not found.'}
                     </p>
                   </div>
@@ -322,9 +338,17 @@ export default function OrderAuditPage() {
                   <div>
                     <Label>Hash Computation Details</Label>
                     <div className="text-xs space-y-1 bg-gray-50 p-3 rounded">
-                      <div><strong>Formula:</strong> {verificationResult.hashComputation.formula}</div>
-                      <div><strong>Data String:</strong> {verificationResult.hashComputation.dataString}</div>
-                      <div><strong>PaidAt Timestamp:</strong> {verificationResult.hashComputation.paidAtTimestamp}</div>
+                      <div>
+                        <strong>Formula:</strong> {verificationResult.hashComputation.formula}
+                      </div>
+                      <div>
+                        <strong>Data String:</strong>{' '}
+                        {verificationResult.hashComputation.dataString}
+                      </div>
+                      <div>
+                        <strong>PaidAt Timestamp:</strong>{' '}
+                        {verificationResult.hashComputation.paidAtTimestamp}
+                      </div>
                     </div>
                   </div>
 
@@ -348,24 +372,20 @@ export default function OrderAuditPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Audit Record Details - Order #{selectedAudit.orderId}</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedAudit(null)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedAudit(null)}>
                   Close
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                
                 <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
-                  <Label>SHA256 Hash</Label><br></br>
+                  <Label>SHA256 Hash</Label>
+                  <br></br>
                   {selectedAudit.hash}
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 ">
                 <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Order ID</Label>
@@ -380,11 +400,15 @@ export default function OrderAuditPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Total Price</Label>
-                  <div className="text-sm">{formatCurrency(selectedAudit.transactionData.totalPrice)}</div>
+                  <div className="text-sm">
+                    {formatCurrency(selectedAudit.transactionData.totalPrice)}
+                  </div>
                 </div>
                 <div className="font-mono text-xs break-all bg-gray-100 p-3 rounded">
                   <Label>Paid At</Label>
-                  <div className="text-sm">{formatTimestamp(new Date(selectedAudit.transactionData.paidAt).getTime())}</div>
+                  <div className="text-sm">
+                    {formatTimestamp(new Date(selectedAudit.transactionData.paidAt).getTime())}
+                  </div>
                 </div>
               </div>
 

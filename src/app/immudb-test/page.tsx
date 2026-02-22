@@ -36,8 +36,10 @@ export default function ImmudbTestPage() {
   const [searchHash, setSearchHash] = useState('');
   const [searchResult, setSearchResult] = useState<TransactionHash | null>(null);
   const [verifyHash, setVerifyHash] = useState('');
-  const [verifyResult, setVerifyResult] = useState<{ verified: boolean; message: string } | null>(null);
-  
+  const [verifyResult, setVerifyResult] = useState<{ verified: boolean; message: string } | null>(
+    null,
+  );
+
   const { toast } = useToast();
 
   const testConnection = async () => {
@@ -46,24 +48,24 @@ export default function ImmudbTestPage() {
       const response = await fetch('/api/immudb/test-connection');
       const data = await response.json();
       setConnectionStatus(data);
-      
+
       if (data.success) {
         toast({
-          title: "Connection Successful",
-          description: "Successfully connected to ImmuDB",
+          title: 'Connection Successful',
+          description: 'Successfully connected to ImmuDB',
         });
       } else {
         toast({
-          title: "Connection Failed",
+          title: 'Connection Failed',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Connection Error",
+        title: 'Connection Error',
         description: `Failed to test connection: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -73,9 +75,9 @@ export default function ImmudbTestPage() {
   const storeTransaction = async () => {
     if (!newTransaction.hash || !newTransaction.transactionType) {
       toast({
-        title: "Validation Error",
-        description: "Hash and Transaction Type are required",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Hash and Transaction Type are required',
+        variant: 'destructive',
       });
       return;
     }
@@ -101,23 +103,23 @@ export default function ImmudbTestPage() {
 
       if (data.success) {
         toast({
-          title: "Transaction Stored",
-          description: "Transaction hash stored successfully",
+          title: 'Transaction Stored',
+          description: 'Transaction hash stored successfully',
         });
         setNewTransaction({ hash: '', transactionType: '', blockNumber: '', metadata: '' });
         loadAllTransactions(); // Refresh the list
       } else {
         toast({
-          title: "Storage Failed",
+          title: 'Storage Failed',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Storage Error",
+        title: 'Storage Error',
         description: `Failed to store transaction: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -134,16 +136,16 @@ export default function ImmudbTestPage() {
         setTransactions(data.data);
       } else {
         toast({
-          title: "Load Failed",
+          title: 'Load Failed',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Load Error",
+        title: 'Load Error',
         description: `Failed to load transactions: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -153,37 +155,39 @@ export default function ImmudbTestPage() {
   const searchTransaction = async () => {
     if (!searchHash) {
       toast({
-        title: "Validation Error",
-        description: "Please enter a hash to search",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please enter a hash to search',
+        variant: 'destructive',
       });
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/immudb/transactions?hash=${encodeURIComponent(searchHash)}`);
+      const response = await fetch(
+        `/api/immudb/transactions?hash=${encodeURIComponent(searchHash)}`,
+      );
       const data = await response.json();
 
       if (data.success) {
         setSearchResult(data.data);
         toast({
-          title: "Transaction Found",
-          description: "Transaction retrieved successfully",
+          title: 'Transaction Found',
+          description: 'Transaction retrieved successfully',
         });
       } else {
         setSearchResult(null);
         toast({
-          title: "Not Found",
+          title: 'Not Found',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Search Error",
+        title: 'Search Error',
         description: `Failed to search transaction: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -193,9 +197,9 @@ export default function ImmudbTestPage() {
   const verifyTransaction = async () => {
     if (!verifyHash) {
       toast({
-        title: "Validation Error",
-        description: "Please enter a hash to verify",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please enter a hash to verify',
+        variant: 'destructive',
       });
       return;
     }
@@ -211,21 +215,21 @@ export default function ImmudbTestPage() {
           message: data.message,
         });
         toast({
-          title: data.verified ? "Verified" : "Not Verified",
+          title: data.verified ? 'Verified' : 'Not Verified',
           description: data.message,
         });
       } else {
         toast({
-          title: "Verification Error",
+          title: 'Verification Error',
           description: data.message,
-          variant: "destructive",
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Verification Error",
+        title: 'Verification Error',
         description: `Failed to verify transaction: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -235,6 +239,8 @@ export default function ImmudbTestPage() {
   useEffect(() => {
     testConnection();
     loadAllTransactions();
+    // Intentional: run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -256,7 +262,7 @@ export default function ImmudbTestPage() {
           {connectionStatus ? (
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
-                <Badge variant={connectionStatus.connected ? "default" : "destructive"}>
+                <Badge variant={connectionStatus.connected ? 'default' : 'destructive'}>
                   {connectionStatus.connected ? 'Connected' : 'Disconnected'}
                 </Badge>
                 <span className="text-sm text-gray-600">{connectionStatus.timestamp}</span>
@@ -264,7 +270,9 @@ export default function ImmudbTestPage() {
               <p className="text-sm">{connectionStatus.message}</p>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Click &quot;Test Connection&quot; to check status</p>
+            <p className="text-sm text-gray-500">
+              Click &quot;Test Connection&quot; to check status
+            </p>
           )}
         </CardContent>
       </Card>
@@ -291,7 +299,9 @@ export default function ImmudbTestPage() {
               <Input
                 id="type"
                 value={newTransaction.transactionType}
-                onChange={(e) => setNewTransaction({ ...newTransaction, transactionType: e.target.value })}
+                onChange={(e) =>
+                  setNewTransaction({ ...newTransaction, transactionType: e.target.value })
+                }
                 placeholder="carbon_credit, transfer, etc."
               />
             </div>
@@ -303,7 +313,9 @@ export default function ImmudbTestPage() {
                 id="block"
                 type="number"
                 value={newTransaction.blockNumber}
-                onChange={(e) => setNewTransaction({ ...newTransaction, blockNumber: e.target.value })}
+                onChange={(e) =>
+                  setNewTransaction({ ...newTransaction, blockNumber: e.target.value })
+                }
                 placeholder="123456"
               />
             </div>
@@ -347,12 +359,24 @@ export default function ImmudbTestPage() {
             <div className="p-4 bg-gray-50 rounded-lg">
               <h4 className="font-semibold mb-2">Search Result:</h4>
               <div className="space-y-1 text-sm">
-                <p><strong>Hash:</strong> {searchResult.hash}</p>
-                <p><strong>Type:</strong> {searchResult.transactionType}</p>
-                <p><strong>Timestamp:</strong> {new Date(searchResult.timestamp).toLocaleString()}</p>
-                {searchResult.blockNumber && <p><strong>Block:</strong> {searchResult.blockNumber}</p>}
+                <p>
+                  <strong>Hash:</strong> {searchResult.hash}
+                </p>
+                <p>
+                  <strong>Type:</strong> {searchResult.transactionType}
+                </p>
+                <p>
+                  <strong>Timestamp:</strong> {new Date(searchResult.timestamp).toLocaleString()}
+                </p>
+                {searchResult.blockNumber && (
+                  <p>
+                    <strong>Block:</strong> {searchResult.blockNumber}
+                  </p>
+                )}
                 {searchResult.metadata && Object.keys(searchResult.metadata).length > 0 && (
-                  <p><strong>Metadata:</strong> {JSON.stringify(searchResult.metadata, null, 2)}</p>
+                  <p>
+                    <strong>Metadata:</strong> {JSON.stringify(searchResult.metadata, null, 2)}
+                  </p>
                 )}
               </div>
             </div>
@@ -381,7 +405,7 @@ export default function ImmudbTestPage() {
           {verifyResult && (
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-2">
-                <Badge variant={verifyResult.verified ? "default" : "destructive"}>
+                <Badge variant={verifyResult.verified ? 'default' : 'destructive'}>
                   {verifyResult.verified ? 'Verified' : 'Not Verified'}
                 </Badge>
                 <span className="text-sm">{verifyResult.message}</span>
@@ -411,17 +435,29 @@ export default function ImmudbTestPage() {
                 <div key={index} className="p-4 border rounded-lg">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p><strong>Hash:</strong> <code className="text-xs">{tx.hash}</code></p>
-                      <p><strong>Type:</strong> {tx.transactionType}</p>
+                      <p>
+                        <strong>Hash:</strong> <code className="text-xs">{tx.hash}</code>
+                      </p>
+                      <p>
+                        <strong>Type:</strong> {tx.transactionType}
+                      </p>
                     </div>
                     <div>
-                      <p><strong>Timestamp:</strong> {new Date(tx.timestamp).toLocaleString()}</p>
-                      {tx.blockNumber && <p><strong>Block:</strong> {tx.blockNumber}</p>}
+                      <p>
+                        <strong>Timestamp:</strong> {new Date(tx.timestamp).toLocaleString()}
+                      </p>
+                      {tx.blockNumber && (
+                        <p>
+                          <strong>Block:</strong> {tx.blockNumber}
+                        </p>
+                      )}
                     </div>
                   </div>
                   {tx.metadata && Object.keys(tx.metadata).length > 0 && (
                     <div className="mt-2">
-                      <p className="text-sm"><strong>Metadata:</strong></p>
+                      <p className="text-sm">
+                        <strong>Metadata:</strong>
+                      </p>
                       <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
                         {JSON.stringify(tx.metadata, null, 2)}
                       </pre>
@@ -431,7 +467,9 @@ export default function ImmudbTestPage() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">No transactions found. Store some transactions to see them here.</p>
+            <p className="text-gray-500 text-center py-8">
+              No transactions found. Store some transactions to see them here.
+            </p>
           )}
         </CardContent>
       </Card>

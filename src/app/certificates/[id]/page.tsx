@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { CertificateDisplay } from "@/components/certificate-display";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import type { Certificate } from "@/types";
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { CertificateDisplay } from '@/components/certificate-display';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import type { Certificate } from '@/types';
 
 export default function CertificateViewPage() {
   const params = useParams();
@@ -25,12 +25,12 @@ export default function CertificateViewPage() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || "Failed to fetch certificate");
+          throw new Error(data.error || 'Failed to fetch certificate');
         }
 
         setCertificate(data);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch certificate');
       } finally {
         setLoading(false);
       }

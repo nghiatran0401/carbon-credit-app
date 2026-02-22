@@ -1,21 +1,15 @@
-"use client";
+'use client';
 
-import type React from "react";
+import type React from 'react';
 
-import { useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Leaf,
   Mail,
@@ -26,20 +20,20 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
-} from "lucide-react";
-import Link from "next/link";
-import { useAuth } from "@/components/auth-context";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+} from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/components/auth-context';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("login");
+  const [activeTab, setActiveTab] = useState('login');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const { isAuthenticated, login, signup, loading } = useAuth();
@@ -47,18 +41,16 @@ export default function AuthPage() {
 
   // Password strength calculation
   const getPasswordStrength = (pwd: string) => {
-    if (pwd.length === 0) return { strength: 0, label: "", color: "" };
-    if (pwd.length < 8)
-      return { strength: 1, label: "Weak", color: "bg-red-500" };
+    if (pwd.length === 0) return { strength: 0, label: '', color: '' };
+    if (pwd.length < 8) return { strength: 1, label: 'Weak', color: 'bg-red-500' };
     if (pwd.length < 12 && !/[A-Z]/.test(pwd) && !/[0-9]/.test(pwd))
-      return { strength: 2, label: "Fair", color: "bg-yellow-500" };
+      return { strength: 2, label: 'Fair', color: 'bg-yellow-500' };
     if (pwd.length >= 12 && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd))
-      return { strength: 4, label: "Strong", color: "bg-green-500" };
-    return { strength: 3, label: "Good", color: "bg-blue-500" };
+      return { strength: 4, label: 'Strong', color: 'bg-green-500' };
+    return { strength: 3, label: 'Good', color: 'bg-blue-500' };
   };
 
-  const passwordStrength =
-    activeTab === "register" ? getPasswordStrength(password) : null;
+  const passwordStrength = activeTab === 'register' ? getPasswordStrength(password) : null;
 
   // Email validation
   const validateEmail = (email: string) => {
@@ -68,7 +60,7 @@ export default function AuthPage() {
       return false;
     }
     if (!emailRegex.test(email)) {
-      setEmailError("Please enter a valid email address");
+      setEmailError('Please enter a valid email address');
       return false;
     }
     setEmailError(null);
@@ -82,7 +74,7 @@ export default function AuthPage() {
       return false;
     }
     if (pwd.length < 8) {
-      setPasswordError("Password must be at least 8 characters");
+      setPasswordError('Password must be at least 8 characters');
       return false;
     }
     setPasswordError(null);
@@ -92,7 +84,7 @@ export default function AuthPage() {
   useEffect(() => {
     // Only check authentication after initial loading is complete
     if (!loading && isAuthenticated) {
-      router.replace("/dashboard");
+      router.replace('/dashboard');
     }
   }, [isAuthenticated, loading, router]);
 
@@ -105,8 +97,8 @@ export default function AuthPage() {
 
     // Validate inputs
     if (!validateEmail(email) || !validatePassword(password)) {
-      if (!email) setEmailError("Email is required");
-      if (!password) setPasswordError("Password is required");
+      if (!email) setEmailError('Email is required');
+      if (!password) setPasswordError('Password is required');
       return;
     }
 
@@ -114,9 +106,9 @@ export default function AuthPage() {
     try {
       await login(email, password);
       // Refresh the page to trigger auth context re-check and redirect
-      window.location.href = "/dashboard";
-    } catch (err: any) {
-      setError(err.message || "Invalid email or password. Please try again.");
+      window.location.href = '/dashboard';
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid email or password. Please try again.');
       setIsLoading(false);
     }
   };
@@ -130,12 +122,12 @@ export default function AuthPage() {
 
     // Validate inputs
     if (!validateEmail(email)) {
-      if (!email) setEmailError("Email is required");
+      if (!email) setEmailError('Email is required');
       return;
     }
 
     if (!validatePassword(password)) {
-      if (!password) setPasswordError("Password is required");
+      if (!password) setPasswordError('Password is required');
       return;
     }
 
@@ -143,25 +135,25 @@ export default function AuthPage() {
     try {
       if (signup) {
         // For simple signup, generate default names from email (can be updated in profile later)
-        const emailParts = email.split("@")[0].split(".");
-        const defaultFirstName = emailParts[0] || "User";
-        const defaultLastName = emailParts.slice(1).join(" ") || "";
+        const emailParts = email.split('@')[0].split('.');
+        const defaultFirstName = emailParts[0] || 'User';
+        const defaultLastName = emailParts.slice(1).join(' ') || '';
 
         await signup(email, password, defaultFirstName, defaultLastName);
 
         // Show success message
-        setSuccess("Account created successfully! Redirecting to dashboard...");
+        setSuccess('Account created successfully! Redirecting to dashboard...');
 
         // Refresh the page to trigger auth context re-check and redirect
         setTimeout(() => {
-          window.location.href = "/dashboard";
+          window.location.href = '/dashboard';
         }, 1000);
       } else {
-        setError("Signup is not available");
+        setError('Signup is not available');
         setIsLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to create account. Please try again.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
       setIsLoading(false);
     }
   };
@@ -189,9 +181,7 @@ export default function AuthPage() {
             </div>
             <span className="text-3xl font-bold text-green-800">EcoCredit</span>
           </div>
-          <p className="text-gray-600 text-sm">
-            Join the carbon credit revolution
-          </p>
+          <p className="text-gray-600 text-sm">Join the carbon credit revolution</p>
         </div>
 
         <Tabs
@@ -224,9 +214,7 @@ export default function AuthPage() {
           <TabsContent value="login" className="transition-all duration-300">
             <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-2xl font-semibold">
-                  Welcome back
-                </CardTitle>
+                <CardTitle className="text-2xl font-semibold">Welcome back</CardTitle>
                 <CardDescription className="text-base">
                   Sign in to your EcoCredit account
                 </CardDescription>
@@ -246,10 +234,7 @@ export default function AuthPage() {
                 )}
                 <form onSubmit={handleLogin} className="space-y-5">
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="login-email"
-                      className="text-sm font-medium text-gray-700"
-                    >
+                    <Label htmlFor="login-email" className="text-sm font-medium text-gray-700">
                       Email address
                     </Label>
                     <div className="relative">
@@ -258,7 +243,7 @@ export default function AuthPage() {
                         id="login-email"
                         type="email"
                         placeholder="your@email.com"
-                        className={`pl-10 h-11 ${emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        className={`pl-10 h-11 ${emailError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'}`}
                         required
                         value={email}
                         onChange={(e) => {
@@ -277,19 +262,16 @@ export default function AuthPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="login-password"
-                      className="text-sm font-medium text-gray-700"
-                    >
+                    <Label htmlFor="login-password" className="text-sm font-medium text-gray-700">
                       Password
                     </Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         id="login-password"
-                        type={showPassword ? "text" : "password"}
+                        type={showPassword ? 'text' : 'password'}
                         placeholder="Enter your password"
-                        className={`pl-10 pr-10 h-11 ${passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        className={`pl-10 pr-10 h-11 ${passwordError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'}`}
                         required
                         value={password}
                         onChange={(e) => {
@@ -302,9 +284,7 @@ export default function AuthPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={
-                          showPassword ? "Hide password" : "Show password"
-                        }
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -324,10 +304,7 @@ export default function AuthPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <Checkbox id="remember" />
-                      <Label
-                        htmlFor="remember"
-                        className="text-sm text-gray-600 cursor-pointer"
-                      >
+                      <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer">
                         Remember me
                       </Label>
                     </div>
@@ -350,7 +327,7 @@ export default function AuthPage() {
                         Signing in...
                       </>
                     ) : (
-                      "Sign in"
+                      'Sign in'
                     )}
                   </Button>
                 </form>
@@ -366,10 +343,10 @@ export default function AuthPage() {
 
                 <div className="text-center text-sm text-gray-600">
                   <p>
-                    Don&apos;t have an account?{" "}
+                    Don&apos;t have an account?{' '}
                     <button
                       type="button"
-                      onClick={() => setActiveTab("register")}
+                      onClick={() => setActiveTab('register')}
                       className="text-green-600 hover:text-green-700 font-medium hover:underline transition-colors"
                     >
                       Sign up
@@ -383,9 +360,7 @@ export default function AuthPage() {
           <TabsContent value="register" className="transition-all duration-300">
             <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-1 pb-4">
-                <CardTitle className="text-2xl font-semibold">
-                  Create your account
-                </CardTitle>
+                <CardTitle className="text-2xl font-semibold">Create your account</CardTitle>
                 <CardDescription className="text-base">
                   Start trading carbon credits today
                 </CardDescription>
@@ -405,10 +380,7 @@ export default function AuthPage() {
                 )}
                 <form onSubmit={handleSignup} className="space-y-5">
                   <div className="space-y-2">
-                    <Label
-                      htmlFor="register-email"
-                      className="text-sm font-medium text-gray-700"
-                    >
+                    <Label htmlFor="register-email" className="text-sm font-medium text-gray-700">
                       Email address
                     </Label>
                     <div className="relative">
@@ -417,7 +389,7 @@ export default function AuthPage() {
                         id="register-email"
                         type="email"
                         placeholder="your@email.com"
-                        className={`pl-10 h-11 ${emailError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        className={`pl-10 h-11 ${emailError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'}`}
                         required
                         value={email}
                         onChange={(e) => {
@@ -446,9 +418,9 @@ export default function AuthPage() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         id="register-password"
-                        type={showPassword ? "text" : "password"}
+                        type={showPassword ? 'text' : 'password'}
                         placeholder="Create a strong password"
-                        className={`pl-10 pr-10 h-11 ${passwordError ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "border-gray-300"}`}
+                        className={`pl-10 pr-10 h-11 ${passwordError ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-300'}`}
                         required
                         value={password}
                         onChange={(e) => {
@@ -462,9 +434,7 @@ export default function AuthPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        aria-label={
-                          showPassword ? "Hide password" : "Show password"
-                        }
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? (
                           <EyeOff className="h-4 w-4" />
@@ -482,17 +452,17 @@ export default function AuthPage() {
                               className={`flex-1 transition-all duration-300 ${
                                 level <= passwordStrength.strength
                                   ? passwordStrength.color
-                                  : "bg-transparent"
+                                  : 'bg-transparent'
                               }`}
                             />
                           ))}
                         </div>
                         <p
-                          className={`text-xs ${passwordStrength.strength >= 3 ? "text-green-600" : passwordStrength.strength >= 2 ? "text-yellow-600" : "text-red-600"}`}
+                          className={`text-xs ${passwordStrength.strength >= 3 ? 'text-green-600' : passwordStrength.strength >= 2 ? 'text-yellow-600' : 'text-red-600'}`}
                         >
                           {passwordStrength.label}
                           {passwordStrength.strength < 3 &&
-                            " - Use 12+ characters with uppercase and numbers for better security"}
+                            ' - Use 12+ characters with uppercase and numbers for better security'}
                         </p>
                       </div>
                     )}
@@ -503,9 +473,7 @@ export default function AuthPage() {
                       </p>
                     )}
                     {!passwordError && password.length === 0 && (
-                      <p className="text-xs text-gray-500">
-                        Must be at least 8 characters
-                      </p>
+                      <p className="text-xs text-gray-500">Must be at least 8 characters</p>
                     )}
                   </div>
 
@@ -515,11 +483,11 @@ export default function AuthPage() {
                       htmlFor="terms"
                       className="text-xs text-gray-600 cursor-pointer leading-relaxed"
                     >
-                      By creating an account, you agree to our{" "}
+                      By creating an account, you agree to our{' '}
                       <Link href="#" className="text-green-600 hover:underline">
                         Terms of Service
-                      </Link>{" "}
-                      and{" "}
+                      </Link>{' '}
+                      and{' '}
                       <Link href="#" className="text-green-600 hover:underline">
                         Privacy Policy
                       </Link>
@@ -537,7 +505,7 @@ export default function AuthPage() {
                         Creating account...
                       </>
                     ) : (
-                      "Create account"
+                      'Create account'
                     )}
                   </Button>
                 </form>
@@ -553,10 +521,10 @@ export default function AuthPage() {
 
                 <div className="text-center text-sm text-gray-600">
                   <p>
-                    Already have an account?{" "}
+                    Already have an account?{' '}
                     <button
                       type="button"
-                      onClick={() => setActiveTab("login")}
+                      onClick={() => setActiveTab('login')}
                       className="text-green-600 hover:text-green-700 font-medium hover:underline transition-colors"
                     >
                       Sign in

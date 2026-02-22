@@ -1,9 +1,18 @@
-"use client";
+'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
-import { Notification, NotificationContextType } from "@/types";
-import { useAuth } from "./auth-context";
-import { apiGet, apiPost, apiPut } from "@/lib/api";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+  useCallback,
+  useRef,
+} from 'react';
+import { Notification, NotificationContextType } from '@/types';
+import { useAuth } from './auth-context';
+import { apiGet, apiPost, apiPut } from '@/lib/api';
+import { POLL_INTERVAL_MIN_MS, POLL_INTERVAL_MAX_MS, POLL_FETCH_GUARD_MS } from '@/lib/constants';
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
@@ -23,7 +32,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       // Prevent rapid successive calls
       const now = Date.now();
-      if (!force && now - lastFetchTimeRef.current < 5000) {
+      if (!force && now - lastFetchTimeRef.current < POLL_FETCH_GUARD_MS) {
         return;
       }
 
@@ -34,15 +43,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const response = await apiGet<{
           notifications: Notification[];
           unreadCount: number;
-          pagination: any;
+          pagination: { total: number; limit: number; offset: number; hasMore: boolean };
         }>(`/api/notifications?userId=${user.id}&limit=50`);
 
         setNotifications(response.notifications);
         setUnreadCount(response.unreadCount);
         lastFetchTimeRef.current = now;
-      } catch (error: any) {
-        console.error("Error fetching notifications:", error);
-        setError(error.message || "Failed to fetch notifications");
+      } catch (error: unknown) {
+        console.error('Error fetching notifications:', error);
+        setError(error instanceof Error ? error.message : 'Failed to fetch notifications');
 
         // Retry after 10 seconds on error
         if (retryTimeoutRef.current) {
@@ -55,32 +64,38 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [user?.id]
+    [user?.id],
   );
 
   const markAsRead = useCallback(
     async (notificationId: string) => {
       try {
         // Optimistic update
-        setNotifications((prev) => prev.map((notification) => (notification.id === notificationId ? { ...notification, read: true, readAt: new Date().toISOString() } : notification)));
+        setNotifications((prev) =>
+          prev.map((notification) =>
+            notification.id === notificationId
+              ? { ...notification, read: true, readAt: new Date().toISOString() }
+              : notification,
+          ),
+        );
         setUnreadCount((prev) => Math.max(0, prev - 1));
 
         const response = await apiPut(`/api/notifications/${notificationId}`, {
-          action: "markAsRead",
+          action: 'markAsRead',
         });
 
         // Verify the update was successful
         if (!response) {
-          throw new Error("Failed to mark notification as read");
+          throw new Error('Failed to mark notification as read');
         }
-      } catch (error: any) {
-        console.error("Error marking notification as read:", error);
+      } catch (error: unknown) {
+        console.error('Error marking notification as read:', error);
 
         // Revert optimistic update on error
         await fetchNotifications(true);
       }
     },
-    [fetchNotifications]
+    [fetchNotifications],
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -93,32 +108,35 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           ...notification,
           read: true,
           readAt: new Date().toISOString(),
-        }))
+        })),
       );
       setUnreadCount(0);
 
       await apiPost(`/api/notifications/mark-all-read?userId=${user.id}`, {});
-    } catch (error: any) {
-      console.error("Error marking all notifications as read:", error);
+    } catch (error: unknown) {
+      console.error('Error marking all notifications as read:', error);
 
       // Revert optimistic update on error
       await fetchNotifications(true);
     }
   }, [user?.id, fetchNotifications]);
 
-  const addNotification = useCallback((notification: Omit<Notification, "id" | "createdAt" | "updatedAt">) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: `temp-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  const addNotification = useCallback(
+    (notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>) => {
+      const newNotification: Notification = {
+        ...notification,
+        id: `temp-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    setNotifications((prev) => [newNotification, ...prev]);
-    if (!notification.read) {
-      setUnreadCount((prev) => prev + 1);
-    }
-  }, []);
+      setNotifications((prev) => [newNotification, ...prev]);
+      if (!notification.read) {
+        setUnreadCount((prev) => prev + 1);
+      }
+    },
+    [],
+  );
 
   const clearError = useCallback(() => {
     setError(null);
@@ -145,17 +163,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     // Start polling with exponential backoff
-    let pollInterval = 30000; // Start with 30 seconds
+    let pollInterval = POLL_INTERVAL_MIN_MS; // Start with 30 seconds
     let consecutiveErrors = 0;
 
     const poll = async () => {
       try {
         await fetchNotifications();
         consecutiveErrors = 0;
-        pollInterval = Math.max(30000, pollInterval * 0.8); // Decrease interval on success
+        pollInterval = Math.max(POLL_INTERVAL_MIN_MS, pollInterval * 0.8); // Decrease interval on success
       } catch (error) {
         consecutiveErrors++;
-        pollInterval = Math.min(300000, pollInterval * 1.5); // Increase interval on error (max 5 minutes)
+        pollInterval = Math.min(POLL_INTERVAL_MAX_MS, pollInterval * 1.5); // Increase interval on error (max 5 minutes)
       }
 
       // Update polling interval
@@ -208,7 +226,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 export function useNotifications() {
   const context = useContext(NotificationContext);
   if (context === undefined) {
-    throw new Error("useNotifications must be used within a NotificationProvider");
+    throw new Error('useNotifications must be used within a NotificationProvider');
   }
   return context;
 }

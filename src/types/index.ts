@@ -22,7 +22,13 @@ export interface AuthContextType {
   user: User | null;
   loading?: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup?: (email: string, password: string, firstName: string, lastName: string, company?: string) => Promise<void>;
+  signup?: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    company?: string,
+  ) => Promise<void>;
   logout: () => void;
 }
 
@@ -95,6 +101,16 @@ export interface Certificate {
 
 // Certificate Metadata
 export interface CertificateMetadata {
+  certificateId?: string;
+  orderId?: number;
+  userId?: number;
+  userName?: string;
+  userEmail?: string;
+  forestName?: string;
+  forestType?: string;
+  totalCredits?: number;
+  totalValue?: number;
+  purchaseDate?: string;
   items?: CertificateItem[];
   [key: string]: unknown;
 }
@@ -181,7 +197,7 @@ export interface ForestZone {
 export interface Notification {
   id: string;
   userId: number;
-  type: "order" | "credit" | "system" | "payment";
+  type: 'order' | 'credit' | 'system' | 'payment';
   title: string;
   message: string;
   data?: NotificationData;
@@ -210,7 +226,7 @@ export interface NotificationContextType {
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   fetchNotifications: (force?: boolean) => Promise<void>;
-  addNotification: (notification: Omit<Notification, "id" | "createdAt" | "updatedAt">) => void;
+  addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'updatedAt'>) => void;
   clearError: () => void;
 }
 

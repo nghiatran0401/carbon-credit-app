@@ -10,20 +10,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
+/** Transaction record as returned by ImmuDB debug/API */
+interface ImmuDBTransaction {
+  hash?: string;
+  timestamp?: number;
+  [key: string]: unknown;
+}
+
 interface KeyValuePair {
   key: string;
   value: string;
   timestamp?: number;
-  parsedValue?: any;
+  parsedValue?: unknown;
 }
 
 interface DebugResult {
   success: boolean;
   logs: string[];
-  testTransaction?: any;
-  retrievedTransaction?: any;
+  testTransaction?: ImmuDBTransaction;
+  retrievedTransaction?: ImmuDBTransaction;
   totalTransactions: number;
-  allTransactions: any[];
+  allTransactions: ImmuDBTransaction[];
   error?: string;
 }
 
@@ -34,7 +41,7 @@ export default function ImmudbKeyValueAdmin() {
   const [searchKey, setSearchKey] = useState('');
   const [searchResult, setSearchResult] = useState<KeyValuePair | null>(null);
   const [selectedKV, setSelectedKV] = useState<KeyValuePair | null>(null);
-  
+
   const { toast } = useToast();
 
   const runDebugTest = async () => {
@@ -43,33 +50,33 @@ export default function ImmudbKeyValueAdmin() {
       const response = await fetch('/api/immudb/debug');
       const data = await response.json();
       setDebugResult(data);
-      
+
       if (data.success) {
         // Convert transactions to key-value pairs
-        const kvPairs: KeyValuePair[] = data.allTransactions.map((tx: any) => ({
+        const kvPairs: KeyValuePair[] = data.allTransactions.map((tx: ImmuDBTransaction) => ({
           key: `tx_${tx.hash}`,
           value: JSON.stringify(tx),
           timestamp: tx.timestamp,
-          parsedValue: tx
+          parsedValue: tx,
         }));
         setKeyValuePairs(kvPairs);
-        
+
         toast({
-          title: "Debug Complete",
+          title: 'Debug Complete',
           description: `Found ${data.totalTransactions} key-value pairs`,
         });
       } else {
         toast({
-          title: "Debug Failed",
-          description: data.error || "Unknown error",
-          variant: "destructive",
+          title: 'Debug Failed',
+          description: data.error || 'Unknown error',
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Debug Error",
+        title: 'Debug Error',
         description: `Failed to run debug test: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -79,9 +86,9 @@ export default function ImmudbKeyValueAdmin() {
   const searchForKey = async () => {
     if (!searchKey.trim()) {
       toast({
-        title: "Validation Error",
-        description: "Please enter a key to search",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please enter a key to search',
+        variant: 'destructive',
       });
       return;
     }
@@ -89,7 +96,9 @@ export default function ImmudbKeyValueAdmin() {
     setIsLoading(true);
     try {
       // Try to get the key directly (assuming it's a transaction hash)
-      const response = await fetch(`/api/immudb/transactions?hash=${encodeURIComponent(searchKey)}`);
+      const response = await fetch(
+        `/api/immudb/transactions?hash=${encodeURIComponent(searchKey)}`,
+      );
       const data = await response.json();
 
       if (data.success && data.data) {
@@ -97,26 +106,26 @@ export default function ImmudbKeyValueAdmin() {
           key: `tx_${searchKey}`,
           value: JSON.stringify(data.data),
           timestamp: data.data.timestamp,
-          parsedValue: data.data
+          parsedValue: data.data,
         };
         setSearchResult(kv);
         toast({
-          title: "Key Found",
-          description: "Key-value pair retrieved successfully",
+          title: 'Key Found',
+          description: 'Key-value pair retrieved successfully',
         });
       } else {
         setSearchResult(null);
         toast({
-          title: "Key Not Found",
-          description: "No value found for this key",
-          variant: "destructive",
+          title: 'Key Not Found',
+          description: 'No value found for this key',
+          variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: "Search Error",
+        title: 'Search Error',
         description: `Failed to search for key: ${error}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -189,23 +198,16 @@ export default function ImmudbKeyValueAdmin() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button 
+                <Button
                   onClick={() => window.open('http://localhost:8080', '_blank')}
                   variant="outline"
                 >
                   Open ImmuDB Console
                 </Button>
-                <Button 
-                  onClick={() => window.open('/immudb-test', '_blank')}
-                  variant="outline"
-                >
+                <Button onClick={() => window.open('/immudb-test', '_blank')} variant="outline">
                   Test Interface
                 </Button>
-                <Button 
-                  onClick={runDebugTest}
-                  variant="outline"
-                  disabled={isLoading}
-                >
+                <Button onClick={runDebugTest} variant="outline" disabled={isLoading}>
                   Run Debug Test
                 </Button>
               </div>
@@ -222,16 +224,15 @@ export default function ImmudbKeyValueAdmin() {
               <CardContent>
                 <div className="space-y-2">
                   {keyValuePairs.slice(0, 5).map((kv, index) => (
-                    <div key={index} className="flex justify-between items-center p-2 hover:bg-gray-50 rounded">
+                    <div
+                      key={index}
+                      className="flex justify-between items-center p-2 hover:bg-gray-50 rounded"
+                    >
                       <div className="flex-1">
                         <div className="font-mono text-sm font-medium">{kv.key}</div>
                         <div className="text-xs text-gray-600">{formatValue(kv.value, 80)}</div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedKV(kv)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => setSelectedKV(kv)}>
                         View
                       </Button>
                     </div>
@@ -268,11 +269,7 @@ export default function ImmudbKeyValueAdmin() {
                           <div className="text-sm font-medium">Timestamp</div>
                           <div className="text-xs">{formatTimestamp(kv.timestamp)}</div>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedKV(kv)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setSelectedKV(kv)}>
                           View Full
                         </Button>
                       </div>
@@ -282,7 +279,9 @@ export default function ImmudbKeyValueAdmin() {
                 {keyValuePairs.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <p>No key-value pairs found.</p>
-                    <p className="text-sm">Try running the debug test or storing some data first.</p>
+                    <p className="text-sm">
+                      Try running the debug test or storing some data first.
+                    </p>
                   </div>
                 )}
               </div>
@@ -294,7 +293,9 @@ export default function ImmudbKeyValueAdmin() {
           <Card>
             <CardHeader>
               <CardTitle>Search by Key</CardTitle>
-              <CardDescription>Search for a specific key in the ImmuDB key-value store</CardDescription>
+              <CardDescription>
+                Search for a specific key in the ImmuDB key-value store
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex space-x-2">
@@ -308,7 +309,7 @@ export default function ImmudbKeyValueAdmin() {
                   {isLoading ? 'Searching...' : 'Search'}
                 </Button>
               </div>
-              
+
               {searchResult && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <h4 className="font-semibold mb-2">Search Result:</h4>
@@ -352,7 +353,9 @@ export default function ImmudbKeyValueAdmin() {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500">No debug logs available. Run a debug test to see logs.</p>
+                <p className="text-gray-500">
+                  No debug logs available. Run a debug test to see logs.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -366,11 +369,7 @@ export default function ImmudbKeyValueAdmin() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle>Key-Value Pair Details</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedKV(null)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedKV(null)}>
                   Close
                 </Button>
               </div>
@@ -382,7 +381,7 @@ export default function ImmudbKeyValueAdmin() {
                   {selectedKV.key}
                 </div>
               </div>
-              
+
               <div>
                 <Label>Raw Value</Label>
                 <pre className="text-xs bg-gray-100 p-3 rounded overflow-x-auto whitespace-pre-wrap">
@@ -390,14 +389,14 @@ export default function ImmudbKeyValueAdmin() {
                 </pre>
               </div>
 
-              {selectedKV.parsedValue && (
+              {selectedKV.parsedValue != null ? (
                 <div>
                   <Label>Parsed Value (JSON)</Label>
                   <pre className="text-xs bg-blue-50 p-3 rounded overflow-x-auto">
-                    {JSON.stringify(selectedKV.parsedValue, null, 2)}
+                    {JSON.stringify(selectedKV.parsedValue as object, null, 2)}
                   </pre>
                 </div>
-              )}
+              ) : null}
 
               <div>
                 <Label>Timestamp</Label>
