@@ -6,7 +6,20 @@ module.exports = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    container: {
+      center: true,
+      padding: '1rem',
+      screens: {
+        DEFAULT: '1200px',
+      },
+    },
+    extend: {
+      keyframes: {
+        shimmer: {
+          '100%': { transform: 'translateX(100%)' },
+        },
+      },
+    },
   },
   plugins: [],
 };

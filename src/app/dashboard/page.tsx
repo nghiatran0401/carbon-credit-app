@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, type ComponentType } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Leaf, DollarSign, MapPin, TrendingUp, Trash2, Trees } from 'lucide-react';
 import Link from 'next/link';
 import BiomassMapBase from '@/components/biomass-map-base';
@@ -27,8 +28,11 @@ interface SavedForest {
   description?: string;
   stats?: ForestStats;
   bounds?: { north: number; south: number; east: number; west: number } | null;
-  mask?: number[][] | null;
   [key: string]: unknown;
+}
+
+interface ForestDetail extends SavedForest {
+  mask?: number[][] | null;
 }
 
 export default function DashboardPage() {
@@ -42,7 +46,12 @@ export default function DashboardPage() {
     isLoading,
     mutate,
   } = useSWR<SavedForest[]>('/api/analysis', apiGet);
-  const [selectedForest, setSelectedForest] = useState<SavedForest | null>(null);
+  const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
+
+  const { data: forestDetail, isLoading: isDetailLoading } = useSWR<ForestDetail>(
+    selectedForestId ? `/api/analysis/${selectedForestId}` : null,
+    apiGet,
+  );
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -51,12 +60,16 @@ export default function DashboardPage() {
   }, [isAuthenticated, router]);
 
   useEffect(() => {
-    if (savedForests && savedForests.length > 0 && !selectedForest) {
-      setSelectedForest(savedForests[0]);
+    if (savedForests && savedForests.length > 0 && !selectedForestId) {
+      setSelectedForestId(savedForests[0].id);
     }
-  }, [savedForests, selectedForest]);
+  }, [savedForests, selectedForestId]);
 
   const forests = useMemo(() => savedForests ?? [], [savedForests]);
+  const selectedForest = useMemo(
+    () => forests.find((f) => f.id === selectedForestId) ?? null,
+    [forests, selectedForestId],
+  );
 
   const { totalCredits, totalArea, totalValue } = useMemo(() => {
     const credits = forests.reduce((sum: number, f: SavedForest) => {
@@ -79,7 +92,7 @@ export default function DashboardPage() {
       await fetch(`/api/analysis?id=${id}`, { method: 'DELETE' });
       toast({ title: 'Forest deleted' });
       mutate();
-      if (selectedForest?.id === id) setSelectedForest(null);
+      if (selectedForestId === id) setSelectedForestId(null);
     } catch (e) {
       toast({ title: 'Failed to delete', variant: 'destructive' });
     }
@@ -88,10 +101,71 @@ export default function DashboardPage() {
   if (!isAuthenticated) return null;
   if (isLoading)
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-emerald-200 border-t-emerald-600" />
-          <p className="text-sm text-gray-500">Loading...</p>
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <Skeleton className="h-9 w-80 mb-2" />
+              <Skeleton className="h-5 w-56" />
+            </div>
+            <Skeleton className="h-10 w-32 rounded-md" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-lg border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded" />
+                </div>
+                <Skeleton className="h-8 w-20 mb-1" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 h-[600px] rounded-lg border bg-white shadow overflow-hidden">
+              <Skeleton className="h-full w-full rounded-lg" />
+            </div>
+            <div className="flex flex-col gap-4 h-[600px]">
+              <div className="rounded-lg border bg-white flex-1 overflow-hidden flex flex-col">
+                <div className="p-4 border-b">
+                  <Skeleton className="h-6 w-28" />
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="p-3 rounded-lg border border-gray-200 space-y-2">
+                      <div className="flex justify-between">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-6 w-6 rounded" />
+                      </div>
+                      <Skeleton className="h-3 w-full" />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Skeleton className="h-3 w-20" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border bg-white p-4">
+                <Skeleton className="h-4 w-24 mb-3" />
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="h-3 w-14" />
+                  </div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -144,11 +218,20 @@ export default function DashboardPage() {
           {/* Map View */}
           <div className="lg:col-span-2 h-[600px] bg-white rounded-lg shadow overflow-hidden border relative">
             {selectedForest ? (
-              <BiomassMapBase
-                key={selectedForest.id}
-                bounds={selectedForest.bounds ?? null}
-                mask={selectedForest.mask ?? null}
-              />
+              isDetailLoading ? (
+                <div className="flex items-center justify-center h-full text-gray-400">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-8 w-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" />
+                    <span>Loading map data...</span>
+                  </div>
+                </div>
+              ) : (
+                <BiomassMapBase
+                  key={selectedForest.id}
+                  bounds={selectedForest.bounds ?? null}
+                  mask={forestDetail?.mask ?? null}
+                />
+              )
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
                 Select a forest to view
@@ -187,8 +270,8 @@ export default function DashboardPage() {
                   forests.map((forest) => (
                     <div
                       key={forest.id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-slate-50 ${selectedForest?.id === forest.id ? 'border-green-500 bg-green-50 ring-1 ring-green-500' : 'border-gray-200'}`}
-                      onClick={() => setSelectedForest(forest)}
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-slate-50 ${selectedForestId === forest.id ? 'border-green-500 bg-green-50 ring-1 ring-green-500' : 'border-gray-200'}`}
+                      onClick={() => setSelectedForestId(forest.id)}
                     >
                       <div className="flex justify-between items-start mb-1">
                         <h4 className="font-semibold truncate pr-2">{forest.name}</h4>

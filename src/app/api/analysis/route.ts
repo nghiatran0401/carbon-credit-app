@@ -20,7 +20,10 @@ async function saveAnalyses(analyses: Record<string, unknown>[]) {
 
 export async function GET() {
   const analyses = await getAnalyses();
-  return NextResponse.json(analyses);
+  const lightweight = analyses.map(
+    ({ biomassData, mask, ...rest }: Record<string, unknown>) => rest,
+  );
+  return NextResponse.json(lightweight);
 }
 
 export async function POST(req: Request) {

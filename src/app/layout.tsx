@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { Leaf } from 'lucide-react';
 import './globals.css';
 import { AuthProvider } from '@/components/auth-context';
-import { NotificationProvider } from '@/components/notification-context';
 import { ConditionalNav } from '@/components/conditional-nav';
 import { ScrollToTop } from '@/components/scroll-to-top';
 
@@ -98,62 +97,62 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <AuthProvider>
-          <NotificationProvider>
-            <ConditionalNav />
+          <ConditionalNav />
 
-            <main id="main-content">{children}</main>
+          <main id="main-content" className="min-h-screen bg-gray-50">
+            {children}
+          </main>
 
-            <footer className="bg-gray-900 text-white py-12">
-              <div className="container mx-auto px-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                  <div>
-                    <div className="flex items-center space-x-2 mb-4">
-                      <Leaf className="h-6 w-6 text-green-400" />
-                      <span className="text-xl font-bold">EcoCredit</span>
-                    </div>
-                    <p className="text-gray-400">
-                      Connecting forests with the future through verified carbon credit trading.
-                    </p>
+          <footer className="bg-gray-900 text-white py-12">
+            <div className="container">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Leaf className="h-6 w-6 text-green-400" />
+                    <span className="text-xl font-bold">EcoCredit</span>
                   </div>
-                  <div>
-                    <h3 className="font-semibold mb-4">Platform</h3>
-                    <ul className="space-y-2 text-gray-400">
-                      <li>
-                        <Link href="/dashboard">Dashboard</Link>
-                      </li>
-                      <li>
-                        <Link href="/marketplace">Marketplace</Link>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-4">Resources</h3>
-                    <ul className="space-y-2 text-gray-400">
-                      <li>
-                        <Link href="/history">Order History</Link>
-                      </li>
-                      <li>
-                        <Link href="/cart">Cart</Link>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-4">Support</h3>
-                    <ul className="space-y-2 text-gray-400">
-                      <li>
-                        <Link href="/api/health">System Status</Link>
-                      </li>
-                    </ul>
-                  </div>
+                  <p className="text-gray-400">
+                    Connecting forests with the future through verified carbon credit trading.
+                  </p>
                 </div>
-                <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-                  <p>&copy; {new Date().getFullYear()} EcoCredit. All rights reserved.</p>
+                <div>
+                  <h3 className="font-semibold mb-4">Platform</h3>
+                  <ul className="space-y-2 text-gray-400">
+                    <li>
+                      <Link href="/dashboard">Dashboard</Link>
+                    </li>
+                    <li>
+                      <Link href="/marketplace">Marketplace</Link>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-4">Resources</h3>
+                  <ul className="space-y-2 text-gray-400">
+                    <li>
+                      <Link href="/history">Order History</Link>
+                    </li>
+                    <li>
+                      <Link href="/cart">Cart</Link>
+                    </li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-4">Support</h3>
+                  <ul className="space-y-2 text-gray-400">
+                    <li>
+                      <Link href="/api/health">System Status</Link>
+                    </li>
+                  </ul>
                 </div>
               </div>
-            </footer>
-            <ScrollToTop />
-            <Toaster />
-          </NotificationProvider>
+              <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; {new Date().getFullYear()} EcoCredit. All rights reserved.</p>
+              </div>
+            </div>
+          </footer>
+          <ScrollToTop />
+          <Toaster />
         </AuthProvider>
       </body>
     </html>
