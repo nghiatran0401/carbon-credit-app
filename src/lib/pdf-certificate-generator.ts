@@ -1,13 +1,14 @@
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
-import type { Certificate } from "@/types";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import type { Certificate } from '@/types';
+import type { CertificateData } from './certificate-service';
 
 export class PDFCertificateGenerator {
   /**
    * Generate a PDF certificate from certificate data
    */
   async generatePDFCertificate(certificate: Certificate): Promise<Blob> {
-    const metadata = certificate.metadata as any;
+    const metadata = certificate.metadata as unknown as CertificateData;
 
     // Create a temporary HTML element for the certificate
     const certificateElement = this.createCertificateHTML(certificate, metadata);
@@ -19,7 +20,7 @@ export class PDFCertificateGenerator {
         scale: 2, // Higher resolution
         useCORS: true,
         allowTaint: true,
-        backgroundColor: "#ffffff",
+        backgroundColor: '#ffffff',
         width: 800,
         height: 1120, // Fixed height for single page
         logging: false,
@@ -27,17 +28,17 @@ export class PDFCertificateGenerator {
       });
 
       // Convert canvas to PDF
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
 
       const imgWidth = 210; // A4 width in mm
       const imgHeight = 295; // A4 height in mm
 
       // Add image to single page
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
 
       // Convert to blob
-      const pdfBlob = pdf.output("blob");
+      const pdfBlob = pdf.output('blob');
       return pdfBlob;
     } finally {
       // Clean up
@@ -48,8 +49,8 @@ export class PDFCertificateGenerator {
   /**
    * Create HTML element for the certificate
    */
-  private createCertificateHTML(certificate: Certificate, metadata: any): HTMLElement {
-    const element = document.createElement("div");
+  private createCertificateHTML(certificate: Certificate, metadata: CertificateData): HTMLElement {
+    const element = document.createElement('div');
     element.style.cssText = `
       width: 800px;
       height: 1120px;
@@ -67,10 +68,10 @@ export class PDFCertificateGenerator {
       overflow: hidden;
     `;
 
-    const issuedDate = new Date(certificate.issuedAt).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
+    const issuedDate = new Date(certificate.issuedAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
 
     element.innerHTML = `
@@ -142,7 +143,7 @@ export class PDFCertificateGenerator {
               ${
                 metadata.items
                   ?.map(
-                    (item: any) => `
+                    (item) => `
                 <tr>
                   <td style="border: 1px solid #d1d5db; padding: 8px; font-size: 12px;">${item.certification}</td>
                   <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-size: 12px;">${item.vintage}</td>
@@ -150,9 +151,9 @@ export class PDFCertificateGenerator {
                   <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-size: 12px;">$${item.pricePerCredit.toFixed(2)}</td>
                   <td style="border: 1px solid #d1d5db; padding: 8px; text-align: center; font-size: 12px; font-weight: bold;">$${item.subtotal.toFixed(2)}</td>
                 </tr>
-              `
+              `,
                   )
-                  .join("") || ""
+                  .join('') || ''
               }
             </tbody>
           </table>

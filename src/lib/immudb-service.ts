@@ -26,14 +26,14 @@ class ImmudbService {
   }
 
   async ensureConnected(): Promise<void> {
-    if (this.client && await this.isConnected()) {
+    if (this.client && (await this.isConnected())) {
       return; // Already connected
     }
 
     if (this.isConnecting) {
       // Wait for ongoing connection attempt
       while (this.isConnecting) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       return;
     }
@@ -43,9 +43,9 @@ class ImmudbService {
 
   async connect(): Promise<void> {
     if (this.isConnecting) return;
-    
+
     this.isConnecting = true;
-    
+
     try {
       this.client = new ImmudbClient({
         host: this.config.host,
@@ -62,9 +62,9 @@ class ImmudbService {
         this.config.password,
         this.config.database,
         true,
-        true
+        true,
       );
-      
+
       console.log('Successfully connected to immudb');
     } catch (error) {
       console.error('Failed to connect to immudb:', error);
@@ -89,7 +89,7 @@ class ImmudbService {
 
   async isConnected(): Promise<boolean> {
     if (!this.client) return false;
-    
+
     try {
       // Try a simple operation to check connection
       await this.client.currentState();
@@ -102,7 +102,7 @@ class ImmudbService {
 
   async storeTransactionHash(transactionHash: TransactionHash): Promise<string> {
     await this.ensureConnected();
-    
+
     if (!this.client) {
       throw new Error('ImmuDB client not available.');
     }
@@ -117,17 +117,7 @@ class ImmudbService {
         metadata: transactionHash.metadata,
       });
 
-      console.log(`Attempting to store transaction with key: ${key}`);
-      console.log(`Value: ${value}`);
-      
       const result = await this.client.set({ key, value });
-      console.log(`Transaction hash stored successfully. Result:`, result);
-      console.log(`Transaction hash stored with ID: ${result?.id || 'unknown'}`);
-      
-      // Immediately verify the data was stored
-      const verification = await this.client.get({ key });
-      console.log(`Verification read result:`, verification);
-      
       return result?.id?.toString() || 'stored';
     } catch (error) {
       console.error('Failed to store transaction hash:', error);
@@ -138,7 +128,7 @@ class ImmudbService {
 
   async getTransactionHash(hash: string): Promise<TransactionHash | null> {
     await this.ensureConnected();
-    
+
     if (!this.client) {
       throw new Error('ImmuDB client not available.');
     }
@@ -146,13 +136,14 @@ class ImmudbService {
     try {
       const key = `tx_${hash}`;
       const result = await this.client.get({ key });
-      
+
       if (result && result.value) {
         // The value might be a Uint8Array, so we need to convert it to string
-        const valueStr = typeof result.value === 'string' 
-          ? result.value 
-          : new TextDecoder().decode(result.value as Uint8Array);
-        
+        const valueStr =
+          typeof result.value === 'string'
+            ? result.value
+            : new TextDecoder().decode(result.value as Uint8Array);
+
         const data = JSON.parse(valueStr);
         return {
           hash: data.hash,
@@ -162,7 +153,7 @@ class ImmudbService {
           metadata: data.metadata,
         };
       }
-      
+
       return null;
     } catch (error) {
       console.error('Failed to get transaction hash:', error);
@@ -175,39 +166,27 @@ class ImmudbService {
 
   async getAllTransactionHashes(limit: number = 100): Promise<TransactionHash[]> {
     await this.ensureConnected();
-    
+
     if (!this.client) {
       throw new Error('ImmuDB client not available.');
     }
 
     try {
-      console.log(`Scanning for transactions with prefix 'tx_' and limit ${limit}`);
-      
-      // Use scan to get all keys with prefix 'tx_'
       const result = await this.client.scan({
         prefix: 'tx_',
         limit,
       });
 
-      console.log('Scan result:', result);
-      console.log('Entries list:', result?.entriesList);
-
       const transactions: TransactionHash[] = [];
-      
+
       if (result && result.entriesList) {
-        console.log(`Found ${result.entriesList.length} entries`);
-        
         for (const entry of result.entriesList) {
           try {
-            console.log('Processing entry:', entry);
-            
-            // The value might be a Uint8Array, so we need to convert it to string
-            const valueStr = typeof entry.value === 'string' 
-              ? entry.value 
-              : new TextDecoder().decode(entry.value as Uint8Array);
-            
-            console.log('Decoded value:', valueStr);
-            
+            const valueStr =
+              typeof entry.value === 'string'
+                ? entry.value
+                : new TextDecoder().decode(entry.value as Uint8Array);
+
             const data = JSON.parse(valueStr);
             transactions.push({
               hash: data.hash,
@@ -218,14 +197,10 @@ class ImmudbService {
             });
           } catch (parseError) {
             console.warn('Failed to parse transaction entry:', parseError);
-            console.warn('Entry was:', entry);
           }
         }
-      } else {
-        console.log('No entries found or entriesList is null/undefined');
       }
 
-      console.log(`Returning ${transactions.length} transactions`);
       return transactions;
     } catch (error) {
       console.error('Failed to get all transaction hashes:', error);
@@ -236,7 +211,7 @@ class ImmudbService {
 
   async verifyTransactionHash(hash: string): Promise<boolean> {
     await this.ensureConnected();
-    
+
     if (!this.client) {
       throw new Error('ImmuDB client not available.');
     }
@@ -253,7 +228,7 @@ class ImmudbService {
 
   async getHistory(hash: string): Promise<any[]> {
     await this.ensureConnected();
-    
+
     if (!this.client) {
       throw new Error('ImmuDB client not available.');
     }
@@ -274,17 +249,23 @@ let immudbServiceInstance: ImmudbService | null = null;
 
 export function getImmudbService(): ImmudbService {
   if (!immudbServiceInstance) {
+    if (!process.env.IMMUDB_HOST || !process.env.IMMUDB_USERNAME || !process.env.IMMUDB_PASSWORD) {
+      throw new Error(
+        'ImmuDB configuration missing. Set IMMUDB_HOST, IMMUDB_USERNAME, and IMMUDB_PASSWORD environment variables.',
+      );
+    }
+
     const config: ImmudbConfig = {
-      host: process.env.IMMUDB_HOST || 'localhost',
+      host: process.env.IMMUDB_HOST,
       port: parseInt(process.env.IMMUDB_PORT || '3322'),
-      username: process.env.IMMUDB_USERNAME || 'immudb',
-      password: process.env.IMMUDB_PASSWORD || 'immudb',
+      username: process.env.IMMUDB_USERNAME,
+      password: process.env.IMMUDB_PASSWORD,
       database: process.env.IMMUDB_DATABASE || 'defaultdb',
     };
-    
+
     immudbServiceInstance = new ImmudbService(config);
   }
-  
+
   return immudbServiceInstance;
 }
 

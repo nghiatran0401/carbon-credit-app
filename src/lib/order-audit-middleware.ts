@@ -1,5 +1,5 @@
-import { prisma } from "./prisma";
-import { orderAuditService } from "./order-audit-service";
+import { prisma } from './prisma';
+import { orderAuditService } from './order-audit-service';
 
 class OrderAuditMiddleware {
   /**
@@ -27,16 +27,16 @@ class OrderAuditMiddleware {
         throw new Error(`Order ${orderId} not found`);
       }
 
-      if (order.status !== "COMPLETED" || !order.paidAt) {
-        return { exists: false, created: false, error: "Order not completed" };
+      if (order.status !== 'COMPLETED' || !order.paidAt) {
+        return { exists: false, created: false, error: 'Order not completed' };
       }
 
       // Calculate total credits
       const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
       // Read buyer/seller from order
-      const buyer = (order as any).buyer;
-      const seller = (order as any).seller;
+      const buyer = (order as Record<string, unknown>).buyer as string | undefined;
+      const seller = (order as Record<string, unknown>).seller as string | undefined;
 
       // Check if audit record already exists
       try {
@@ -69,9 +69,16 @@ class OrderAuditMiddleware {
 
       console.log(`✅ Created audit record for order ${orderId}`);
       return { exists: false, created: true };
-    } catch (error: any) {
-      console.error(`❌ Error ensuring audit for order ${orderId}:`, error.message);
-      return { exists: false, created: false, error: error.message };
+    } catch (error: unknown) {
+      console.error(
+        `❌ Error ensuring audit for order ${orderId}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        exists: false,
+        created: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -87,10 +94,10 @@ class OrderAuditMiddleware {
     try {
       const completedOrders = await prisma.order.findMany({
         where: {
-          status: "COMPLETED",
+          status: 'COMPLETED',
           paidAt: { not: null },
         },
-        orderBy: { id: "desc" },
+        orderBy: { id: 'desc' },
       });
 
       console.log(`🔄 Processing ${completedOrders.length} completed orders for audit records...`);
@@ -107,7 +114,9 @@ class OrderAuditMiddleware {
         else if (result.error) errors++;
       }
 
-      console.log(`📊 Audit processing complete: ${created} created, ${existing} existing, ${errors} errors`);
+      console.log(
+        `📊 Audit processing complete: ${created} created, ${existing} existing, ${errors} errors`,
+      );
 
       return {
         processed: completedOrders.length,
@@ -115,8 +124,11 @@ class OrderAuditMiddleware {
         existing,
         errors,
       };
-    } catch (error: any) {
-      console.error("Error processing completed orders:", error.message);
+    } catch (error: unknown) {
+      console.error(
+        'Error processing completed orders:',
+        error instanceof Error ? error.message : String(error),
+      );
       throw error;
     }
   }
@@ -126,10 +138,13 @@ class OrderAuditMiddleware {
    */
   async runBackgroundAuditCheck(): Promise<void> {
     try {
-      console.log("🕐 Running background audit check...");
+      console.log('🕐 Running background audit check...');
       await this.processAllCompletedOrders();
-    } catch (error: any) {
-      console.error("Background audit check failed:", error.message);
+    } catch (error: unknown) {
+      console.error(
+        'Background audit check failed:',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 }

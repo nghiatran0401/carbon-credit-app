@@ -1,12 +1,13 @@
-import { prisma } from "./prisma";
-import { Notification } from "@/types";
+import { prisma } from './prisma';
+import type { Notification, NotificationData, User } from '@/types';
+import type { Prisma } from '@prisma/client';
 
 export interface CreateNotificationData {
   userId: number;
-  type: "order" | "credit" | "system" | "payment";
+  type: 'order' | 'credit' | 'system' | 'payment';
   title: string;
   message: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export class NotificationService {
@@ -14,43 +15,61 @@ export class NotificationService {
 
   private validateNotificationData(data: CreateNotificationData): void {
     if (!data.userId || data.userId <= 0) {
-      throw new Error("Invalid user ID");
+      throw new Error('Invalid user ID');
     }
-    if (!data.type || !["order", "credit", "system", "payment"].includes(data.type)) {
-      throw new Error("Invalid notification type");
+    if (!data.type || !['order', 'credit', 'system', 'payment'].includes(data.type)) {
+      throw new Error('Invalid notification type');
     }
     if (!data.title || data.title.trim().length === 0) {
-      throw new Error("Title is required");
+      throw new Error('Title is required');
     }
     if (!data.message || data.message.trim().length === 0) {
-      throw new Error("Message is required");
+      throw new Error('Message is required');
     }
     if (data.title.length > 200) {
-      throw new Error("Title too long (max 200 characters)");
+      throw new Error('Title too long (max 200 characters)');
     }
     if (data.message.length > 1000) {
-      throw new Error("Message too long (max 1000 characters)");
+      throw new Error('Message too long (max 1000 characters)');
     }
   }
 
-  private convertPrismaNotification(notification: any): Notification {
+  private convertPrismaNotification(notification: {
+    id: string;
+    userId: number;
+    type: string;
+    title: string;
+    message: string;
+    data: unknown;
+    read: boolean;
+    readAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    user?: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      createdAt: Date;
+      updatedAt: Date;
+    } | null;
+  }): Notification {
     return {
       id: notification.id,
       userId: notification.userId,
-      type: notification.type as "order" | "credit" | "system" | "payment",
+      type: notification.type as 'order' | 'credit' | 'system' | 'payment',
       title: notification.title,
       message: notification.message,
-      data: notification.data,
+      data: notification.data as NotificationData | undefined,
       read: notification.read,
       readAt: notification.readAt?.toISOString(),
       createdAt: notification.createdAt?.toISOString() || new Date().toISOString(),
       updatedAt: notification.updatedAt?.toISOString() || new Date().toISOString(),
       user: notification.user
-        ? {
+        ? ({
             ...notification.user,
             createdAt: notification.user.createdAt?.toISOString() || new Date().toISOString(),
             updatedAt: notification.user.updatedAt?.toISOString() || new Date().toISOString(),
-          }
+          } as User)
         : undefined,
     };
   }
@@ -65,7 +84,7 @@ export class NotificationService {
           type: data.type,
           title: data.title.trim(),
           message: data.message.trim(),
-          data: data.data || {},
+          data: (data.data || {}) as Prisma.InputJsonValue,
         },
         include: {
           user: true,
@@ -76,35 +95,38 @@ export class NotificationService {
 
       // Send real-time notification via WebSocket (non-blocking)
       this.sendWebSocketNotification(data.userId, notificationData).catch((error) => {
-        console.error("Failed to send WebSocket notification:", error);
+        console.error('Failed to send WebSocket notification:', error);
       });
 
       return notificationData;
     } catch (error) {
-      console.error("Error creating notification:", error);
+      console.error('Error creating notification:', error);
       throw error;
     }
   }
 
-  private async sendWebSocketNotification(userId: number, notification: Notification): Promise<void> {
+  private async sendWebSocketNotification(
+    userId: number,
+    notification: Notification,
+  ): Promise<void> {
     // WebSocket notifications handled by polling - no action needed
   }
 
   async getUserNotifications(userId: number, limit = 50, offset = 0): Promise<Notification[]> {
     try {
       if (!userId || userId <= 0) {
-        throw new Error("Invalid user ID");
+        throw new Error('Invalid user ID');
       }
       if (limit < 1 || limit > 100) {
-        throw new Error("Invalid limit (must be between 1 and 100)");
+        throw new Error('Invalid limit (must be between 1 and 100)');
       }
       if (offset < 0) {
-        throw new Error("Invalid offset (must be non-negative)");
+        throw new Error('Invalid offset (must be non-negative)');
       }
 
       const notifications = await this.prisma.notification.findMany({
         where: { userId },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
         include: {
@@ -114,7 +136,7 @@ export class NotificationService {
 
       return notifications.map((notification) => this.convertPrismaNotification(notification));
     } catch (error) {
-      console.error("Error fetching user notifications:", error);
+      console.error('Error fetching user notifications:', error);
       throw error;
     }
   }
@@ -122,7 +144,7 @@ export class NotificationService {
   async getUnreadCount(userId: number): Promise<number> {
     try {
       if (!userId || userId <= 0) {
-        throw new Error("Invalid user ID");
+        throw new Error('Invalid user ID');
       }
 
       return await this.prisma.notification.count({
@@ -132,7 +154,7 @@ export class NotificationService {
         },
       });
     } catch (error) {
-      console.error("Error getting unread count:", error);
+      console.error('Error getting unread count:', error);
       throw error;
     }
   }
@@ -140,7 +162,7 @@ export class NotificationService {
   async markAsRead(notificationId: string): Promise<Notification> {
     try {
       if (!notificationId || notificationId.trim().length === 0) {
-        throw new Error("Invalid notification ID");
+        throw new Error('Invalid notification ID');
       }
 
       const notification = await this.prisma.notification.update({
@@ -156,7 +178,7 @@ export class NotificationService {
 
       return this.convertPrismaNotification(notification);
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      console.error('Error marking notification as read:', error);
       throw error;
     }
   }
@@ -164,7 +186,7 @@ export class NotificationService {
   async markAllAsRead(userId: number): Promise<void> {
     try {
       if (!userId || userId <= 0) {
-        throw new Error("Invalid user ID");
+        throw new Error('Invalid user ID');
       }
 
       await this.prisma.notification.updateMany({
@@ -178,46 +200,65 @@ export class NotificationService {
         },
       });
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      console.error('Error marking all notifications as read:', error);
       throw error;
     }
   }
 
   // Helper methods for creating specific types of notifications
-  async createOrderNotification(userId: number, orderId: number, event: string, message: string): Promise<Notification> {
+  async createOrderNotification(
+    userId: number,
+    orderId: number,
+    event: string,
+    message: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
-      type: "order",
+      type: 'order',
       title: `Order Update - #${orderId}`,
       message,
       data: { orderId, event },
     });
   }
 
-  async createCreditNotification(userId: number, creditId: number, forestName: string, event: string): Promise<Notification> {
+  async createCreditNotification(
+    userId: number,
+    creditId: number,
+    forestName: string,
+    event: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
-      type: "credit",
+      type: 'credit',
       title: `New Credits Available`,
       message: `${event} in ${forestName}`,
       data: { creditId, forestName, event },
     });
   }
 
-  async createPaymentNotification(userId: number, orderId: number, status: string, message: string): Promise<Notification> {
+  async createPaymentNotification(
+    userId: number,
+    orderId: number,
+    status: string,
+    message: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
-      type: "payment",
+      type: 'payment',
       title: `Payment ${status}`,
       message,
       data: { orderId, status },
     });
   }
 
-  async createSystemNotification(userId: number, title: string, message: string): Promise<Notification> {
+  async createSystemNotification(
+    userId: number,
+    title: string,
+    message: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
-      type: "system",
+      type: 'system',
       title,
       message,
     });
@@ -233,14 +274,17 @@ export class NotificationService {
           const notification = await this.createNotification(notificationData);
           results.push(notification);
         } catch (error) {
-          console.error(`Failed to create notification for user ${notificationData.userId}:`, error);
+          console.error(
+            `Failed to create notification for user ${notificationData.userId}:`,
+            error,
+          );
           // Continue with other notifications even if one fails
         }
       }
 
       return results;
     } catch (error) {
-      console.error("Error creating batch notifications:", error);
+      console.error('Error creating batch notifications:', error);
       throw error;
     }
   }
@@ -262,7 +306,7 @@ export class NotificationService {
 
       return result.count;
     } catch (error) {
-      console.error("Error cleaning up old notifications:", error);
+      console.error('Error cleaning up old notifications:', error);
       throw error;
     }
   }

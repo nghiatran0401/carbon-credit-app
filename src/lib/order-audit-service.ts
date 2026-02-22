@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getImmudbService } from './immudb-service';
+import { logger } from './logger';
 
 export interface OrderTransactionData {
   orderId: number;
@@ -38,10 +39,7 @@ class OrderAuditService {
 
     // Compute SHA256 hash
     const hash = crypto.createHash('sha256').update(dataString).digest('hex');
-
-    console.log(`Computing hash for order ${orderId}:`);
-    console.log(`  Data string: ${dataString}`);
-    console.log(`  SHA256 hash: ${hash}`);
+    logger.debug('Computed order hash', { orderId });
 
     return hash;
   }
@@ -55,14 +53,14 @@ class OrderAuditService {
     try {
       const hash = this.computeOrderHash(orderData);
       const immudbService = getImmudbService();
-      
+
       const auditRecord: OrderHash = {
         orderId: orderData.orderId,
         hash,
         timestamp: Date.now(),
-        transactionData: orderData
+        transactionData: orderData,
       };
-      
+
       // Store in ImmuDB with key: order_${orderId}
       const key = `order_${orderData.orderId}`;
       const result = await immudbService.storeTransactionHash({
@@ -77,18 +75,15 @@ class OrderAuditService {
           paidAt: orderData.paidAt.toISOString(),
           buyer: orderData.buyer ?? null,
           seller: orderData.seller ?? null,
-          dataString: `${orderData.orderId}|${orderData.buyer ?? ''}|${orderData.seller ?? ''}|${orderData.totalCredits}|${orderData.totalPrice}|${orderData.paidAt.getTime()}`
-        }
+          dataString: `${orderData.orderId}|${orderData.buyer ?? ''}|${orderData.seller ?? ''}|${orderData.totalCredits}|${orderData.totalPrice}|${orderData.paidAt.getTime()}`,
+        },
       });
-      
-      console.log(`Order audit stored in ImmuDB for order ${orderData.orderId}:`);
-      console.log(`  Key: ${key}`);
-      console.log(`  Hash: ${hash}`);
-      console.log(`  ImmuDB result: ${result}`);
-      
+
+      logger.info('Order audit stored in ImmuDB', { orderId: orderData.orderId });
+
       return hash;
     } catch (error) {
-      console.error('Failed to store order audit in ImmuDB:', error);
+      logger.error('Failed to store order audit in ImmuDB', { error });
       throw new Error(`Failed to store order audit: ${error}`);
     }
   }
@@ -96,44 +91,43 @@ class OrderAuditService {
   /**
    * Verify order integrity by recomputing hash and comparing with stored value
    */
-  async verifyOrderIntegrity(orderId: number, orderData: OrderTransactionData): Promise<{
+  async verifyOrderIntegrity(
+    orderId: number,
+    orderData: OrderTransactionData,
+  ): Promise<{
     isValid: boolean;
     storedHash?: string;
     computedHash: string;
     key: string;
   }> {
     try {
-  const computedHash = this.computeOrderHash(orderData);
+      const computedHash = this.computeOrderHash(orderData);
       const immudbService = getImmudbService();
-      
+
       // Retrieve stored audit record
       const key = `order_${orderId}`;
       const storedRecord = await immudbService.getTransactionHash(key);
-      
+
       if (!storedRecord || !storedRecord.metadata) {
         return {
           isValid: false,
           computedHash,
-          key
+          key,
         };
       }
 
       const storedHash = storedRecord.metadata.computedHash;
       const isValid = storedHash === computedHash;
-      
-      console.log(`Order integrity verification for order ${orderId}:`);
-      console.log(`  Stored hash: ${storedHash}`);
-      console.log(`  Computed hash: ${computedHash}`);
-      console.log(`  Valid: ${isValid}`);
-      
+      logger.info('Order integrity verification', { orderId, isValid });
+
       return {
         isValid,
         storedHash,
         computedHash,
-        key
+        key,
       };
     } catch (error) {
-      console.error('Failed to verify order integrity:', error);
+      logger.error('Failed to verify order integrity', { error });
       throw new Error(`Failed to verify order integrity: ${error}`);
     }
   }
@@ -144,13 +138,13 @@ class OrderAuditService {
   async getAllOrderAudits(): Promise<OrderHash[]> {
     try {
       const immudbService = getImmudbService();
-      
+
       // Get all transactions with 'order_audit' type
       const allTransactions = await immudbService.getAllTransactionHashes(1000);
-      
+
       const orderAudits = allTransactions
-        .filter(tx => tx.transactionType === 'order_audit')
-        .map(tx => ({
+        .filter((tx) => tx.transactionType === 'order_audit')
+        .map((tx) => ({
           orderId: tx.metadata?.orderId || 0,
           hash: tx.metadata?.computedHash || '',
           timestamp: tx.timestamp,
@@ -161,9 +155,9 @@ class OrderAuditService {
             paidAt: new Date(tx.metadata?.paidAt || Date.now()),
             buyer: tx.metadata?.buyer || undefined,
             seller: tx.metadata?.seller || undefined,
-          }
+          },
         }));
-      
+
       return orderAudits;
     } catch (error) {
       console.error('Failed to get order audits:', error);
@@ -178,9 +172,9 @@ class OrderAuditService {
     try {
       const immudbService = getImmudbService();
       const key = `order_${orderId}`;
-      
+
       const storedRecord = await immudbService.getTransactionHash(key);
-      
+
       if (!storedRecord || !storedRecord.metadata) {
         return null;
       }
@@ -196,7 +190,7 @@ class OrderAuditService {
           paidAt: new Date(storedRecord.metadata.paidAt || Date.now()),
           buyer: storedRecord.metadata.buyer || undefined,
           seller: storedRecord.metadata.seller || undefined,
-        }
+        },
       };
     } catch (error) {
       console.error('Failed to get order audit:', error);
