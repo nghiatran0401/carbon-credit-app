@@ -1,26 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { orderAuditService } from '@/lib/order-audit-service';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin, isAuthError, handleRouteError } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const orderId = searchParams.get('orderId');
-  
   try {
+    const auth = await requireAdmin(request);
+    if (isAuthError(auth)) return auth;
+
+    const { searchParams } = new URL(request.url);
+    const orderId = searchParams.get('orderId');
+
     if (orderId) {
-      // Get audit for specific order
-      const auditRecord = await orderAuditService.getOrderAudit(parseInt(orderId));
-      
-      if (!auditRecord) {
-        return NextResponse.json({
-          success: false,
-          message: 'No audit record found for this order'
-        }, { status: 404 });
+      const parsedId = parseInt(orderId);
+      if (isNaN(parsedId)) {
+        return NextResponse.json({ success: false, message: 'Invalid order ID' }, { status: 400 });
       }
-      
-      // Also get current order data for verification
+
+      const auditRecord = await orderAuditService.getOrderAudit(parsedId);
+
+      if (!auditRecord) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'No audit record found for this order',
+          },
+          { status: 404 },
+        );
+      }
+
       const currentOrder = await prisma.order.findUnique({
-        where: { id: parseInt(orderId) },
+        where: { id: parsedId },
         select: {
           id: true,
           totalCredits: true,
@@ -28,64 +38,59 @@ export async function GET(request: NextRequest) {
           paidAt: true,
           buyer: true,
           seller: true,
-          status: true
-        }
+          status: true,
+        },
       });
-      
+
       let verification = null;
       if (currentOrder && currentOrder.paidAt) {
-        verification = await orderAuditService.verifyOrderIntegrity(
-          currentOrder.id,
-          {
-            orderId: currentOrder.id,
-            totalCredits: currentOrder.totalCredits,
-            totalPrice: currentOrder.totalPrice,
-            paidAt: currentOrder.paidAt,
-            buyer: (currentOrder as any).buyer,
-            seller: (currentOrder as any).seller,
-          }
-        );
+        verification = await orderAuditService.verifyOrderIntegrity(currentOrder.id, {
+          orderId: currentOrder.id,
+          totalCredits: currentOrder.totalCredits,
+          totalPrice: currentOrder.totalPrice,
+          paidAt: currentOrder.paidAt,
+          buyer: currentOrder.buyer,
+          seller: currentOrder.seller,
+        });
       }
-      
+
       return NextResponse.json({
         success: true,
         audit: auditRecord,
         currentOrder,
-        verification
+        verification,
       });
-      
     } else {
-      // Get all audit records
       const allAudits = await orderAuditService.getAllOrderAudits();
-      
+
       return NextResponse.json({
         success: true,
         audits: allAudits,
-        count: allAudits.length
+        count: allAudits.length,
       });
     }
-    
   } catch (error) {
-    console.error('Failed to get order audits:', error);
-    return NextResponse.json({
-      success: false,
-      message: `Failed to get order audits: ${error}`
-    }, { status: 500 });
+    return handleRouteError(error, 'Failed to get order audits');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAdmin(request);
+    if (isAuthError(auth)) return auth;
+
     const { orderId } = await request.json();
-    
+
     if (!orderId) {
-      return NextResponse.json({
-        success: false,
-        message: 'Order ID is required'
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Order ID is required',
+        },
+        { status: 400 },
+      );
     }
-    
-    // Get order data from SQL database
+
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
@@ -95,46 +100,46 @@ export async function POST(request: NextRequest) {
         paidAt: true,
         status: true,
         buyer: true,
-        seller: true
-      }
+        seller: true,
+      },
     });
-    
+
     if (!order) {
-      return NextResponse.json({
-        success: false,
-        message: 'Order not found'
-      }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Order not found',
+        },
+        { status: 404 },
+      );
     }
-    
+
     if (!order.paidAt) {
-      return NextResponse.json({
-        success: false,
-        message: 'Order is not completed/paid yet'
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Order is not completed/paid yet',
+        },
+        { status: 400 },
+      );
     }
-    
-    // Store audit record (include buyer/seller)
+
     const hash = await orderAuditService.storeOrderAudit({
       orderId: order.id,
       totalCredits: order.totalCredits,
       totalPrice: order.totalPrice,
       paidAt: order.paidAt,
-      buyer: (order as any).buyer,
-      seller: (order as any).seller
+      buyer: order.buyer,
+      seller: order.seller,
     });
-    
+
     return NextResponse.json({
       success: true,
       message: 'Order audit stored successfully',
       orderId: order.id,
-      hash
+      hash,
     });
-    
   } catch (error) {
-    console.error('Failed to store order audit:', error);
-    return NextResponse.json({
-      success: false,
-      message: `Failed to store order audit: ${error}`
-    }, { status: 500 });
+    return handleRouteError(error, 'Failed to store order audit');
   }
 }

@@ -1,85 +1,105 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import {
+  requireAuth,
+  requireAdmin,
+  isAuthError,
+  handleRouteError,
+  PUBLIC_USER_SELECT,
+} from '@/lib/auth';
+import { userUpdateSchema, validateBody, isValidationError } from '@/lib/validation';
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const email = url.searchParams.get("email");
-  const supabaseUserId = url.searchParams.get("supabaseUserId");
-
-  // Query by supabaseUserId first (more reliable for linking)
-  if (supabaseUserId) {
-    const user = await prisma.user.findUnique({
-      where: { supabaseUserId },
-      include: {
-        orders: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
-      },
-    });
-    return NextResponse.json(user || null);
-  }
-
-  // Fallback to email query
-  if (email) {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        orders: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
-      },
-    });
-    return NextResponse.json(user || null);
-  }
-
-  const users = await prisma.user.findMany({
-    orderBy: { id: "asc" },
-    include: {
-      orders: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      },
-    },
-  });
-  return NextResponse.json(users);
-}
-
-export async function PUT(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { id, role, emailVerified } = body;
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
 
-    if (!id) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    const url = new URL(req.url);
+    const email = url.searchParams.get('email');
+    const supabaseUserId = url.searchParams.get('supabaseUserId');
+
+    if (supabaseUserId) {
+      const user = await prisma.user.findUnique({
+        where: { supabaseUserId },
+        select: {
+          ...PUBLIC_USER_SELECT,
+          orders: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+          },
+        },
+      });
+      return NextResponse.json(user || null);
     }
 
-    const updateData: any = {};
+    if (email) {
+      const user = await prisma.user.findUnique({
+        where: { email },
+        select: {
+          ...PUBLIC_USER_SELECT,
+          orders: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+          },
+        },
+      });
+      return NextResponse.json(user || null);
+    }
+
+    const adminCheck = await requireAdmin(req);
+    if (isAuthError(adminCheck)) return adminCheck;
+
+    const users = await prisma.user.findMany({
+      orderBy: { id: 'asc' },
+      select: {
+        ...PUBLIC_USER_SELECT,
+        orders: {
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+      },
+    });
+    return NextResponse.json(users);
+  } catch (error) {
+    return handleRouteError(error, 'Failed to fetch users');
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const auth = await requireAdmin(req);
+    if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const validated = validateBody(userUpdateSchema, body);
+    if (isValidationError(validated)) return validated;
+
+    const { id, role, emailVerified } = validated;
+
+    const updateData: Record<string, unknown> = {};
     if (role !== undefined) {
-      // Convert lowercase role to uppercase enum value (ADMIN, USER)
       updateData.role = role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER';
     }
     if (emailVerified !== undefined) updateData.emailVerified = emailVerified;
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: Number(id) },
       data: updateData,
-      include: {
+      select: {
+        ...PUBLIC_USER_SELECT,
         orders: {
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
           take: 5,
         },
       },
     });
 
     return NextResponse.json(updatedUser);
-  } catch (error: any) {
-    console.error("Error updating user:", error);
-    return NextResponse.json({ error: error.message || "Failed to update user" }, { status: 500 });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to update user');
   }
 }

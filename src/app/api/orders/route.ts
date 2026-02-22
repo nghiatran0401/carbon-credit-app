@@ -1,88 +1,141 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { notificationService } from "@/lib/notification-service";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { notificationService } from '@/lib/notification-service';
+import {
+  requireAuth,
+  requireAdmin,
+  requireOwnershipOrAdmin,
+  isAuthError,
+  handleRouteError,
+} from '@/lib/auth';
+import {
+  orderCreateSchema,
+  orderUpdateSchema,
+  validateBody,
+  isValidationError,
+} from '@/lib/validation';
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const userId = url.searchParams.get("userId");
-  const where = userId ? { userId: Number(userId) } : undefined;
-  const orders = await prisma.order.findMany({
-    where,
-    include: {
-      user: true,
-      items: {
-        include: {
-          carbonCredit: true,
-        },
-      },
-      payments: true,
-      orderHistory: true,
-    },
-    orderBy: { id: "desc" },
-  });
-  return NextResponse.json(orders);
-}
-
-export async function POST(req: Request) {
-  const { userId, status, items } = await req.json();
-  let totalPrice = 0;
-  const createdOrder = await prisma.order.create({
-    data: {
-      userId,
-      status,
-      totalPrice: 0, // will update after items
-      buyer: String(userId),
-      seller: items[0]?.seller || "Platform", // fallback to Platform if no seller
-      items: {
-        create: items.map((item: any) => {
-          const subtotal = item.quantity * item.pricePerCredit;
-          totalPrice += subtotal;
-          return { ...item, subtotal };
-        }),
-      },
-    },
-    include: { items: true },
-  });
-  await prisma.order.update({ where: { id: createdOrder.id }, data: { totalPrice } });
-  const orderWithUser = await prisma.order.findUnique({
-    where: { id: createdOrder.id },
-    include: {
-      user: true,
-      items: { include: { carbonCredit: true } },
-      payments: true,
-      orderHistory: true,
-    },
-  });
-
-  // Create notification for order creation
+export async function GET(req: NextRequest) {
   try {
-    const notification = await notificationService.createOrderNotification(userId, createdOrder.id, "Order Created", `Your order #${createdOrder.id} has been created successfully. Total: $${totalPrice.toFixed(2)}`);
-  } catch (error) {
-    console.error("Error creating order notification:", error);
-  }
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
 
-  return NextResponse.json(orderWithUser);
-}
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('userId');
 
-export async function PUT(req: Request) {
-  try {
-    const { id, status, ...data } = await req.json();
-
-    if (!id) {
-      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    let where;
+    if (userId) {
+      const ownerCheck = await requireOwnershipOrAdmin(req, Number(userId));
+      if (isAuthError(ownerCheck)) return ownerCheck;
+      where = { userId: Number(userId) };
+    } else if (auth.role?.toLowerCase() !== 'admin') {
+      where = { userId: auth.id };
     }
 
-    // Get the current order to check if status is changing
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        user: true,
+        items: {
+          include: {
+            carbonCredit: true,
+          },
+        },
+        payments: true,
+        orderHistory: true,
+      },
+      orderBy: { id: 'desc' },
+    });
+    return NextResponse.json(orders);
+  } catch (error) {
+    return handleRouteError(error, 'Failed to fetch orders');
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const validated = validateBody(orderCreateSchema, body);
+    if (isValidationError(validated)) return validated;
+
+    const { status, items } = validated;
+    const userId = auth.id;
+
+    let totalPrice = 0;
+    const createdOrder = await prisma.order.create({
+      data: {
+        userId,
+        status,
+        totalPrice: 0,
+        buyer: String(userId),
+        seller: 'Platform',
+        items: {
+          create: items.map((item) => {
+            const subtotal = item.quantity * item.pricePerCredit;
+            totalPrice += subtotal;
+            return {
+              carbonCreditId: item.carbonCreditId,
+              quantity: item.quantity,
+              pricePerCredit: item.pricePerCredit,
+              subtotal,
+            };
+          }),
+        },
+      },
+      include: { items: true },
+    });
+    await prisma.order.update({ where: { id: createdOrder.id }, data: { totalPrice } });
+    const orderWithUser = await prisma.order.findUnique({
+      where: { id: createdOrder.id },
+      include: {
+        user: true,
+        items: { include: { carbonCredit: true } },
+        payments: true,
+        orderHistory: true,
+      },
+    });
+
+    try {
+      await notificationService.createOrderNotification(
+        userId,
+        createdOrder.id,
+        'Order Created',
+        `Your order #${createdOrder.id} has been created successfully. Total: $${totalPrice.toFixed(2)}`,
+      );
+    } catch (notifError) {
+      console.error('Error creating order notification:', notifError);
+    }
+
+    return NextResponse.json(orderWithUser);
+  } catch (error) {
+    return handleRouteError(error, 'Failed to create order');
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const auth = await requireAdmin(req);
+    if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const validated = validateBody(orderUpdateSchema, body);
+    if (isValidationError(validated)) return validated;
+
+    const { id, status, ...data } = validated;
+
     const currentOrder = await prisma.order.findUnique({
       where: { id: Number(id) },
       select: { status: true, userId: true },
     });
 
     if (!currentOrder) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
-    const updateData: any = { ...data };
+    const updateData: Record<string, unknown> = { ...data };
     if (status !== undefined) updateData.status = status;
 
     const updatedOrder = await prisma.order.update({
@@ -100,24 +153,26 @@ export async function PUT(req: Request) {
       },
     });
 
-    // Create order history entry if status changed
     if (status && status !== currentOrder.status) {
       await prisma.orderHistory.create({
         data: {
           orderId: Number(id),
-          event: "status_updated",
+          event: 'status_updated',
           message: `Order status changed from ${currentOrder.status} to ${status}`,
         },
       });
 
-      // Create notification for status change
       try {
-        await notificationService.createOrderNotification(currentOrder.userId, Number(id), "Status Updated", `Your order #${id} status has been updated to ${status}`);
-      } catch (error) {
-        console.error("Error creating status update notification:", error);
+        await notificationService.createOrderNotification(
+          currentOrder.userId,
+          Number(id),
+          'Status Updated',
+          `Your order #${id} status has been updated to ${status}`,
+        );
+      } catch (notifError) {
+        console.error('Error creating status update notification:', notifError);
       }
 
-      // Fetch the updated order with the new order history
       const updatedOrderWithHistory = await prisma.order.findUnique({
         where: { id: Number(id) },
         include: {
@@ -136,15 +191,21 @@ export async function PUT(req: Request) {
     }
 
     return NextResponse.json(updatedOrder);
-  } catch (error: any) {
-    console.error("Error updating order:", error);
-    return NextResponse.json({ error: error.message || "Failed to update order" }, { status: 500 });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to update order');
   }
 }
 
-export async function DELETE(req: Request) {
-  const { id } = await req.json();
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  await prisma.order.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAdmin(req);
+    if (isAuthError(auth)) return auth;
+
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    await prisma.order.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to delete order');
+  }
 }

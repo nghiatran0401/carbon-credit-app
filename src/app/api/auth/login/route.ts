@@ -1,13 +1,10 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
-/**
- * This endpoint is not needed for Supabase auth
- * Login happens entirely client-side via supabase.auth.signInWithPassword()
- *
- * This endpoint can be used to verify the current session and get user info
- */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const rateLimited = checkRateLimit(req, RATE_LIMITS.auth, 'auth-login');
+  if (rateLimited) return rateLimited;
   try {
     const supabase = await createClient();
     const {
@@ -16,7 +13,7 @@ export async function GET(req: Request) {
     } = await supabase.auth.getUser();
 
     if (error || !supabaseUser) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     return NextResponse.json({
@@ -24,7 +21,8 @@ export async function GET(req: Request) {
       email: supabaseUser.email,
       emailVerified: supabaseUser.email_confirmed_at !== null,
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: "Authentication check failed" }, { status: 500 });
+  } catch (error) {
+    console.error('Authentication check failed:', error);
+    return NextResponse.json({ error: 'Authentication check failed' }, { status: 500 });
   }
 }

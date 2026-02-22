@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getImmudbService } from '@/lib/immudb-service';
 
@@ -6,17 +8,20 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const prefix = searchParams.get('prefix') || '';
   const limit = parseInt(searchParams.get('limit') || '100');
-  
+
   if (!immudbService) {
-    return NextResponse.json({
-      success: false,
-      message: 'ImmuDB service not available',
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'ImmuDB service not available',
+      },
+      { status: 500 },
+    );
   }
-  
+
   try {
     await immudbService.ensureConnected();
-    
+
     if (!immudbService['client']) {
       throw new Error('ImmuDB client not available');
     }
@@ -30,7 +35,7 @@ export async function GET(request: NextRequest) {
     const keyValuePairs: Array<{
       key: string;
       value: string;
-      rawValue: any;
+      rawValue: unknown;
       timestamp?: number;
     }> = [];
 
@@ -38,15 +43,16 @@ export async function GET(request: NextRequest) {
       for (const entry of result.entriesList) {
         try {
           // Convert value to string if it's a Uint8Array
-          const valueStr = typeof entry.value === 'string' 
-            ? entry.value 
-            : new TextDecoder().decode(entry.value as Uint8Array);
+          const valueStr =
+            typeof entry.value === 'string'
+              ? entry.value
+              : new TextDecoder().decode(entry.value as Uint8Array);
 
           keyValuePairs.push({
             key: entry.key,
             value: valueStr,
             rawValue: entry.value,
-            timestamp: entry.timestamp || Date.now()
+            timestamp: entry.timestamp || Date.now(),
           });
         } catch (error) {
           console.warn('Failed to process entry:', error);
@@ -59,14 +65,16 @@ export async function GET(request: NextRequest) {
       data: keyValuePairs,
       count: keyValuePairs.length,
       prefix,
-      limit
+      limit,
     });
-
   } catch (error) {
     console.error('Failed to get raw key-value data:', error);
-    return NextResponse.json({
-      success: false,
-      message: `Failed to get key-value data: ${error}`,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        message: `Failed to get key-value data: ${error}`,
+      },
+      { status: 500 },
+    );
   }
 }

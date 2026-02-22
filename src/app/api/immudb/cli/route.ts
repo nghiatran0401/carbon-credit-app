@@ -1,29 +1,34 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getImmudbService } from '@/lib/immudb-service';
 
 // This endpoint mimics immuclient CLI commands
 export async function POST(request: NextRequest) {
   const immudbService = getImmudbService();
-  
+
   if (!immudbService) {
-    return NextResponse.json({
-      success: false,
-      error: 'ImmuDB service not available',
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'ImmuDB service not available',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 },
+    );
   }
-  
+
   try {
     const { command, key, value, prefix, limit } = await request.json();
-    
+
     await immudbService.ensureConnected();
-    
+
     if (!immudbService['client']) {
       throw new Error('ImmuDB client not available');
     }
 
     const client = immudbService['client'];
-    let result: any = null;
+    let result: unknown = null;
     let commandExecuted = '';
 
     switch (command.toLowerCase()) {
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
       case 'scan':
         result = await client.scan({
           prefix: prefix || '',
-          limit: limit || 100
+          limit: limit || 100,
         });
         commandExecuted = `SCAN ${prefix || ''} LIMIT ${limit || 100}`;
         break;
@@ -71,11 +76,11 @@ export async function POST(request: NextRequest) {
         // Count all keys with prefix
         const scanResult = await client.scan({
           prefix: prefix || '',
-          limit: 10000 // Large limit to count all
+          limit: 10000, // Large limit to count all
         });
         result = {
           count: scanResult?.entriesList?.length || 0,
-          prefix: prefix || 'all'
+          prefix: prefix || 'all',
         };
         commandExecuted = `COUNT ${prefix || 'all'}`;
         break;
@@ -88,15 +93,17 @@ export async function POST(request: NextRequest) {
       success: true,
       command: commandExecuted,
       result,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error) {
     console.error('CLI command failed:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 },
+    );
   }
 }

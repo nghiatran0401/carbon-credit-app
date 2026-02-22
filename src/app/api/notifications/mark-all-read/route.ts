@@ -1,23 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
-import { notificationService } from "@/lib/notification-service";
-
-function getUserId(req: NextRequest): number | null {
-  const url = new URL(req.url);
-  const userId = url.searchParams.get("userId");
-  return userId ? parseInt(userId) : null;
-}
+import { NextRequest, NextResponse } from 'next/server';
+import { notificationService } from '@/lib/notification-service';
+import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = getUserId(req);
-    if (!userId) {
-      return NextResponse.json({ error: "User ID required" }, { status: 400 });
-    }
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
 
-    await notificationService.markAllAsRead(userId);
+    await notificationService.markAllAsRead(auth.id);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("Error marking all notifications as read:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to mark all notifications as read');
   }
 }

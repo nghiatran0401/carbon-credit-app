@@ -1,19 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { certificateService } from "@/lib/certificate-service";
+import { NextRequest, NextResponse } from 'next/server';
+import { certificateService } from '@/lib/certificate-service';
+import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(req.url);
-    const orderId = searchParams.get("orderId");
-    const userId = searchParams.get("userId");
-    const id = searchParams.get("id");
+    const orderId = searchParams.get('orderId');
+    const userId = searchParams.get('userId');
+    const id = searchParams.get('id');
 
     if (id) {
       const certificate = await certificateService.getCertificateById(id);
       if (!certificate) {
-        return NextResponse.json({ error: "Certificate not found" }, { status: 404 });
+        return NextResponse.json({ error: 'Certificate not found' }, { status: 404 });
       }
       return NextResponse.json(certificate);
     }
@@ -21,7 +25,7 @@ export async function GET(req: NextRequest) {
     if (orderId) {
       const certificate = await certificateService.getCertificateByOrderId(parseInt(orderId));
       if (!certificate) {
-        return NextResponse.json({ error: "Certificate not found" }, { status: 404 });
+        return NextResponse.json({ error: 'Certificate not found' }, { status: 404 });
       }
       return NextResponse.json(certificate);
     }
@@ -31,26 +35,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(certificates);
     }
 
-    return NextResponse.json({ error: "Missing id, orderId, or userId parameter" }, { status: 400 });
-  } catch (error: any) {
-    console.error("Error fetching certificates:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Missing id, orderId, or userId parameter' },
+      { status: 400 },
+    );
+  } catch (error) {
+    return handleRouteError(error, 'Failed to fetch certificates');
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
     const body = await req.json();
     const { orderId } = body;
 
     if (!orderId) {
-      return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
+      return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
     }
 
     const certificate = await certificateService.generateCertificate(orderId);
     return NextResponse.json(certificate);
-  } catch (error: any) {
-    console.error("Error generating certificate:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to generate certificate');
   }
 }

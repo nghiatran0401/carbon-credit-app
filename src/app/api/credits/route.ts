@@ -1,60 +1,99 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { notificationService } from "@/lib/notification-service";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { notificationService } from '@/lib/notification-service';
+import { requireAdmin, isAuthError, handleRouteError } from '@/lib/auth';
+import {
+  carbonCreditCreateSchema,
+  carbonCreditUpdateSchema,
+  validateBody,
+  isValidationError,
+} from '@/lib/validation';
 
 export async function GET() {
-  const credits = await prisma.carbonCredit.findMany({
-    include: {
-      forest: true,
-    },
-    orderBy: { id: "asc" },
-  });
-  return NextResponse.json(credits);
+  try {
+    const credits = await prisma.carbonCredit.findMany({
+      include: {
+        forest: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+    return NextResponse.json(credits);
+  } catch (error) {
+    return handleRouteError(error, 'Failed to fetch credits');
+  }
 }
 
-export async function POST(req: Request) {
-  const data = await req.json();
-  const credit = await prisma.carbonCredit.create({
-    data,
-    include: {
-      forest: true,
-    },
-  });
-
-  // Create notification for new credits
+export async function POST(req: NextRequest) {
   try {
-    // Get all users who might be interested in new credits
-    const users = await prisma.user.findMany({
-      where: {
-        role: "USER", // Only notify regular users, not admins
+    const auth = await requireAdmin(req);
+    if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const validated = validateBody(carbonCreditCreateSchema, body);
+    if (isValidationError(validated)) return validated;
+
+    const credit = await prisma.carbonCredit.create({
+      data: validated,
+      include: {
+        forest: true,
       },
     });
 
-    // Create notifications for each user
-    for (const user of users) {
-      try {
-        await notificationService.createCreditNotification(user.id, credit.id, credit.forest?.name || "Unknown Forest", `New ${credit.certification} credits available (${credit.availableCredits} credits)`);
-      } catch (error) {
-        console.error(`Failed to create notification for user ${user.id}:`, error);
+    try {
+      const users = await prisma.user.findMany({
+        where: { role: 'USER' },
+        select: { id: true },
+      });
+
+      for (const user of users) {
+        try {
+          await notificationService.createCreditNotification(
+            user.id,
+            credit.id,
+            credit.forest?.name || 'Unknown Forest',
+            `New ${credit.certification} credits available (${credit.availableCredits} credits)`,
+          );
+        } catch (notifError) {
+          console.error(`Failed to create notification for user ${user.id}:`, notifError);
+        }
       }
+    } catch (notifError) {
+      console.error('Error creating credit notifications:', notifError);
     }
+
+    return NextResponse.json(credit);
   } catch (error) {
-    console.error("Error creating credit notifications:", error);
+    return handleRouteError(error, 'Failed to create credit');
   }
-
-  return NextResponse.json(credit);
 }
 
-export async function PUT(req: Request) {
-  const { id, ...data } = await req.json();
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  const credit = await prisma.carbonCredit.update({ where: { id }, data });
-  return NextResponse.json(credit);
+export async function PUT(req: NextRequest) {
+  try {
+    const auth = await requireAdmin(req);
+    if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const validated = validateBody(carbonCreditUpdateSchema, body);
+    if (isValidationError(validated)) return validated;
+
+    const { id, ...data } = validated;
+    const credit = await prisma.carbonCredit.update({ where: { id }, data });
+    return NextResponse.json(credit);
+  } catch (error) {
+    return handleRouteError(error, 'Failed to update credit');
+  }
 }
 
-export async function DELETE(req: Request) {
-  const { id } = await req.json();
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-  await prisma.carbonCredit.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAdmin(req);
+    if (isAuthError(auth)) return auth;
+
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    await prisma.carbonCredit.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to delete credit');
+  }
 }
