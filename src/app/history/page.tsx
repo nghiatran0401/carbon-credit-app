@@ -18,7 +18,7 @@ import {
 import { Download, FileText, Package } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
-import type { Order, OrderItem, User } from '@/types';
+import type { Order, OrderItem, User, PaginatedResponse } from '@/types';
 import { DEFAULT_PAGE_SIZE } from '@/lib/constants';
 
 function ordersToCSV(orders: Order[]): string {
@@ -62,19 +62,42 @@ export default function HistoryPage() {
   const users = Array.isArray(usersRaw) ? usersRaw : [];
   const [selectedUser, setSelectedUser] = useState<string>('all');
 
-  // For admin: fetch all orders, for user: fetch only their orders
-  const ordersUrl =
-    user?.role?.toLowerCase() === 'admin'
-      ? '/api/orders'
-      : user?.id
-        ? `/api/orders?userId=${user.id}`
-        : null;
-  const { data: ordersRaw, isLoading, error, mutate } = useSWR(ordersUrl, apiGet);
-  const orders = useMemo(() => (Array.isArray(ordersRaw) ? ordersRaw : []), [ordersRaw]);
-
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const ordersUrl = useMemo(() => {
+    if (!user?.id) return null;
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(DEFAULT_PAGE_SIZE));
+    if (user.role?.toLowerCase() !== 'admin') {
+      params.set('userId', String(user.id));
+    } else if (selectedUser !== 'all') {
+      params.set('userId', selectedUser);
+    }
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    return `/api/orders?${params.toString()}`;
+  }, [user, page, statusFilter, debouncedSearch, selectedUser]);
+
+  const {
+    data: ordersResponse,
+    isLoading,
+    error,
+    mutate,
+  } = useSWR(ordersUrl, (url: string) => apiGet<PaginatedResponse<Order>>(url));
+  const orders = ordersResponse?.data ?? [];
+  const pagination = ordersResponse?.pagination;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -82,34 +105,8 @@ export default function HistoryPage() {
     }
   }, [isAuthenticated, router]);
 
-  // For admin: filter by selected user
-  const filteredOrders = useMemo(() => {
-    let filtered = orders;
-    if (user?.role?.toLowerCase() === 'admin' && selectedUser !== 'all') {
-      filtered = filtered.filter((order: Order) => String(order.user?.id) === selectedUser);
-    }
-    return filtered.filter((order: Order) => {
-      const statusMatch = statusFilter === 'all' || order.status === statusFilter;
-      const searchMatch =
-        search === '' ||
-        order.id.toString().includes(search) ||
-        order.items?.some(
-          (item: OrderItem) =>
-            item.carbonCredit?.certification?.toLowerCase().includes(search.toLowerCase()) ||
-            item.carbonCredit?.vintage?.toString().includes(search),
-        );
-      return statusMatch && searchMatch;
-    });
-  }, [orders, statusFilter, search, user, selectedUser]);
-
-  const totalPages = Math.ceil(filteredOrders.length / DEFAULT_PAGE_SIZE);
-  const paginatedOrders = filteredOrders.slice(
-    (page - 1) * DEFAULT_PAGE_SIZE,
-    page * DEFAULT_PAGE_SIZE,
-  );
-
   const handleDownloadCSV = () => {
-    const csv = ordersToCSV(filteredOrders);
+    const csv = ordersToCSV(orders);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -175,11 +172,7 @@ export default function HistoryPage() {
           <Input
             placeholder="Search by order, certification, vintage..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            // className="max-w-xs"
+            onChange={(e) => setSearch(e.target.value)}
           />
           <Select
             value={statusFilter}
@@ -230,9 +223,9 @@ export default function HistoryPage() {
           )}
         </div>
       </div>
-      {paginatedOrders.length > 0 ? (
+      {orders.length > 0 ? (
         <div className="space-y-4">
-          {paginatedOrders.map((order: Order) => (
+          {orders.map((order: Order) => (
             <Card key={order.id} className="shadow-md border border-gray-200">
               <CardHeader className="bg-gray-50 rounded-t-lg flex flex-col md:flex-row md:items-center md:justify-between">
                 <CardTitle className="text-lg">
@@ -334,7 +327,7 @@ export default function HistoryPage() {
         </div>
       )}
       {/* Pagination */}
-      {totalPages > 1 && (
+      {pagination && pagination.totalPages > 1 && (
         <div className="flex justify-center mt-8 gap-2">
           <Button
             variant="outline"
@@ -345,12 +338,12 @@ export default function HistoryPage() {
             Previous
           </Button>
           <span className="px-2 py-1 text-sm text-gray-700">
-            Page {page} of {totalPages}
+            Page {pagination.page} of {pagination.totalPages}
           </span>
           <Button
             variant="outline"
             size="sm"
-            disabled={page === totalPages}
+            disabled={page === pagination.totalPages}
             onClick={() => setPage(page + 1)}
           >
             Next

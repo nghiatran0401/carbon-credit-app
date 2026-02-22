@@ -7,16 +7,70 @@ import {
   validateBody,
   isValidationError,
 } from '@/lib/validation';
+import { MARKETPLACE_PAGE_SIZE } from '@/lib/constants';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const credits = await prisma.carbonCredit.findMany({
-      include: {
-        forest: true,
+    const url = new URL(req.url);
+    const page = url.searchParams.get('page');
+    const limit = Number(url.searchParams.get('limit')) || MARKETPLACE_PAGE_SIZE;
+    const forestType = url.searchParams.get('forestType');
+    const certification = url.searchParams.get('certification');
+    const availability = url.searchParams.get('availability');
+    const sortBy = url.searchParams.get('sortBy');
+
+    if (!page) {
+      const credits = await prisma.carbonCredit.findMany({
+        include: { forest: true },
+        orderBy: { id: 'asc' },
+      });
+      return NextResponse.json(credits);
+    }
+
+    const where: Record<string, unknown> = {};
+
+    if (forestType && forestType !== 'all') {
+      where.forest = { type: { equals: forestType, mode: 'insensitive' } };
+    }
+    if (certification && certification !== 'all') {
+      where.certification = {
+        contains: certification.replace(/-/g, ' '),
+        mode: 'insensitive',
+      };
+    }
+    if (availability === 'available') {
+      where.availableCredits = { gt: 0 };
+    } else if (availability === 'unavailable') {
+      where.availableCredits = { lte: 0 };
+    }
+
+    let orderBy: Record<string, string> = { id: 'asc' };
+    if (sortBy === 'price-low') orderBy = { pricePerCredit: 'asc' };
+    else if (sortBy === 'price-high') orderBy = { pricePerCredit: 'desc' };
+    else if (sortBy === 'quantity') orderBy = { availableCredits: 'asc' };
+    else if (sortBy === 'vintage') orderBy = { vintage: 'desc' };
+
+    const pageNum = Math.max(1, Number(page));
+    const [credits, total] = await Promise.all([
+      prisma.carbonCredit.findMany({
+        where,
+        include: { forest: true },
+        orderBy,
+        skip: (pageNum - 1) * limit,
+        take: limit,
+      }),
+      prisma.carbonCredit.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      data: credits,
+      pagination: {
+        page: pageNum,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: { id: 'asc' },
     });
-    return NextResponse.json(credits);
   } catch (error) {
     return handleRouteError(error, 'Failed to fetch credits');
   }

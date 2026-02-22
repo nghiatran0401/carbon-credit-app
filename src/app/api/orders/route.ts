@@ -21,31 +21,88 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const userId = url.searchParams.get('userId');
+    const page = url.searchParams.get('page');
+    const limit = Number(url.searchParams.get('limit')) || 10;
+    const status = url.searchParams.get('status');
+    const search = url.searchParams.get('search');
 
-    let where;
+    const where: Record<string, unknown> = {};
+
     if (userId) {
       const ownerCheck = await requireOwnershipOrAdmin(req, Number(userId));
       if (isAuthError(ownerCheck)) return ownerCheck;
-      where = { userId: Number(userId) };
+      where.userId = Number(userId);
     } else if (auth.role?.toLowerCase() !== 'admin') {
-      where = { userId: auth.id };
+      where.userId = auth.id;
     }
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        user: true,
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    if (search) {
+      const searchNum = Number(search);
+      const orConditions: Record<string, unknown>[] = [];
+      if (!isNaN(searchNum)) {
+        orConditions.push({ id: searchNum });
+        orConditions.push({
+          items: { some: { carbonCredit: { vintage: searchNum } } },
+        });
+      }
+      orConditions.push({
         items: {
-          include: {
-            carbonCredit: true,
+          some: {
+            carbonCredit: {
+              certification: { contains: search, mode: 'insensitive' },
+            },
           },
         },
-        payments: true,
-        orderHistory: true,
+      });
+      where.AND = [{ OR: orConditions }];
+    }
+
+    if (!page) {
+      const orders = await prisma.order.findMany({
+        where,
+        include: {
+          user: true,
+          items: { include: { carbonCredit: true } },
+          payments: true,
+          orderHistory: true,
+        },
+        orderBy: { id: 'desc' },
+      });
+      return NextResponse.json(orders);
+    }
+
+    const pageNum = Math.max(1, Number(page));
+    const include = {
+      user: true,
+      items: { include: { carbonCredit: true } },
+      payments: true,
+      orderHistory: true,
+    };
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include,
+        orderBy: { id: 'desc' },
+        skip: (pageNum - 1) * limit,
+        take: limit,
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      data: orders,
+      pagination: {
+        page: pageNum,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: { id: 'desc' },
     });
-    return NextResponse.json(orders);
   } catch (error) {
     return handleRouteError(error, 'Failed to fetch orders');
   }

@@ -210,6 +210,16 @@ export interface ApiResponse<T> {
   };
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 // Admin Analytics Types
 export interface MonthlySalesData {
   month: string;

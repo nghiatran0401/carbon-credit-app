@@ -6,3 +6,4 @@ export const DEFAULT_PRICE_PER_CREDIT = 3;
 
 // Pagination
 export const DEFAULT_PAGE_SIZE = 5;
+export const MARKETPLACE_PAGE_SIZE = 12;

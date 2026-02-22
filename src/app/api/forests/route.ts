@@ -8,15 +8,40 @@ import {
   isValidationError,
 } from '@/lib/validation';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const forests = await prisma.forest.findMany({
-      include: {
-        credits: true,
+    const url = new URL(req.url);
+    const page = url.searchParams.get('page');
+    const limit = Number(url.searchParams.get('limit')) || 20;
+
+    if (!page) {
+      const forests = await prisma.forest.findMany({
+        include: { credits: true },
+        orderBy: { id: 'asc' },
+      });
+      return NextResponse.json(forests);
+    }
+
+    const pageNum = Math.max(1, Number(page));
+    const [forests, total] = await Promise.all([
+      prisma.forest.findMany({
+        include: { credits: true },
+        orderBy: { id: 'asc' },
+        skip: (pageNum - 1) * limit,
+        take: limit,
+      }),
+      prisma.forest.count(),
+    ]);
+
+    return NextResponse.json({
+      data: forests,
+      pagination: {
+        page: pageNum,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: { id: 'asc' },
     });
-    return NextResponse.json(forests);
   } catch (error) {
     return handleRouteError(error, 'Failed to fetch forests');
   }

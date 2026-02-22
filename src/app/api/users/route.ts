@@ -49,17 +49,44 @@ export async function GET(req: NextRequest) {
     const adminCheck = await requireAdmin(req);
     if (isAuthError(adminCheck)) return adminCheck;
 
-    const users = await prisma.user.findMany({
-      orderBy: { id: 'asc' },
-      select: {
-        ...PUBLIC_USER_SELECT,
-        orders: {
-          orderBy: { createdAt: 'desc' },
-          take: 5,
-        },
+    const page = url.searchParams.get('page');
+    const limit = Number(url.searchParams.get('limit')) || 20;
+    const userSelect = {
+      ...PUBLIC_USER_SELECT,
+      orders: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 5,
+      },
+    };
+
+    if (!page) {
+      const users = await prisma.user.findMany({
+        orderBy: { id: 'asc' },
+        select: userSelect,
+      });
+      return NextResponse.json(users);
+    }
+
+    const pageNum = Math.max(1, Number(page));
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: { id: 'asc' },
+        select: userSelect,
+        skip: (pageNum - 1) * limit,
+        take: limit,
+      }),
+      prisma.user.count(),
+    ]);
+
+    return NextResponse.json({
+      data: users,
+      pagination: {
+        page: pageNum,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
-    return NextResponse.json(users);
   } catch (error) {
     return handleRouteError(error, 'Failed to fetch users');
   }
