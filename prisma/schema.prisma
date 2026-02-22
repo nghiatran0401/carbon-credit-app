@@ -1,8 +1,9 @@
-// PostgreSQL Schema for Supabase
-// This is the target schema - use this after migration
-
 generator client {
   provider = "prisma-client-js"
+}
+
+generator dbml {
+  provider = "prisma-dbml-generator"
 }
 
 datasource db {
@@ -64,21 +65,22 @@ model Bookmark {
 }
 
 model User {
-  id              Int           @id @default(autoincrement())
-  email           String        @unique
-  supabaseUserId  String?       @unique // Link to Supabase auth.users.id
-  firstName       String
-  lastName        String
-  company         String?
-  role            UserRole      @default(USER)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  orders          Order[]
-  bookmarks       Bookmark[]
-  cartItems       CartItem[]
-  emailVerified   Boolean       @default(false)
+  id               Int            @id @default(autoincrement())
+  email            String         @unique
+  supabaseUserId   String?        @unique
+  firstName        String
+  lastName         String
+  company          String?
+  role             UserRole       @default(USER)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+  orders           Order[]
+  bookmarks        Bookmark[]
+  cartItems        CartItem[]
+  emailVerified    Boolean        @default(false)
   stripeCustomerId String?
-  notifications   Notification[]
+  notifications    Notification[]
 
   @@index([email])
   @@index([role])
@@ -86,14 +88,16 @@ model User {
 }
 
 model Forest {
-  id          Int           @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   name        String
   location    String
   type        String
   area        Float
   description String
-  status      ForestStatus  @default(ACTIVE)
+  status      ForestStatus   @default(ACTIVE)
   lastUpdated DateTime
+  createdAt   DateTime       @default(now())
+  deletedAt   DateTime?
   credits     CarbonCredit[]
   bookmarks   Bookmark[]
 
@@ -110,6 +114,7 @@ model CarbonCredit {
   pricePerCredit   Float
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
   forest           Forest         @relation(fields: [forestId], references: [id], onDelete: Cascade)
   orderItems       OrderItem[]
   cartItems        CartItem[]
@@ -145,7 +150,8 @@ model Order {
   totalCredits    Int            @default(0)
   currency        String         @default("USD")
   totalUsd        Float          @default(0)
-  user            User           @relation(fields: [userId], references: [id])
+  deletedAt       DateTime?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Restrict)
   items           OrderItem[]
   seller          String
   buyer           String
@@ -175,7 +181,7 @@ model OrderItem {
   exchangeRate   ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
   exchangeRateId Int?
   order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
+  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id], onDelete: Restrict)
   retired        Boolean       @default(false)
 
   @@index([orderId])
@@ -198,17 +204,17 @@ model CartItem {
 }
 
 model Payment {
-  id                    Int          @id @default(autoincrement())
+  id                    Int           @id @default(autoincrement())
   orderId               Int
-  order                 Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stripeSessionId       String?      @unique
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripeSessionId       String?       @unique
   stripePaymentIntentId String?
   amount                Float
   currency              String        @default("USD")
   status                PaymentStatus @default(PENDING)
   failureReason         String?
   method                String?
-  createdAt             DateTime     @default(now())
+  createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
   @@index([orderId])
@@ -244,20 +250,19 @@ model Certificate {
 }
 
 model Notification {
-  id        String          @id @default(cuid())
+  id        String           @id @default(cuid())
   userId    Int
   type      NotificationType
   title     String
   message   String
   data      Json?
-  read      Boolean         @default(false)
+  read      Boolean          @default(false)
   readAt    DateTime?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
   @@index([userId, createdAt])
   @@index([type])
 }
-
