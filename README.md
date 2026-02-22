@@ -1,5 +1,7 @@
 # Carbon Credit App
 
+[![CI](https://github.com/nghiatran0401/carbon-credit-app/actions/workflows/ci.yml/badge.svg)](https://github.com/nghiatran0401/carbon-credit-app/actions/workflows/ci.yml)
+
 A full-stack marketplace for exploring, analyzing, and trading carbon credits â€” built with Next.js 14, Prisma, Supabase, and Stripe.
 
 ## Table of Contents
@@ -14,6 +16,7 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits â€
 - [Database](#database)
 - [API Reference](#api-reference)
 - [Testing](#testing)
+- [Development Workflow](#development-workflow)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
@@ -21,6 +24,7 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits â€
 ## Features
 
 **Marketplace & Trading**
+
 - Browse and purchase carbon credits from verified forest projects
 - Shopping cart with multi-item checkout via Stripe
 - Order history with real-time status tracking
@@ -28,23 +32,27 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits â€
 - Bookmark favorite forest projects
 
 **Analytics & Visualization**
+
 - Interactive map for visualizing carbon credit projects (Leaflet)
 - Carbon movement tracking and analysis
 - Biomass visualization dashboard
 - Graph-based relationship explorer (Neo4j)
 
 **Admin Panel**
+
 - Manage forests, credits, orders, and users
 - Full order audit trail (status changes, payment events, failures)
 - Immutable transaction ledger via ImmuDB
 
 **Real-time & Notifications**
+
 - Adaptive polling with exponential backoff
 - Notification filtering by type (order, credit, payment, system)
 - Bulk operations (mark all as read)
 - Optimistic UI updates with error fallback
 
 **Security & Auth**
+
 - User authentication with Supabase (login/register)
 - Role-based access control (admin, user)
 - Rate limiting on API routes
@@ -53,24 +61,24 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits â€
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|-----------|
-| Framework | [Next.js 14](https://nextjs.org/) (App Router) |
-| Language | [TypeScript](https://www.typescriptlang.org/) |
-| Database | [PostgreSQL](https://www.postgresql.org/) via [Supabase](https://supabase.com/) |
-| ORM | [Prisma](https://www.prisma.io/) |
-| Auth | [Supabase Auth](https://supabase.com/docs/guides/auth) |
-| Payments | [Stripe](https://stripe.com/) |
-| Styling | [Tailwind CSS](https://tailwindcss.com/) |
-| UI Components | [Radix UI](https://www.radix-ui.com/) / [shadcn/ui](https://ui.shadcn.com/) |
-| Data Fetching | [SWR](https://swr.vercel.app/) |
-| Charts | [Recharts](https://recharts.org/) |
-| Maps | [Leaflet](https://leafletjs.com/) / [React Leaflet](https://react-leaflet.js.org/) |
-| Graph DB | [Neo4j](https://neo4j.com/) |
-| Immutable Ledger | [ImmuDB](https://immudb.io/) |
-| PDF Generation | [jsPDF](https://github.com/parallax/jsPDF) / [PDFKit](https://pdfkit.org/) |
-| Testing | [Vitest](https://vitest.dev/) |
-| Validation | [Zod](https://zod.dev/) |
+| Category         | Technology                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| Framework        | [Next.js 14](https://nextjs.org/) (App Router)                                     |
+| Language         | [TypeScript](https://www.typescriptlang.org/)                                      |
+| Database         | [PostgreSQL](https://www.postgresql.org/) via [Supabase](https://supabase.com/)    |
+| ORM              | [Prisma](https://www.prisma.io/)                                                   |
+| Auth             | [Supabase Auth](https://supabase.com/docs/guides/auth)                             |
+| Payments         | [Stripe](https://stripe.com/)                                                      |
+| Styling          | [Tailwind CSS](https://tailwindcss.com/)                                           |
+| UI Components    | [Radix UI](https://www.radix-ui.com/) / [shadcn/ui](https://ui.shadcn.com/)        |
+| Data Fetching    | [SWR](https://swr.vercel.app/)                                                     |
+| Charts           | [Recharts](https://recharts.org/)                                                  |
+| Maps             | [Leaflet](https://leafletjs.com/) / [React Leaflet](https://react-leaflet.js.org/) |
+| Graph DB         | [Neo4j](https://neo4j.com/)                                                        |
+| Immutable Ledger | [ImmuDB](https://immudb.io/)                                                       |
+| PDF Generation   | [jsPDF](https://github.com/parallax/jsPDF) / [PDFKit](https://pdfkit.org/)         |
+| Testing          | [Vitest](https://vitest.dev/)                                                      |
+| Validation       | [Zod](https://zod.dev/)                                                            |
 
 ## Prerequisites
 
@@ -107,7 +115,7 @@ See [Environment Variables](#environment-variables) for details on each variable
 ### 4. Set up the database
 
 ```bash
-npx prisma db push
+npx prisma migrate dev
 ```
 
 ### 5. Start the development server
@@ -159,33 +167,42 @@ carbon-credit-app/
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Create optimized production build |
-| `npm start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm test` | Run all tests |
-| `npm run test:ui` | Launch Vitest interactive UI |
-| `npx prisma studio` | Open database GUI at `localhost:5555` |
-| `npx prisma db push` | Push schema changes to the database |
+| Command                 | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `npm run dev`           | Start development server with hot reload   |
+| `npm run build`         | Create optimized production build          |
+| `npm start`             | Start production server                    |
+| `npm run lint`          | Run ESLint                                 |
+| `npm run lint:fix`      | Run ESLint with auto-fix                   |
+| `npm run type-check`    | Run TypeScript compiler check              |
+| `npm run format`        | Format code with Prettier                  |
+| `npm run format:check`  | Check code formatting                      |
+| `npm test`              | Run all tests                              |
+| `npm run test:watch`    | Run tests in watch mode                    |
+| `npm run test:ui`       | Launch Vitest interactive UI               |
+| `npm run test:coverage` | Run tests with coverage report             |
+| `npm run validate`      | Run type-check, lint, and tests together   |
+| `npm run db:generate`   | Generate Prisma client                     |
+| `npm run db:migrate`    | Create and apply database migrations       |
+| `npm run db:push`       | Push schema changes directly (dev only)    |
+| `npm run db:studio`     | Open Prisma Studio GUI at `localhost:5555` |
 
 ## Environment Variables
 
 Create a `.env` file in the project root (see `.env.example`):
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string (pooled) |
-| `DIRECT_URL` | Yes | PostgreSQL direct connection string |
-| `NEXT_PUBLIC_BASE_URL` | Yes | Application URL (e.g. `http://localhost:3000`) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
-| `STRIPE_SECRET_KEY` | Yes | Stripe secret key |
-| `STRIPE_PUBLISHABLE_KEY` | Yes | Stripe publishable key |
-| `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook signing secret |
-| `NODE_ENV` | No | `development` or `production` |
+| Variable                        | Required | Description                                    |
+| ------------------------------- | -------- | ---------------------------------------------- |
+| `DATABASE_URL`                  | Yes      | PostgreSQL connection string (pooled)          |
+| `DIRECT_URL`                    | Yes      | PostgreSQL direct connection string            |
+| `NEXT_PUBLIC_BASE_URL`          | Yes      | Application URL (e.g. `http://localhost:3000`) |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Yes      | Supabase project URL                           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes      | Supabase anonymous/public key                  |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Yes      | Supabase service role key                      |
+| `STRIPE_SECRET_KEY`             | Yes      | Stripe secret key                              |
+| `STRIPE_PUBLISHABLE_KEY`        | Yes      | Stripe publishable key                         |
+| `STRIPE_WEBHOOK_SECRET`         | Yes      | Stripe webhook signing secret                  |
+| `NODE_ENV`                      | No       | `development` or `production`                  |
 
 ## Database
 
@@ -218,65 +235,72 @@ npx prisma studio
 All routes are under `/api/` and follow RESTful conventions.
 
 ### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Create a new user account |
-| POST | `/api/auth/login` | Authenticate and receive session |
+
+| Method | Endpoint             | Description                      |
+| ------ | -------------------- | -------------------------------- |
+| POST   | `/api/auth/register` | Create a new user account        |
+| POST   | `/api/auth/login`    | Authenticate and receive session |
 
 ### Forests
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/forests` | List all forests |
-| POST | `/api/forests` | Create a forest (admin) |
-| PUT | `/api/forests` | Update a forest (admin) |
+
+| Method | Endpoint       | Description             |
+| ------ | -------------- | ----------------------- |
+| GET    | `/api/forests` | List all forests        |
+| POST   | `/api/forests` | Create a forest (admin) |
+| PUT    | `/api/forests` | Update a forest (admin) |
 | DELETE | `/api/forests` | Delete a forest (admin) |
 
 ### Carbon Credits
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/credits` | List available credits |
-| POST | `/api/credits` | Create a credit (admin) |
-| PUT | `/api/credits` | Update a credit (admin) |
+
+| Method | Endpoint       | Description             |
+| ------ | -------------- | ----------------------- |
+| GET    | `/api/credits` | List available credits  |
+| POST   | `/api/credits` | Create a credit (admin) |
+| PUT    | `/api/credits` | Update a credit (admin) |
 | DELETE | `/api/credits` | Delete a credit (admin) |
 
 ### Orders
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/orders` | List user orders |
-| POST | `/api/orders` | Create an order |
-| GET | `/api/orders/audit` | Get order audit trail |
-| POST | `/api/orders/verify` | Verify order integrity |
-| POST | `/api/orders/[id]/complete` | Mark order as complete |
+
+| Method | Endpoint                    | Description            |
+| ------ | --------------------------- | ---------------------- |
+| GET    | `/api/orders`               | List user orders       |
+| POST   | `/api/orders`               | Create an order        |
+| GET    | `/api/orders/audit`         | Get order audit trail  |
+| POST   | `/api/orders/verify`        | Verify order integrity |
+| POST   | `/api/orders/[id]/complete` | Mark order as complete |
 
 ### Cart & Checkout
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/cart` | Get cart contents |
-| POST | `/api/cart` | Add item to cart |
-| PUT | `/api/cart` | Update cart item |
-| DELETE | `/api/cart` | Remove item from cart |
-| POST | `/api/checkout` | Initiate Stripe checkout |
-| GET | `/api/checkout/session` | Get checkout session status |
+
+| Method | Endpoint                | Description                 |
+| ------ | ----------------------- | --------------------------- |
+| GET    | `/api/cart`             | Get cart contents           |
+| POST   | `/api/cart`             | Add item to cart            |
+| PUT    | `/api/cart`             | Update cart item            |
+| DELETE | `/api/cart`             | Remove item from cart       |
+| POST   | `/api/checkout`         | Initiate Stripe checkout    |
+| GET    | `/api/checkout/session` | Get checkout session status |
 
 ### Notifications
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/notifications` | List notifications |
-| POST | `/api/notifications` | Create a notification |
-| PUT | `/api/notifications/[id]` | Update notification (mark read) |
-| POST | `/api/notifications/mark-all-read` | Mark all as read |
+
+| Method | Endpoint                           | Description                     |
+| ------ | ---------------------------------- | ------------------------------- |
+| GET    | `/api/notifications`               | List notifications              |
+| POST   | `/api/notifications`               | Create a notification           |
+| PUT    | `/api/notifications/[id]`          | Update notification (mark read) |
+| POST   | `/api/notifications/mark-all-read` | Mark all as read                |
 
 ### Other
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/users` | List users (admin) |
-| GET/POST | `/api/bookmarks` | Manage bookmarks |
+
+| Method   | Endpoint            | Description                     |
+| -------- | ------------------- | ------------------------------- |
+| GET      | `/api/users`        | List users (admin)              |
+| GET/POST | `/api/bookmarks`    | Manage bookmarks                |
 | GET/POST | `/api/certificates` | Issue and retrieve certificates |
-| POST | `/api/webhook` | Stripe webhook handler |
-| GET | `/api/health` | Health check |
-| GET | `/api/analysis` | Carbon credit analysis |
-| * | `/api/neo4j/*` | Neo4j graph operations |
-| * | `/api/immudb/*` | ImmuDB ledger operations |
+| POST     | `/api/webhook`      | Stripe webhook handler          |
+| GET      | `/api/health`       | Health check                    |
+| GET      | `/api/analysis`     | Carbon credit analysis          |
+| \*       | `/api/neo4j/*`      | Neo4j graph operations          |
+| \*       | `/api/immudb/*`     | ImmuDB ledger operations        |
 
 ## Testing
 
@@ -296,10 +320,72 @@ Run the full test suite:
 npm test
 ```
 
+Run tests in watch mode (re-runs on file changes):
+
+```bash
+npm run test:watch
+```
+
 Run tests with the interactive UI:
 
 ```bash
 npm run test:ui
+```
+
+Run tests with coverage:
+
+```bash
+npm run test:coverage
+```
+
+## Development Workflow
+
+### Pre-commit Hooks
+
+This project uses [Husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/lint-staged/lint-staged) to enforce code quality on every commit:
+
+- **TypeScript/TSX files**: Auto-formatted with Prettier, then linted with ESLint
+- **JSON/Markdown/YAML/CSS files**: Auto-formatted with Prettier
+
+Hooks are installed automatically via the `prepare` script when running `npm install`.
+
+### Code Formatting
+
+[Prettier](https://prettier.io/) is configured for consistent formatting. Check or apply formatting:
+
+```bash
+npm run format:check   # CI-friendly check
+npm run format         # Auto-fix formatting
+```
+
+### Full Validation
+
+Run the complete validation pipeline (same checks as CI) before pushing:
+
+```bash
+npm run validate
+```
+
+### CI/CD Pipeline
+
+GitHub Actions runs on every push and pull request to `main`:
+
+1. **Lint & Type Check** â€” ESLint, TypeScript compiler, Prettier formatting
+2. **Unit Tests** â€” Full Vitest test suite
+3. **Production Build** â€” Verifies the app builds successfully (runs after lint/tests pass)
+
+### Database Migrations
+
+In **development**, create and apply migrations:
+
+```bash
+npm run db:migrate
+```
+
+In **production**, apply pending migrations (non-interactive):
+
+```bash
+npx prisma migrate deploy
 ```
 
 ## Deployment
@@ -329,9 +415,10 @@ stripe listen --forward-to localhost:3000/api/webhook
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m "Add your feature"`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
+3. Make your changes and verify they pass validation: `npm run validate`
+4. Commit your changes (pre-commit hooks will lint and format automatically)
+5. Push to the branch (`git push origin feature/your-feature`)
+6. Open a Pull Request â€” CI will run lint, type-check, tests, and build
 
 ## License
 

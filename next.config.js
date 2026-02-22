@@ -33,6 +33,10 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()'
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com; font-src 'self'; connect-src 'self' *.supabase.co *.stripe.com; frame-src js.stripe.com checkout.stripe.com; object-src 'none'; base-uri 'self';"
           }
         ],
       },
