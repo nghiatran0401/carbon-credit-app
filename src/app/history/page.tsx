@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Download, FileText, Package } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import type { Order, OrderItem, User } from '@/types';
 import { DEFAULT_PAGE_SIZE } from '@/lib/constants';
@@ -123,10 +124,44 @@ export default function HistoryPage() {
   }
   if (isLoading)
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-emerald-200 border-t-emerald-600" />
-          <p className="text-sm text-gray-500">Loading...</p>
+      <div className="container mx-auto px-4 py-8 min-h-screen">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+          <Skeleton className="h-9 w-28" />
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <Skeleton className="h-10 w-80 rounded-md" />
+            <Skeleton className="h-10 w-80 sm:w-48 rounded-md" />
+            <Skeleton className="h-10 w-24 rounded-md" />
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-gray-200 bg-white shadow-md overflow-hidden"
+            >
+              <div className="bg-gray-50 rounded-t-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-4 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-44" />
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <Skeleton className="h-px w-full my-2" />
+                <div className="flex justify-end">
+                  <Skeleton className="h-5 w-24" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );

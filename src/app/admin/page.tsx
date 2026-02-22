@@ -240,7 +240,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-gray-50">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Sidebar */}
       <aside className="w-full lg:w-56 bg-white border-b lg:border-r lg:border-b-0 p-4 lg:p-6 flex flex-col gap-4">
         <h2 className="text-xl font-bold mb-4">Admin Panel</h2>

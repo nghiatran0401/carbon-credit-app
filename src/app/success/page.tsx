@@ -93,7 +93,7 @@ function SuccessPageContent() {
   }, [orderCode]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] py-12">
+    <div className="container mx-auto flex flex-col items-center justify-center min-h-[70vh] py-12 px-4">
       <div className="bg-green-100 rounded-full p-6 mb-4">
         <svg
           className="h-12 w-12 text-green-600"

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import Image from "next/image";
-import Link from "next/link";
+import { useEffect, useRef } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import {
   ArrowRight,
   ShieldCheck,
@@ -12,37 +12,37 @@ import {
   LineChart,
   Globe2,
   CheckCircle2,
-} from "lucide-react";
+} from 'lucide-react';
 
 const stats = [
-  { label: "Verified buyers and sellers", value: 18000, displayValue: "18k+" },
+  { label: 'Verified buyers and sellers', value: 18000, displayValue: '18k+' },
   {
-    label: "Tons of CO₂ tracked and monitored",
+    label: 'Tons of CO₂ tracked and monitored',
     value: 4800000,
-    displayValue: "4.8M+",
+    displayValue: '4.8M+',
   },
   {
-    label: "Forests listed on the marketplace",
+    label: 'Forests listed on the marketplace',
     value: 100,
-    displayValue: "100+",
+    displayValue: '100+',
   },
 ];
 
 const trust = [
   {
-    title: "AI-Verified Forest Data",
+    title: 'AI-Verified Forest Data',
     description:
-      "Satellite and LiDAR-powered models track canopy health, biomass, and carbon absorption in real time.",
+      'Satellite and LiDAR-powered models track canopy health, biomass, and carbon absorption in real time.',
     icon: Satellite,
   },
   {
-    title: "Blockchain Transparency",
+    title: 'Blockchain Transparency',
     description:
-      "Immutable tracking from issuance to retirement. No double counting, auditable by design.",
+      'Immutable tracking from issuance to retirement. No double counting, auditable by design.',
     icon: Blocks,
   },
   {
-    title: "Vietnam-Focused",
+    title: 'Vietnam-Focused',
     description:
       "Aligned with national net-zero roadmap and local policies. Built for Vietnam's forests and partners.",
     icon: Globe2,
@@ -51,45 +51,42 @@ const trust = [
 
 const features = [
   {
-    title: "AI-Powered Forest Credit Calculator",
+    title: 'AI-Powered Forest Credit Calculator',
     description:
-      "Advanced AI models that calculate carbon credits from satellite images with high accuracy.",
+      'Advanced AI models that calculate carbon credits from satellite images with high accuracy.',
     icon: MapIcon,
   },
   {
-    title: "Marketplace & Pricing",
-    description:
-      "Compare credits by price, impact, and certification in a clean trading UI.",
+    title: 'Marketplace & Pricing',
+    description: 'Compare credits by price, impact, and certification in a clean trading UI.',
     icon: LineChart,
   },
   {
-    title: "Secure Local Payments",
-    description: "Bank transfers, e-wallets, and cards. Optimized for Vietnam.",
+    title: 'Secure Local Payments',
+    description: 'Bank transfers, e-wallets, and cards. Optimized for Vietnam.',
     icon: ShieldCheck,
   },
   {
-    title: "Portfolio & Certificates",
-    description:
-      "Track ownership, retirement, and download ESG-ready certificates instantly.",
+    title: 'Portfolio & Certificates',
+    description: 'Track ownership, retirement, and download ESG-ready certificates instantly.',
     icon: CheckCircle2,
   },
 ];
 
 const steps = [
   {
-    title: "Explore & Compare",
+    title: 'Explore & Compare',
     description:
-      "Browse verified Vietnamese forest projects with live impact data and transparent pricing.",
+      'Browse verified Vietnamese forest projects with live impact data and transparent pricing.',
   },
   {
-    title: "Buy & Secure",
+    title: 'Buy & Secure',
     description:
-      "Purchase credits with local payments, lock ownership on-chain, and receive receipts instantly.",
+      'Purchase credits with local payments, lock ownership on-chain, and receive receipts instantly.',
   },
   {
-    title: "Track & Report",
-    description:
-      "Monitor your offsets, retire credits, and export ESG-ready certificates anytime.",
+    title: 'Track & Report',
+    description: 'Monitor your offsets, retire credits, and export ESG-ready certificates anytime.',
   },
 ];
 
@@ -123,9 +120,7 @@ function AnimatedStat({
             const elapsed = currentTime - start;
             const progress = Math.min(elapsed / duration, 1);
             const easedProgress = 1 - Math.pow(1 - progress, 3);
-            const currentValue = Math.floor(
-              startValue + (value - startValue) * easedProgress,
-            );
+            const currentValue = Math.floor(startValue + (value - startValue) * easedProgress);
 
             if (element) {
               if (value >= 1000000) {
@@ -167,7 +162,7 @@ function AnimatedStat({
 
 export default function LandingPage() {
   return (
-    <main className="relative overflow-hidden bg-gradient-to-b from-white via-green-50/40 to-white text-gray-900">
+    <div className="relative overflow-hidden bg-gradient-to-b from-white via-green-50/40 to-white text-gray-900">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -left-32 top-10 h-64 w-64 rounded-full bg-green-200/40 blur-3xl" />
         <div className="absolute right-0 top-20 h-80 w-80 rounded-full bg-emerald-100/50 blur-3xl" />
@@ -184,9 +179,8 @@ export default function LandingPage() {
                   EcoCredit – Vietnam&apos;s Carbon Credit Platform
                 </h1>
                 <p className="text-lg text-gray-600 leading-relaxed">
-                  Turn forest protection into climate action. Explore trusted
-                  projects, purchase credits with local payments, and download
-                  audit-ready certificates in minutes.
+                  Turn forest protection into climate action. Explore trusted projects, purchase
+                  credits with local payments, and download audit-ready certificates in minutes.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -236,12 +230,8 @@ export default function LandingPage() {
                       <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
                         Verified certificate
                       </p>
-                      <p className="mt-2 text-xl font-semibold">
-                        Mangrove Reserve | Can Gio
-                      </p>
-                      <p className="text-sm text-white/80">
-                        1,200 credits · VCS · Issued 2026
-                      </p>
+                      <p className="mt-2 text-xl font-semibold">Mangrove Reserve | Can Gio</p>
+                      <p className="text-sm text-white/80">1,200 credits · VCS · Issued 2026</p>
                     </div>
                     <ShieldCheck className="h-8 w-8" />
                   </div>
@@ -279,12 +269,8 @@ export default function LandingPage() {
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                     <item.icon className="h-6 w-6" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-gray-900">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-gray-600">
-                    {item.description}
-                  </p>
+                  <h3 className="mt-4 text-lg font-semibold text-gray-900">{item.title}</h3>
+                  <p className="mt-2 text-sm text-gray-600">{item.description}</p>
                 </div>
               ))}
             </div>
@@ -313,12 +299,8 @@ export default function LandingPage() {
                 <div className="relative flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                   <item.icon className="h-6 w-6" />
                 </div>
-                <h3 className="relative mt-4 text-lg font-semibold text-gray-900">
-                  {item.title}
-                </h3>
-                <p className="relative mt-2 text-sm text-gray-600">
-                  {item.description}
-                </p>
+                <h3 className="relative mt-4 text-lg font-semibold text-gray-900">{item.title}</h3>
+                <p className="relative mt-2 text-sm text-gray-600">{item.description}</p>
               </div>
             ))}
           </div>
@@ -345,9 +327,7 @@ export default function LandingPage() {
                 <div className="absolute right-4 top-4 h-10 w-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-semibold">
                   0{index + 1}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {step.title}
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-900">{step.title}</h3>
                 <p className="mt-3 text-sm text-gray-600">{step.description}</p>
               </div>
             ))}
@@ -367,8 +347,8 @@ export default function LandingPage() {
                 Protect forests. Offset carbon. Build trust.
               </h2>
               <p className="text-white/90">
-                Unlock the full value of nature-based credits. Transparent,
-                auditable, and ready for ESG reporting.
+                Unlock the full value of nature-based credits. Transparent, auditable, and ready for
+                ESG reporting.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
@@ -388,6 +368,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

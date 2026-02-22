@@ -9,13 +9,14 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ShoppingCart, Leaf, Shield } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { CartItem } from '@/types';
 
 export default function CartPage() {
   return (
-    <Suspense fallback={<div>Loading cart...</div>}>
+    <Suspense fallback={<CartSkeleton />}>
       <CartPageContent />
     </Suspense>
   );
@@ -80,15 +81,7 @@ function CartPageContent() {
   }, [searchParams, cart.length]);
 
   if (!userId) return <div className="p-8">Please log in to view your cart.</div>;
-  if (isLoading)
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-emerald-200 border-t-emerald-600" />
-          <p className="text-sm text-gray-500">Loading...</p>
-        </div>
-      </div>
-    );
+  if (isLoading) return <CartSkeleton />;
   const total = cart.reduce(
     (sum, item) => sum + item.quantity * (item.carbonCredit?.pricePerCredit || 0),
     0,
@@ -220,7 +213,55 @@ function CartPageContent() {
   );
 }
 
-// Helper for DELETE
+function CartSkeleton() {
+  return (
+    <div className="container mx-auto py-8 min-h-[70vh] flex flex-col lg:flex-row gap-8">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-4">
+          <Skeleton className="h-7 w-7 rounded" />
+          <Skeleton className="h-8 w-32" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex flex-col md:flex-row items-center md:items-stretch gap-4 p-4 rounded-lg border bg-white shadow-sm"
+            >
+              <Skeleton className="h-20 w-20 rounded-full shrink-0" />
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-12 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-9 w-20 rounded-md" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="w-full lg:w-80 lg:sticky lg:top-24 h-fit">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-lg p-4">
+          <Skeleton className="h-6 w-24 mb-4" />
+          <Skeleton className="h-px w-full mb-4" />
+          <div className="flex justify-between items-center mb-4">
+            <Skeleton className="h-5 w-12" />
+            <Skeleton className="h-8 w-20" />
+          </div>
+          <Skeleton className="h-px w-full mb-4" />
+          <Skeleton className="h-11 w-full rounded-md mb-2" />
+          <Skeleton className="h-4 w-32 mx-auto" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function apiDelete(url: string, data: { userId: number; carbonCreditId: number }) {
   const res = await fetch(url, {
     method: 'DELETE',

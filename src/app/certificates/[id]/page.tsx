@@ -41,7 +41,7 @@ export default function CertificateViewPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
@@ -54,7 +54,7 @@ export default function CertificateViewPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="flex items-center justify-center min-h-[60vh] p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center space-y-4">
             <p className="text-red-600">{error}</p>
@@ -69,7 +69,7 @@ export default function CertificateViewPage() {
 
   if (!certificate) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="flex items-center justify-center min-h-[60vh] p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
             <p className="text-gray-600">Certificate not found</p>
@@ -80,19 +80,14 @@ export default function CertificateViewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        {/* Certificate Display */}
-        <div className="mb-8">
-          <CertificateDisplay certificate={certificate} />
-        </div>
-
-        {/* Footer */}
-        <div className="text-center">
-          <Link href="/">
-            <Button variant="outline">Return to EcoCredit</Button>
-          </Link>
-        </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <CertificateDisplay certificate={certificate} />
+      </div>
+      <div className="text-center">
+        <Link href="/">
+          <Button variant="outline">Return to EcoCredit</Button>
+        </Link>
       </div>
     </div>
   );
