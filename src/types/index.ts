@@ -5,13 +5,12 @@
 export interface User {
   id: number;
   email: string;
-  supabaseUserId?: string | null; // Link to Supabase auth.users.id
+  supabaseUserId?: string | null;
   firstName: string;
   lastName: string;
   company?: string | null;
   role: string;
   emailVerified: boolean;
-  stripeCustomerId?: string | null;
   createdAt: string;
   updatedAt: string;
   orders?: Order[];
@@ -66,13 +65,17 @@ export interface CarbonCredit {
 export interface Payment {
   id: number;
   orderId: number;
-  stripeSessionId?: string;
-  stripePaymentIntentId?: string;
+  orderCode: number;
   amount: number;
   currency: string;
   status: string;
   failureReason?: string;
   method?: string;
+  paidAt?: string;
+  paymentData?: any;
+  payosPaymentLinkId?: string;
+  payosOrderCode?: number;
+  payosReference?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -127,10 +130,12 @@ export interface CertificateItem {
 // Order
 export interface Order {
   id: number;
+  orderCode: number;
   userId: number;
   createdAt: string;
   status: string;
   totalPrice: number;
+  paymentProvider?: string;
   user?: User;
   items?: OrderItem[];
   payments?: Payment[];

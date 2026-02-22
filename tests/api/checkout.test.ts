@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 
-const { mockUser, mockCartItem, mockSession } = vi.hoisted(() => ({
+const { mockUser, mockCartItem } = vi.hoisted(() => ({
   mockUser: {
     id: 1,
     email: 'user@test.com',
+    firstName: 'Test',
+    lastName: 'User',
     role: 'USER',
     emailVerified: true,
     supabaseUserId: 'user-123',
@@ -23,28 +25,13 @@ const { mockUser, mockCartItem, mockSession } = vi.hoisted(() => ({
       forest: { name: 'Test Forest' },
     },
   },
-  mockSession: {
-    id: 'cs_test_123',
-    url: 'https://checkout.stripe.com/test',
-  },
-}));
-
-vi.mock('stripe', () => ({
-  default: vi.fn(() => ({
-    checkout: {
-      sessions: {
-        create: vi.fn().mockResolvedValue({
-          id: 'cs_test_123',
-          url: 'https://checkout.stripe.com/test',
-        }),
-      },
-    },
-  })),
 }));
 
 vi.mock('@/lib/env', () => ({
   env: {
-    STRIPE_SECRET_KEY: 'sk_test_123',
+    PAYOS_CLIENT_ID: 'test-client-id',
+    PAYOS_API_KEY: 'test-api-key',
+    PAYOS_CHECKSUM_KEY: 'test-checksum-key',
     NEXT_PUBLIC_BASE_URL: 'http://localhost:3000',
   },
 }));
@@ -70,26 +57,36 @@ vi.mock('@/lib/prisma', () => ({
     cartItem: {
       findMany: vi.fn().mockResolvedValue([mockCartItem]),
     },
-    order: {
-      create: vi.fn().mockResolvedValue({
-        id: 1,
-        userId: mockUser.id,
-        status: 'PENDING',
-        totalPrice: 21,
-        totalCredits: 2,
-        currency: 'USD',
-        buyer: String(mockUser.id),
-        seller: 'Test Forest',
-        items: [],
-      }),
-    },
-    payment: {
-      create: vi.fn().mockResolvedValue({ id: 1 }),
-    },
-    orderHistory: {
-      create: vi.fn().mockResolvedValue({ id: 1 }),
-    },
   },
+}));
+
+vi.mock('@/lib/payment-service', () => ({
+  paymentService: {
+    generateUniqueOrderCode: vi.fn().mockResolvedValue(17400001234),
+    createPayOSOrder: vi.fn().mockResolvedValue({
+      id: 1,
+      orderCode: 17400001234,
+      userId: mockUser.id,
+      status: 'PENDING',
+      totalPrice: 21,
+      totalCredits: 2,
+    }),
+    updatePaymentWithPayOSInfo: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('@/lib/payos-service', () => ({
+  getPayOSService: vi.fn().mockReturnValue({
+    createPaymentLink: vi.fn().mockResolvedValue({
+      code: '00',
+      desc: 'Success',
+      data: {
+        orderCode: 17400001234,
+        paymentLinkId: 'pl_test_123',
+        checkoutUrl: 'https://pay.payos.vn/test',
+      },
+    }),
+  }),
 }));
 
 import { POST } from '@/app/api/checkout/route';
@@ -109,18 +106,16 @@ describe('Checkout API', () => {
     vi.clearAllMocks();
   });
 
-  it('successfully creates a checkout session', async () => {
+  it('successfully creates a payOS checkout session', async () => {
     const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data).toEqual({
-      sessionId: 'cs_test_123',
-      checkoutUrl: 'https://checkout.stripe.com/test',
+      orderCode: 17400001234,
+      checkoutUrl: 'https://pay.payos.vn/test',
+      paymentLinkId: 'pl_test_123',
     });
-    expect(prisma.order.create).toHaveBeenCalled();
-    expect(prisma.payment.create).toHaveBeenCalled();
-    expect(prisma.orderHistory.create).toHaveBeenCalled();
   });
 
   it('returns 401 when not authenticated', async () => {

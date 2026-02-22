@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (order.payments && order.payments.length > 0) {
       await prisma.payment.update({
         where: { id: order.payments[0].id },
-        data: { status: 'SUCCEEDED' },
+        data: { status: 'PAID' },
       });
     }
 

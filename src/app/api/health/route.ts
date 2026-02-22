@@ -19,7 +19,7 @@ export async function GET() {
     services: {
       immudb: !!process.env.IMMUDB_USERNAME,
       neo4j: !!process.env.NEO4J_URI,
-      stripe: !!process.env.STRIPE_SECRET_KEY,
+      payos: !!process.env.PAYOS_CLIENT_ID,
     },
     checks: {
       database: 'unknown' as 'ok' | 'error' | 'unknown',

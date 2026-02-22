@@ -12,7 +12,6 @@ const { mockUserData } = vi.hoisted(() => ({
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     emailVerified: true,
-    stripeCustomerId: null,
     supabaseUserId: 'admin-123',
     orders: [],
   },
@@ -49,7 +48,6 @@ vi.mock('@/lib/auth', () => {
       createdAt: true,
       updatedAt: true,
       emailVerified: true,
-      stripeCustomerId: true,
       supabaseUserId: true,
     },
   };

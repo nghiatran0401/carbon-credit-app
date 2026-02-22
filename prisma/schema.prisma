@@ -14,18 +14,20 @@ datasource db {
 
 enum OrderStatus {
   PENDING
+  PAID
   PROCESSING
   COMPLETED
   CANCELLED
   FAILED
+  EXPIRED
 }
 
 enum PaymentStatus {
   PENDING
-  SUCCEEDED
+  PAID
   FAILED
-  CANCELED
-  REFUNDED
+  CANCELLED
+  EXPIRED
 }
 
 enum UserRole {
@@ -65,22 +67,21 @@ model Bookmark {
 }
 
 model User {
-  id               Int            @id @default(autoincrement())
-  email            String         @unique
-  supabaseUserId   String?        @unique
-  firstName        String
-  lastName         String
-  company          String?
-  role             UserRole       @default(USER)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  deletedAt        DateTime?
-  orders           Order[]
-  bookmarks        Bookmark[]
-  cartItems        CartItem[]
-  emailVerified    Boolean        @default(false)
-  stripeCustomerId String?
-  notifications    Notification[]
+  id             Int            @id @default(autoincrement())
+  email          String         @unique
+  supabaseUserId String?        @unique
+  firstName      String
+  lastName       String
+  company        String?
+  role           UserRole       @default(USER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+  orders         Order[]
+  bookmarks      Bookmark[]
+  cartItems      CartItem[]
+  emailVerified  Boolean        @default(false)
+  notifications  Notification[]
 
   @@index([email])
   @@index([role])
@@ -143,6 +144,7 @@ model ExchangeRate {
 
 model Order {
   id              Int            @id @default(autoincrement())
+  orderCode       Int            @unique
   userId          Int
   createdAt       DateTime       @default(now())
   status          OrderStatus    @default(PENDING)
@@ -155,11 +157,10 @@ model Order {
   items           OrderItem[]
   seller          String
   buyer           String
-  paymentIntentId String?
   paidAt          DateTime?
   shippingAddress String?
-  stripeSessionId String?        @unique
   failureReason   String?
+  paymentProvider String         @default("PAYOS")
   payments        Payment[]
   orderHistory    OrderHistory[]
   certificate     Certificate?
@@ -167,7 +168,7 @@ model Order {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
-  @@index([stripeSessionId])
+  @@index([orderCode])
 }
 
 model OrderItem {
@@ -189,37 +190,42 @@ model OrderItem {
 }
 
 model CartItem {
-  id             Int           @id @default(autoincrement())
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         Int
-  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
+  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   carbonCreditId Int
   quantity       Int
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  addedAt        DateTime      @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  addedAt        DateTime     @default(now())
 
   @@unique([userId, carbonCreditId])
   @@index([userId])
 }
 
 model Payment {
-  id                    Int           @id @default(autoincrement())
-  orderId               Int
-  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stripeSessionId       String?       @unique
-  stripePaymentIntentId String?
-  amount                Float
-  currency              String        @default("USD")
-  status                PaymentStatus @default(PENDING)
-  failureReason         String?
-  method                String?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  id                 Int           @id @default(autoincrement())
+  orderId            Int
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderCode          Int
+  amount             Float
+  currency           String        @default("USD")
+  status             PaymentStatus @default(PENDING)
+  failureReason      String?
+  method             String?
+  paidAt             DateTime?
+  paymentData        Json?
+  payosPaymentLinkId String?
+  payosOrderCode     Int?
+  payosReference     String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@index([orderId])
+  @@index([orderCode])
   @@index([status])
-  @@index([stripeSessionId])
+  @@index([payosPaymentLinkId])
 }
 
 model OrderHistory {
@@ -265,4 +271,22 @@ model Notification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@index([type])
+}
+
+model WebhookEvent {
+  id           String    @id @default(cuid())
+  orderCode    Int
+  signature    String    @unique
+  status       String    @default("RETRYING")
+  processedAt  DateTime?
+  retryCount   Int       @default(0)
+  errorMessage String?
+  webhookData  Json
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([orderCode])
+  @@index([signature])
+  @@index([status, createdAt])
+  @@index([createdAt])
 }

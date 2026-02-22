@@ -20,7 +20,7 @@ interface OrderAudit {
 
 function SuccessPageContent() {
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get('session_id');
+  const orderCode = searchParams.get('orderCode');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<any>(null);
@@ -38,9 +38,9 @@ function SuccessPageContent() {
   }, []);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!orderCode) return;
     setLoading(true);
-    fetch(`/api/checkout/session?session_id=${sessionId}`)
+    fetch(`/api/checkout/session?orderCode=${orderCode}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
         return res.json();
@@ -49,8 +49,7 @@ function SuccessPageContent() {
         setOrder(data.order);
         setPayment(data.payment);
 
-        // Fetch certificate if order is completed
-        if (data.order?.status === 'Completed') {
+        if (data.order?.status === 'COMPLETED') {
           try {
             const certResponse = await fetch(`/api/certificates?orderId=${data.order.id}`);
             if (certResponse.ok) {
@@ -61,14 +60,12 @@ function SuccessPageContent() {
             console.error('Error fetching certificate:', err);
           }
 
-          // Fetch audit record from ImmuDB
           setAuditLoading(true);
           try {
             const auditResponse = await fetch('/api/orders/audit');
             if (auditResponse.ok) {
               const auditData = await auditResponse.json();
               if (auditData.success && auditData.audits) {
-                // Find the audit record for this order
                 const orderAudit = auditData.audits.find(
                   (a: OrderAudit) => a.orderId === data.order.id,
                 );
@@ -85,7 +82,6 @@ function SuccessPageContent() {
         }
 
         setLoading(false);
-        // Remove cart from localStorage if you use it
         if (typeof window !== 'undefined') {
           localStorage.removeItem('cart');
         }
@@ -94,7 +90,7 @@ function SuccessPageContent() {
         setError(err.message);
         setLoading(false);
       });
-  }, [sessionId]);
+  }, [orderCode]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] py-12">
@@ -121,6 +117,9 @@ function SuccessPageContent() {
             Order ID: <span className="font-mono">{order.id}</span>
           </div>
           <div className="mb-2 text-sm text-gray-700">
+            Order Code: <span className="font-mono">{order.orderCode}</span>
+          </div>
+          <div className="mb-2 text-sm text-gray-700">
             Status: <span className="font-semibold text-green-700">{order.status}</span>
           </div>
           <div className="mb-2 text-sm text-gray-700">
@@ -132,9 +131,6 @@ function SuccessPageContent() {
             <span className="font-mono">
               {order.paidAt ? new Date(order.paidAt).toLocaleString() : '-'}
             </span>
-          </div>
-          <div className="mb-2 text-sm text-gray-700">
-            Session ID: <span className="font-mono">{payment.stripeSessionId}</span>
           </div>
           <div className="mb-2 text-sm text-gray-700">Items:</div>
           <ul className="list-disc pl-6 text-gray-700">

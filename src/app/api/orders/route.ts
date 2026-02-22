@@ -65,8 +65,13 @@ export async function POST(req: NextRequest) {
     const userId = auth.id;
 
     let totalPrice = 0;
+    const timePart = Math.floor(Date.now() / 1000) % 100000;
+    const random = Math.floor(Math.random() * 9000) + 1000;
+    const orderCode = timePart * 10000 + random;
+
     const createdOrder = await prisma.order.create({
       data: {
+        orderCode,
         userId,
         status,
         totalPrice: 0,

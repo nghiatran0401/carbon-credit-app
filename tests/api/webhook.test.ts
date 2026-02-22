@@ -1,63 +1,45 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockGetHeader, mockConstructEvent, mockPayment, mockOrder } = vi.hoisted(() => {
-  const mockPayment = {
+const { mockOrder, mockVerifyWebhookSignature } = vi.hoisted(() => ({
+  mockOrder: {
     id: 1,
-    orderId: 1,
-    stripeSessionId: 'cs_test_123',
-    stripePaymentIntentId: null as string | null,
-    amount: 2100,
-    currency: 'USD',
-    status: 'PENDING' as const,
-    method: 'card',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    failureReason: null as string | null,
-  };
-  const mockOrder = {
-    id: 1,
+    orderCode: 17400001234,
     userId: 1,
-    status: 'COMPLETED',
+    status: 'PENDING',
     totalPrice: 21,
-    paidAt: new Date(),
+    paidAt: null as Date | null,
     items: [{ id: 1, quantity: 2, carbonCredit: { id: 1 } }],
-  };
-  return {
-    mockGetHeader: vi.fn(),
-    mockConstructEvent: vi.fn(),
-    mockPayment,
-    mockOrder,
-  };
-});
-
-vi.mock('next/headers', () => ({
-  headers: vi.fn(() => ({ get: mockGetHeader })),
-}));
-
-vi.mock('stripe', () => ({
-  default: vi.fn(() => ({
-    webhooks: {
-      constructEvent: mockConstructEvent,
-    },
-  })),
+  },
+  mockVerifyWebhookSignature: vi.fn().mockResolvedValue({
+    orderCode: 17400001234,
+    amount: 2100,
+    description: 'Carbon Credits',
+    reference: 'ref_123',
+    transactionDateTime: '2026-02-22T10:00:00Z',
+    paymentLinkId: 'pl_test_123',
+    code: '00',
+    desc: 'Success',
+    accountNumber: '1234567890',
+    accountName: 'Test',
+    currency: 'USD',
+  }),
 }));
 
 vi.mock('@/lib/env', () => ({
   env: {
-    STRIPE_SECRET_KEY: 'sk_test_123',
-    STRIPE_WEBHOOK_SECRET: 'whsec_test_123',
+    PAYOS_CLIENT_ID: 'test-client-id',
+    PAYOS_API_KEY: 'test-api-key',
+    PAYOS_CHECKSUM_KEY: 'test-checksum-key',
+    NEXT_PUBLIC_BASE_URL: 'http://localhost:3000',
   },
 }));
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    payment: {
-      findFirst: vi.fn().mockResolvedValue(mockPayment),
-      update: vi.fn().mockResolvedValue({ ...mockPayment, status: 'SUCCEEDED' }),
-    },
     order: {
-      update: vi.fn().mockResolvedValue(mockOrder),
+      findUnique: vi.fn().mockResolvedValue(mockOrder),
+      update: vi.fn().mockResolvedValue({ ...mockOrder, status: 'COMPLETED', paidAt: new Date() }),
     },
     orderHistory: {
       create: vi.fn().mockResolvedValue({ id: 1 }),
@@ -66,6 +48,18 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
   },
+}));
+
+vi.mock('@/lib/payment-service', () => ({
+  paymentService: {
+    processPayOSWebhook: vi.fn().mockResolvedValue({ processed: true }),
+  },
+}));
+
+vi.mock('@/lib/payos-service', () => ({
+  getPayOSService: vi.fn().mockReturnValue({
+    verifyWebhookSignature: mockVerifyWebhookSignature,
+  }),
 }));
 
 vi.mock('@/lib/certificate-service', () => ({
@@ -93,101 +87,106 @@ vi.mock('@/lib/carbon-movement-service', () => ({
   },
 }));
 
-import { POST } from '@/app/api/webhook/route';
+import { POST, GET } from '@/app/api/webhook/route';
 
-const webhookRequest = (body: string, signature: string | null = 'stripe_sig_xxx') => {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (signature) headers['stripe-signature'] = signature;
-  return new NextRequest('http://localhost/api/webhook', {
+const payosWebhookPayload = {
+  code: '00',
+  desc: 'Success',
+  success: true,
+  data: {
+    orderCode: 17400001234,
+    amount: 2100,
+    description: 'Carbon Credits',
+    reference: 'ref_123',
+    transactionDateTime: '2026-02-22T10:00:00Z',
+    paymentLinkId: 'pl_test_123',
+    code: '00',
+    desc: 'Success',
+    accountNumber: '1234567890',
+    accountName: 'Test',
+    currency: 'USD',
+  },
+  signature: 'valid_sig_xxx',
+};
+
+const webhookRequest = (body: string) =>
+  new NextRequest('http://localhost/api/webhook', {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body,
   });
-};
 
 describe('Webhook API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetHeader.mockImplementation((name: string) =>
-      name === 'stripe-signature' ? 'stripe_sig_xxx' : null,
-    );
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it('successfully handles checkout.session.completed event', async () => {
-    const sessionPayload = {
-      id: 'cs_test_123',
-      amount_total: 2100,
-      currency: 'usd',
-      payment_intent: 'pi_xxx',
-    };
-    mockConstructEvent.mockReturnValue({
-      type: 'checkout.session.completed',
-      data: { object: sessionPayload },
-    });
-
-    const req = webhookRequest(JSON.stringify({ type: 'checkout.session.completed' }));
+  it('successfully handles a payOS payment success webhook', async () => {
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(mockConstructEvent).toHaveBeenCalled();
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.orderCode).toBe(17400001234);
   });
 
-  it('successfully handles payment_intent.payment_failed event', async () => {
-    const paymentIntentPayload = {
-      id: 'pi_xxx',
-      last_payment_error: { message: 'Card declined' },
-    };
-    mockConstructEvent.mockReturnValue({
-      type: 'payment_intent.payment_failed',
-      data: { object: paymentIntentPayload },
-    });
+  it('returns 200 for empty body (validation request)', async () => {
+    const req = webhookRequest('');
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.message).toBe('Webhook endpoint is active');
+  });
 
+  it('returns 400 for invalid JSON', async () => {
+    const req = webhookRequest('not json');
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe('Invalid JSON');
+  });
+
+  it('returns 401 when webhook signature verification fails', async () => {
+    mockVerifyWebhookSignature.mockRejectedValueOnce(new Error('Invalid signature'));
+
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const data = await res.json();
+    expect(data.error).toBe('Invalid signature');
+  });
+
+  it('returns 200 when order is not found (prevents retries)', async () => {
     const { prisma } = await import('@/lib/prisma');
-    vi.mocked(prisma.payment.findFirst).mockResolvedValueOnce({
-      ...mockPayment,
-      stripePaymentIntentId: 'pi_xxx',
-    });
+    vi.mocked(prisma.order.findUnique).mockResolvedValueOnce(null);
 
-    const req = webhookRequest(JSON.stringify({ type: 'payment_intent.payment_failed' }));
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(mockConstructEvent).toHaveBeenCalled();
+    const data = await res.json();
+    expect(data.message).toMatch(/order not found/i);
   });
 
-  it('returns 400 when stripe-signature header is missing', async () => {
-    mockGetHeader.mockImplementationOnce(() => null);
+  it('handles already-processed webhooks gracefully', async () => {
+    const { paymentService } = await import('@/lib/payment-service');
+    vi.mocked(paymentService.processPayOSWebhook).mockResolvedValueOnce({ processed: false });
 
-    const req = webhookRequest('{}');
-    const res = await POST(req);
-    expect(res.status).toBe(400);
-    const text = await res.text();
-    expect(text).toBe('No signature found');
-    expect(mockConstructEvent).not.toHaveBeenCalled();
-  });
-
-  it('returns 400 when webhook signature verification fails', async () => {
-    mockConstructEvent.mockImplementationOnce(() => {
-      throw new Error('Invalid signature');
-    });
-
-    const req = webhookRequest(JSON.stringify({ type: 'checkout.session.completed' }));
-    const res = await POST(req);
-    expect(res.status).toBe(400);
-    const text = await res.text();
-    expect(text).toBe('Webhook signature verification failed');
-  });
-
-  it('handles unknown event types gracefully', async () => {
-    mockConstructEvent.mockReturnValue({
-      type: 'customer.subscription.deleted',
-      data: { object: {} },
-    });
-
-    const req = webhookRequest(JSON.stringify({ type: 'customer.subscription.deleted' }));
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
     const res = await POST(req);
     expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.message).toBe('Webhook already processed');
+  });
+
+  it('GET returns health check info', async () => {
+    const req = new NextRequest('http://localhost/api/webhook', { method: 'GET' });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.message).toMatch(/PayOS webhook endpoint/);
   });
 });

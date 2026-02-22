@@ -23,7 +23,6 @@ export const PUBLIC_USER_SELECT = {
   createdAt: true,
   updatedAt: true,
   emailVerified: true,
-  stripeCustomerId: true,
   supabaseUserId: true,
 } as const;
 

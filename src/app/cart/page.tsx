@@ -60,7 +60,7 @@ function CartPageContent() {
         router.push(res.checkoutUrl);
         return;
       }
-      setError('Stripe checkout URL not returned.');
+      setError('Checkout URL not returned.');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Checkout failed');
     }

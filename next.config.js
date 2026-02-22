@@ -36,7 +36,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com; font-src 'self'; connect-src 'self' *.supabase.co *.stripe.com; frame-src js.stripe.com checkout.stripe.com; object-src 'none'; base-uri 'self';"
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com; font-src 'self'; connect-src 'self' *.supabase.co *.payos.vn; frame-src *.payos.vn; object-src 'none'; base-uri 'self';"
           }
         ],
       },

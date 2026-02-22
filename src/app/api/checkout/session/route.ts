@@ -11,13 +11,18 @@ export async function GET(req: NextRequest) {
     const auth = await requireAuth(req);
     if (isAuthError(auth)) return auth;
 
-    const sessionId = req.nextUrl.searchParams.get('session_id');
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Missing session_id' }, { status: 400 });
+    const orderCodeParam = req.nextUrl.searchParams.get('orderCode');
+    if (!orderCodeParam) {
+      return NextResponse.json({ error: 'Missing orderCode' }, { status: 400 });
+    }
+
+    const orderCode = Number(orderCodeParam);
+    if (isNaN(orderCode)) {
+      return NextResponse.json({ error: 'Invalid orderCode' }, { status: 400 });
     }
 
     const payment = await prisma.payment.findFirst({
-      where: { stripeSessionId: sessionId },
+      where: { orderCode },
       include: {
         order: {
           include: {
@@ -35,7 +40,7 @@ export async function GET(req: NextRequest) {
     if (payment.order.status === 'PENDING' && payment.status === 'PENDING') {
       await prisma.payment.update({
         where: { id: payment.id },
-        data: { status: 'SUCCEEDED' },
+        data: { status: 'PAID', paidAt: new Date() },
       });
 
       await prisma.order.update({
@@ -50,7 +55,7 @@ export async function GET(req: NextRequest) {
         data: {
           orderId: payment.order.id,
           event: 'paid',
-          message: `Order completed via success page for session ${sessionId}`,
+          message: `Order completed via success page for orderCode ${orderCode}`,
         },
       });
 
@@ -69,7 +74,7 @@ export async function GET(req: NextRequest) {
       }
 
       const updatedPayment = await prisma.payment.findFirst({
-        where: { stripeSessionId: sessionId },
+        where: { orderCode },
         include: {
           order: {
             include: {

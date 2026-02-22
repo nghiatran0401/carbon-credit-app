@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nghiatran0401/carbon-credit-app/actions/workflows/ci.yml/badge.svg)](https://github.com/nghiatran0401/carbon-credit-app/actions/workflows/ci.yml)
 
-A full-stack marketplace for exploring, analyzing, and trading carbon credits — built with Next.js 14, Prisma, Supabase, and Stripe.
+A full-stack marketplace for exploring, analyzing, and trading carbon credits — built with Next.js 14, Prisma, Supabase, and PayOS.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits �
 **Marketplace & Trading**
 
 - Browse and purchase carbon credits from verified forest projects
-- Shopping cart with multi-item checkout via Stripe
+- Shopping cart with multi-item checkout via PayOS
 - Order history with real-time status tracking
 - Digital certificates for completed purchases (PDF generation)
 - Bookmark favorite forest projects
@@ -68,7 +68,7 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits �
 | Database         | [PostgreSQL](https://www.postgresql.org/) via [Supabase](https://supabase.com/)    |
 | ORM              | [Prisma](https://www.prisma.io/)                                                   |
 | Auth             | [Supabase Auth](https://supabase.com/docs/guides/auth)                             |
-| Payments         | [Stripe](https://stripe.com/)                                                      |
+| Payments         | [PayOS](https://payos.vn/)                                                         |
 | Styling          | [Tailwind CSS](https://tailwindcss.com/)                                           |
 | UI Components    | [Radix UI](https://www.radix-ui.com/) / [shadcn/ui](https://ui.shadcn.com/)        |
 | Data Fetching    | [SWR](https://swr.vercel.app/)                                                     |
@@ -85,7 +85,7 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits �
 - **Node.js** >= 18
 - **npm** >= 8
 - **PostgreSQL** database ([Supabase](https://supabase.com/) free tier works)
-- **Stripe** account (test mode for development)
+- **PayOS** account (test mode for development)
 
 ## Getting Started
 
@@ -199,9 +199,9 @@ Create a `.env` file in the project root (see `.env.example`):
 | `NEXT_PUBLIC_SUPABASE_URL`      | Yes      | Supabase project URL                           |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes      | Supabase anonymous/public key                  |
 | `SUPABASE_SERVICE_ROLE_KEY`     | Yes      | Supabase service role key                      |
-| `STRIPE_SECRET_KEY`             | Yes      | Stripe secret key                              |
-| `STRIPE_PUBLISHABLE_KEY`        | Yes      | Stripe publishable key                         |
-| `STRIPE_WEBHOOK_SECRET`         | Yes      | Stripe webhook signing secret                  |
+| `PAYOS_CLIENT_ID`               | Yes      | PayOS client ID                                |
+| `PAYOS_API_KEY`                 | Yes      | PayOS API key                                  |
+| `PAYOS_CHECKSUM_KEY`            | Yes      | PayOS checksum key for webhook verification    |
 | `NODE_ENV`                      | No       | `development` or `production`                  |
 
 ## Database
@@ -210,11 +210,11 @@ Create a `.env` file in the project root (see `.env.example`):
 
 The database is managed with [Prisma](https://www.prisma.io/) and includes the following models:
 
-- **User** — accounts with role-based access (admin/user), Stripe customer linking
+- **User** — accounts with role-based access (admin/user)
 - **Forest** — carbon credit source projects with location, type, area, and status
 - **CarbonCredit** — tradeable credits tied to forests with vintage, certification, and pricing
 - **Order / OrderItem** — purchase records with multi-currency support
-- **Payment** — Stripe payment tracking with status and failure handling
+- **Payment** — PayOS payment tracking with status and failure handling
 - **OrderHistory** — immutable audit log of order state transitions
 - **Certificate** — verifiable purchase certificates with hash integrity
 - **Notification** — in-app notification system with read tracking
@@ -277,7 +277,7 @@ All routes are under `/api/` and follow RESTful conventions.
 | POST   | `/api/cart`             | Add item to cart            |
 | PUT    | `/api/cart`             | Update cart item            |
 | DELETE | `/api/cart`             | Remove item from cart       |
-| POST   | `/api/checkout`         | Initiate Stripe checkout    |
+| POST   | `/api/checkout`         | Initiate PayOS checkout     |
 | GET    | `/api/checkout/session` | Get checkout session status |
 
 ### Notifications
@@ -296,7 +296,7 @@ All routes are under `/api/` and follow RESTful conventions.
 | GET      | `/api/users`        | List users (admin)              |
 | GET/POST | `/api/bookmarks`    | Manage bookmarks                |
 | GET/POST | `/api/certificates` | Issue and retrieve certificates |
-| POST     | `/api/webhook`      | Stripe webhook handler          |
+| POST     | `/api/webhook`      | PayOS webhook handler           |
 | GET      | `/api/health`       | Health check                    |
 | GET      | `/api/analysis`     | Carbon credit analysis          |
 | \*       | `/api/neo4j/*`      | Neo4j graph operations          |
@@ -397,19 +397,21 @@ npm run build
 npm start
 ```
 
-### Stripe Webhooks
+### PayOS Webhooks
 
-Configure your Stripe dashboard to send payment events to:
+Configure your PayOS dashboard to send payment events to:
 
 ```
 https://your-domain.com/api/webhook
 ```
 
-For local development, use the [Stripe CLI](https://stripe.com/docs/stripe-cli):
+For local development, use ngrok or a similar tunneling tool to expose your local server:
 
 ```bash
-stripe listen --forward-to localhost:3000/api/webhook
+ngrok http 3000
 ```
+
+Then set the webhook URL in your PayOS dashboard to the ngrok URL + `/api/webhook`.
 
 ## Contributing
 

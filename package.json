@@ -36,6 +36,7 @@
     ]
   },
   "dependencies": {
+    "@payos/node": "^2.0.4",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^6.18.0",
     "@radix-ui/react-accordion": "^1.1.2",
@@ -52,8 +53,6 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.0.7",
-    "@stripe/react-stripe-js": "^3.7.0",
-    "@stripe/stripe-js": "^7.5.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
     "canvas-confetti": "^1.9.3",
@@ -79,7 +78,6 @@
     "react-is": "^19.2.3",
     "react-leaflet": "^4.2.1",
     "recharts": "^3.1.0",
-    "stripe": "^18.3.0",
     "swr": "^2.3.4",
     "tailwind-merge": "^2.0.0",
     "tailwindcss-animate": "^1.0.7",

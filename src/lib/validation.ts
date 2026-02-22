@@ -49,7 +49,9 @@ export const carbonCreditCreateSchema = z.object({
 export const carbonCreditUpdateSchema = carbonCreditCreateSchema.partial().merge(idSchema);
 
 export const orderCreateSchema = z.object({
-  status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']).default('PENDING'),
+  status: z
+    .enum(['PENDING', 'PAID', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED', 'EXPIRED'])
+    .default('PENDING'),
   items: z
     .array(
       z.object({
@@ -63,7 +65,9 @@ export const orderCreateSchema = z.object({
 
 export const orderUpdateSchema = z.object({
   id: z.number().int().positive(),
-  status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED']).optional(),
+  status: z
+    .enum(['PENDING', 'PAID', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED', 'EXPIRED'])
+    .optional(),
   totalPrice: z.number().nonnegative().optional(),
   totalCredits: z.number().int().nonnegative().optional(),
   paidAt: z.string().datetime().or(z.date()).optional().nullable(),
