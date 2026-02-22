@@ -102,10 +102,11 @@ export default function BiomassMapBase({
 
   // Initialize Map
   useEffect(() => {
-    const loadLeaflet = async () => {
-      if (typeof window === "undefined" || mapRef.current) return;
+    let cancelled = false;
 
-      // CSS
+    const loadLeaflet = async () => {
+      if (typeof window === "undefined") return;
+
       if (!document.getElementById("leaflet-css")) {
         const leafletCSS = document.createElement("link");
         leafletCSS.id = "leaflet-css";
@@ -113,13 +114,11 @@ export default function BiomassMapBase({
         leafletCSS.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(leafletCSS);
       }
-      
-      // We don't load draw CSS here, parent should if needed, or we can check if we need it.
-      // Actually, let's just load standard leaflet. Draw is specific to Editor.
 
       const L = await import("leaflet");
-      
-      // Fix markers
+
+      if (cancelled || mapRef.current) return;
+
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
@@ -130,10 +129,9 @@ export default function BiomassMapBase({
       const map = L.map(mapContainerRef.current as HTMLDivElement, {
         center: center,
         zoom: zoom,
-        zoomControl: false // We can add it manually or let default. Default is top-left.
+        zoomControl: false,
       });
-      
-      // Add Zoom Control to top-right to avoid conflict if we have sidebars
+
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
       const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -155,6 +153,15 @@ export default function BiomassMapBase({
     };
 
     loadLeaflet();
+
+    return () => {
+      cancelled = true;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        setLeafletReady(false);
+      }
+    };
   }, []); // Init once
 
   // Handle view updates (bounds change, mask change, resize, zoom/move)
@@ -233,7 +240,7 @@ export default function BiomassMapBase({
       <div ref={mapContainerRef} className="w-full h-full bg-[#1a1f2e]" />
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 z-[400] pointer-events-none" // Lower z-index to be below UI but above map
+        className="absolute top-0 left-0 w-full h-full z-[400] pointer-events-none"
       />
       
       {/* Layer Toggle Button - Floating */}
