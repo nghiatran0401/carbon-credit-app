@@ -90,6 +90,12 @@ function DeltaIndicator({ value }: { value: number }) {
   );
 }
 
+const SUCCESSFUL_STATUSES = new Set(['PAID', 'COMPLETED', 'PROCESSING']);
+
+function isSuccessfulOrder(order: Order): boolean {
+  return SUCCESSFUL_STATUSES.has(order.status?.toUpperCase() || '');
+}
+
 export default function DashboardOverview({
   orders,
   credits,
@@ -103,18 +109,20 @@ export default function DashboardOverview({
   const curMonth = now.getMonth();
   const curYear = now.getFullYear();
 
+  const successfulOrders = useMemo(() => orders.filter(isSuccessfulOrder), [orders]);
+
   const totalRevenue = useMemo(
-    () => orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
-    [orders],
+    () => successfulOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0),
+    [successfulOrders],
   );
 
   const totalCreditsSold = useMemo(
     () =>
-      orders.reduce(
+      successfulOrders.reduce(
         (sum, o) => sum + (o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0),
         0,
       ),
-    [orders],
+    [successfulOrders],
   );
 
   const isPrevMonth = useCallback(
@@ -132,25 +140,25 @@ export default function DashboardOverview({
   const revenueChange = useMemo(() => {
     let curr = 0,
       prev = 0;
-    orders.forEach((o) => {
+    successfulOrders.forEach((o) => {
       const d = new Date(o.createdAt);
       if (isCurMonth(d)) curr += o.totalPrice || 0;
       else if (isPrevMonth(d)) prev += o.totalPrice || 0;
     });
     return prev > 0 ? ((curr - prev) / prev) * 100 : curr > 0 ? 100 : 0;
-  }, [orders, isCurMonth, isPrevMonth]);
+  }, [successfulOrders, isCurMonth, isPrevMonth]);
 
   const creditsChange = useMemo(() => {
     let curr = 0,
       prev = 0;
-    orders.forEach((o) => {
+    successfulOrders.forEach((o) => {
       const d = new Date(o.createdAt);
       const qty = o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0;
       if (isCurMonth(d)) curr += qty;
       else if (isPrevMonth(d)) prev += qty;
     });
     return prev > 0 ? ((curr - prev) / prev) * 100 : curr > 0 ? 100 : 0;
-  }, [orders, isCurMonth, isPrevMonth]);
+  }, [successfulOrders, isCurMonth, isPrevMonth]);
 
   const userGrowthChange = useMemo(() => {
     let curr = 0,
@@ -192,14 +200,14 @@ export default function DashboardOverview({
       'Dec',
     ];
     const data = months.map((month) => ({ month, revenue: 0, credits: 0 }));
-    orders.forEach((o) => {
+    successfulOrders.forEach((o) => {
       const d = new Date(o.createdAt);
       if (d.getFullYear() !== selectedYear) return;
       data[d.getMonth()].revenue += o.totalPrice || 0;
       data[d.getMonth()].credits += o.items?.reduce((s, i) => s + (i.quantity || 0), 0) || 0;
     });
     return data;
-  }, [orders, selectedYear]);
+  }, [successfulOrders, selectedYear]);
 
   const orderStatusData = useMemo(() => {
     const map = new Map<string, number>();
@@ -228,7 +236,7 @@ export default function DashboardOverview({
 
   const topForests = useMemo(() => {
     const map = new Map<number, { name: string; creditsSold: number; revenue: number }>();
-    orders.forEach((o) =>
+    successfulOrders.forEach((o) =>
       o.items?.forEach((item) => {
         const fid = item.carbonCredit?.forestId;
         if (!fid) return;
@@ -243,14 +251,14 @@ export default function DashboardOverview({
     return Array.from(map.values())
       .sort((a, b) => b.creditsSold - a.creditsSold)
       .slice(0, 5);
-  }, [orders, forests]);
+  }, [successfulOrders, forests]);
 
   const topUsers = useMemo(() => {
     const map = new Map<
       number,
       { email: string; name: string; totalSpent: number; orderCount: number }
     >();
-    orders.forEach((o) => {
+    successfulOrders.forEach((o) => {
       const uid = o.user?.id;
       if (!uid) return;
       if (!map.has(uid))
@@ -267,7 +275,7 @@ export default function DashboardOverview({
     return Array.from(map.values())
       .sort((a, b) => b.totalSpent - a.totalSpent)
       .slice(0, 5);
-  }, [orders]);
+  }, [successfulOrders]);
 
   const recentOrders = useMemo(
     () =>
@@ -319,7 +327,7 @@ export default function DashboardOverview({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `orders-${selectedYear}.csv`;
+    a.download = `orders-all-${selectedYear}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }, [orders, selectedYear]);
