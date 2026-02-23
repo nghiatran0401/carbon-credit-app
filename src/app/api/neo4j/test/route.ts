@@ -47,11 +47,13 @@ export async function POST(req: Request) {
     const { action } = await req.json();
 
     if (action === 'sync') {
-      await carbonMovementService.syncAllData();
+      carbonMovementService.syncAllData().catch((err) => {
+        console.error('Background Neo4j sync failed:', err);
+      });
 
       return NextResponse.json({
         success: true,
-        message: 'All data synced to Neo4j successfully',
+        message: 'Neo4j sync started in background',
         timestamp: new Date().toISOString(),
       });
     }

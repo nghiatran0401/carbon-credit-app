@@ -1,17 +1,24 @@
 import { prisma } from './prisma';
 import { orderAuditService } from './order-audit-service';
 
+interface OrderForAudit {
+  id: number;
+  status: string;
+  paidAt: Date | null;
+  totalPrice: number;
+  items: Array<{ quantity: number }>;
+  [key: string]: unknown;
+}
+
+type AuditResult = { exists: boolean; created: boolean; error?: string };
+
 class OrderAuditMiddleware {
   /**
-   * Ensure audit record exists for a completed order
+   * Ensure audit record exists for a completed order (fetches from DB by ID).
+   * Used by webhook handler for single-order processing.
    */
-  async ensureOrderAudit(orderId: number): Promise<{
-    exists: boolean;
-    created: boolean;
-    error?: string;
-  }> {
+  async ensureOrderAudit(orderId: number): Promise<AuditResult> {
     try {
-      // Get the order details
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: {
@@ -27,48 +34,7 @@ class OrderAuditMiddleware {
         throw new Error(`Order ${orderId} not found`);
       }
 
-      if (order.status !== 'COMPLETED' || !order.paidAt) {
-        return { exists: false, created: false, error: 'Order not completed' };
-      }
-
-      // Calculate total credits
-      const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
-
-      // Read buyer/seller from order
-      const buyer = (order as Record<string, unknown>).buyer as string | undefined;
-      const seller = (order as Record<string, unknown>).seller as string | undefined;
-
-      // Check if audit record already exists
-      try {
-        const verification = await orderAuditService.verifyOrderIntegrity(order.id, {
-          orderId: order.id,
-          totalCredits,
-          totalPrice: order.totalPrice,
-          paidAt: order.paidAt,
-          buyer,
-          seller,
-        });
-
-        if (verification.storedHash) {
-          console.log(`✅ Audit record already exists for order ${orderId}`);
-          return { exists: true, created: false };
-        }
-      } catch (error) {
-        // Record doesn't exist, continue to create it
-      }
-
-      // Create audit record (include buyer/seller)
-      await orderAuditService.storeOrderAudit({
-        orderId: order.id,
-        totalCredits,
-        totalPrice: order.totalPrice,
-        paidAt: order.paidAt,
-        buyer,
-        seller,
-      });
-
-      console.log(`✅ Created audit record for order ${orderId}`);
-      return { exists: false, created: true };
+      return this.processOrderAudit(order as OrderForAudit);
     } catch (error: unknown) {
       console.error(
         `❌ Error ensuring audit for order ${orderId}:`,
@@ -83,7 +49,49 @@ class OrderAuditMiddleware {
   }
 
   /**
-   * Process all completed orders and ensure they have audit records
+   * Core audit logic operating on a pre-loaded order — no extra DB fetch.
+   */
+  private async processOrderAudit(order: OrderForAudit): Promise<AuditResult> {
+    if (order.status !== 'COMPLETED' || !order.paidAt) {
+      return { exists: false, created: false, error: 'Order not completed' };
+    }
+
+    const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
+    const buyer = order.buyer as string | undefined;
+    const seller = order.seller as string | undefined;
+
+    try {
+      const verification = await orderAuditService.verifyOrderIntegrity(order.id, {
+        orderId: order.id,
+        totalCredits,
+        totalPrice: order.totalPrice,
+        paidAt: order.paidAt,
+        buyer,
+        seller,
+      });
+
+      if (verification.storedHash) {
+        return { exists: true, created: false };
+      }
+    } catch {
+      // Record doesn't exist, continue to create it
+    }
+
+    await orderAuditService.storeOrderAudit({
+      orderId: order.id,
+      totalCredits,
+      totalPrice: order.totalPrice,
+      paidAt: order.paidAt,
+      buyer,
+      seller,
+    });
+
+    return { exists: false, created: true };
+  }
+
+  /**
+   * Process all completed orders and ensure they have audit records.
+   * Fetches all orders with items in a single query to avoid N+1.
    */
   async processAllCompletedOrders(): Promise<{
     processed: number;
@@ -97,6 +105,13 @@ class OrderAuditMiddleware {
           status: 'COMPLETED',
           paidAt: { not: null },
         },
+        include: {
+          items: {
+            include: {
+              carbonCredit: true,
+            },
+          },
+        },
         orderBy: { id: 'desc' },
       });
 
@@ -107,7 +122,7 @@ class OrderAuditMiddleware {
       let errors = 0;
 
       for (const order of completedOrders) {
-        const result = await this.ensureOrderAudit(order.id);
+        const result = await this.processOrderAudit(order as OrderForAudit);
 
         if (result.created) created++;
         else if (result.exists) existing++;
@@ -133,9 +148,6 @@ class OrderAuditMiddleware {
     }
   }
 
-  /**
-   * Run audit check in background (can be called periodically)
-   */
   async runBackgroundAuditCheck(): Promise<void> {
     try {
       console.log('🕐 Running background audit check...');

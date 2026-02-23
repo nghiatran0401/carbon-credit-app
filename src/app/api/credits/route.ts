@@ -19,12 +19,16 @@ export async function GET(req: NextRequest) {
     const availability = url.searchParams.get('availability');
     const sortBy = url.searchParams.get('sortBy');
 
+    const cacheHeaders = {
+      'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=120',
+    };
+
     if (!page) {
       const credits = await prisma.carbonCredit.findMany({
         include: { forest: true },
         orderBy: { id: 'asc' },
       });
-      return NextResponse.json(credits);
+      return NextResponse.json(credits, { headers: cacheHeaders });
     }
 
     const where: Record<string, unknown> = {};
@@ -62,15 +66,18 @@ export async function GET(req: NextRequest) {
       prisma.carbonCredit.count({ where }),
     ]);
 
-    return NextResponse.json({
-      data: credits,
-      pagination: {
-        page: pageNum,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    return NextResponse.json(
+      {
+        data: credits,
+        pagination: {
+          page: pageNum,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
-    });
+      { headers: cacheHeaders },
+    );
   } catch (error) {
     return handleRouteError(error, 'Failed to fetch credits');
   }

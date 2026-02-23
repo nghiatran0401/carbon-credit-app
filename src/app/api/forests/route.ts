@@ -14,12 +14,16 @@ export async function GET(req: NextRequest) {
     const page = url.searchParams.get('page');
     const limit = Number(url.searchParams.get('limit')) || 20;
 
+    const cacheHeaders = {
+      'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=120',
+    };
+
     if (!page) {
       const forests = await prisma.forest.findMany({
         include: { credits: true },
         orderBy: { id: 'asc' },
       });
-      return NextResponse.json(forests);
+      return NextResponse.json(forests, { headers: cacheHeaders });
     }
 
     const pageNum = Math.max(1, Number(page));
@@ -33,15 +37,18 @@ export async function GET(req: NextRequest) {
       prisma.forest.count(),
     ]);
 
-    return NextResponse.json({
-      data: forests,
-      pagination: {
-        page: pageNum,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    return NextResponse.json(
+      {
+        data: forests,
+        pagination: {
+          page: pageNum,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
-    });
+      { headers: cacheHeaders },
+    );
   } catch (error) {
     return handleRouteError(error, 'Failed to fetch forests');
   }
