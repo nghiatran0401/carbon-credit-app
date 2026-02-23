@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
+import { emailService } from '@/lib/email-service';
 import { z } from 'zod';
 import { validateBody, isValidationError } from '@/lib/validation';
 
@@ -88,6 +89,37 @@ export async function POST(req: NextRequest) {
 
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    if (emailService.isEnabled()) {
+      try {
+        const user = await prisma.user.findUnique({ where: { id: auth.id } });
+        const orderItem = await prisma.orderItem.findUnique({
+          where: { id: orderItemId },
+          include: {
+            carbonCredit: {
+              select: {
+                certification: true,
+                vintage: true,
+                forest: { select: { name: true } },
+              },
+            },
+          },
+        });
+
+        if (user && orderItem?.carbonCredit) {
+          await emailService.sendCreditsRetired({
+            userName: `${user.firstName} ${user.lastName}`.trim(),
+            userEmail: user.email,
+            quantity,
+            certification: orderItem.carbonCredit.certification,
+            vintage: orderItem.carbonCredit.vintage,
+            forestName: orderItem.carbonCredit.forest?.name ?? 'Forest',
+          });
+        }
+      } catch (emailErr) {
+        console.error('Failed to send retirement email:', emailErr);
+      }
     }
 
     return NextResponse.json(result.data);

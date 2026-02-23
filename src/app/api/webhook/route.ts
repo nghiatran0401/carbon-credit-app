@@ -5,6 +5,7 @@ import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { paymentService } from '@/lib/payment-service';
 import { getPayOSService, type PayOSWebhookData } from '@/lib/payos-service';
+import { emailService } from '@/lib/email-service';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -124,7 +125,60 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        await certificateService.generateCertificate(order.id);
+        const cert = await certificateService.generateCertificate(order.id);
+
+        if (cert && emailService.isEnabled()) {
+          try {
+            const fullOrder = await prisma.order.findUnique({
+              where: { id: order.id },
+              include: {
+                user: true,
+                items: {
+                  include: {
+                    carbonCredit: { include: { forest: { select: { name: true } } } },
+                  },
+                },
+              },
+            });
+
+            if (fullOrder?.user) {
+              const userName = `${fullOrder.user.firstName} ${fullOrder.user.lastName}`.trim();
+
+              await emailService.sendOrderConfirmation({
+                userName,
+                userEmail: fullOrder.user.email,
+                orderId: fullOrder.id,
+                orderCode: fullOrder.orderCode,
+                totalPrice: fullOrder.totalPrice,
+                items: fullOrder.items.map((item) => ({
+                  certification: item.carbonCredit?.certification ?? '',
+                  vintage: item.carbonCredit?.vintage ?? 0,
+                  quantity: item.quantity,
+                  pricePerCredit: item.pricePerCredit,
+                  subtotal: item.subtotal,
+                  forestName: item.carbonCredit?.forest?.name,
+                })),
+              });
+
+              const certData = cert as unknown as {
+                id?: string;
+                metadata?: { totalCredits?: number; forestName?: string };
+              };
+              if (certData.id) {
+                await emailService.sendCertificateIssued({
+                  userName,
+                  userEmail: fullOrder.user.email,
+                  certificateId: certData.id,
+                  orderId: fullOrder.id,
+                  totalCredits: certData.metadata?.totalCredits ?? 0,
+                  forestName: certData.metadata?.forestName ?? 'Forest',
+                });
+              }
+            }
+          } catch (emailErr) {
+            console.error(`Failed to send emails for order ${order.id}:`, emailErr);
+          }
+        }
       } catch (certError) {
         console.error('Error generating certificate for order:', order.id, certError);
       }

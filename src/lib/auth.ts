@@ -5,6 +5,8 @@ import { prisma } from './prisma';
 export interface AuthenticatedUser {
   id: number;
   email: string;
+  firstName: string;
+  lastName: string;
   role: string;
   emailVerified: boolean;
   supabaseUserId: string;
@@ -54,6 +56,8 @@ export async function getAuthenticatedUser(req: NextRequest): Promise<Authentica
     return {
       id: dbUser.id,
       email: dbUser.email,
+      firstName: dbUser.firstName,
+      lastName: dbUser.lastName,
       role: dbUser.role,
       emailVerified: dbUser.emailVerified,
       supabaseUserId: supabaseUser.id,

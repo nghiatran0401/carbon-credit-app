@@ -154,6 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'User record not found immediately after signup. It may be created by trigger shortly.',
         );
       }
+
+      fetch('/api/email/welcome', { method: 'POST' }).catch(() => {});
     },
     [supabase],
   );

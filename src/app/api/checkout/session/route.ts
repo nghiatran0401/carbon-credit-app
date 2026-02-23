@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
+import { emailService } from '@/lib/email-service';
 
 async function runBestEffortSideEffects(orderId: number) {
   try {
@@ -89,6 +90,43 @@ export async function GET(req: NextRequest) {
       });
 
       await runBestEffortSideEffects(payment.order.id);
+
+      if (emailService.isEnabled()) {
+        try {
+          const fullOrder = await prisma.order.findUnique({
+            where: { id: payment.order.id },
+            include: {
+              user: true,
+              items: {
+                include: {
+                  carbonCredit: { include: { forest: { select: { name: true } } } },
+                },
+              },
+            },
+          });
+
+          if (fullOrder?.user) {
+            const userName = `${fullOrder.user.firstName} ${fullOrder.user.lastName}`.trim();
+            await emailService.sendOrderConfirmation({
+              userName,
+              userEmail: fullOrder.user.email,
+              orderId: fullOrder.id,
+              orderCode: fullOrder.orderCode,
+              totalPrice: fullOrder.totalPrice,
+              items: fullOrder.items.map((item) => ({
+                certification: item.carbonCredit?.certification ?? '',
+                vintage: item.carbonCredit?.vintage ?? 0,
+                quantity: item.quantity,
+                pricePerCredit: item.pricePerCredit,
+                subtotal: item.subtotal,
+                forestName: item.carbonCredit?.forest?.name,
+              })),
+            });
+          }
+        } catch (emailErr) {
+          console.error(`Failed to send order email for order ${payment.order.id}:`, emailErr);
+        }
+      }
 
       const updatedPayment = await prisma.payment.findFirst({
         where: { orderCode },
