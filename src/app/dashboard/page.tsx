@@ -14,6 +14,20 @@ import { apiGet } from '@/lib/api';
 import { biomassToCredits, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
+interface PlatformStats {
+  totalCredits: number;
+  availableCredits: number;
+  retiredCredits: number;
+  totalValue: number;
+  totalAreaKm2: number;
+  totalForests: number;
+  activeForests: number;
+  totalUsers: number;
+  completedOrders: number;
+  totalRevenue: number;
+  creditsSold: number;
+}
+
 interface ForestStats {
   forestBiomassMg?: number;
   forestAreaKm2?: number;
@@ -46,6 +60,7 @@ export default function DashboardPage() {
     isLoading,
     mutate,
   } = useSWR<SavedForest[]>('/api/analysis', apiGet);
+  const { data: platformStats } = useSWR<PlatformStats>('/api/stats', apiGet);
   const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
 
   const { data: forestDetail, isLoading: isDetailLoading } = useSWR<ForestDetail>(
@@ -71,19 +86,10 @@ export default function DashboardPage() {
     [forests, selectedForestId],
   );
 
-  const { totalCredits, totalArea, totalValue } = useMemo(() => {
-    const credits = forests.reduce((sum: number, f: SavedForest) => {
-      return sum + (f.stats?.forestBiomassMg ? biomassToCredits(f.stats.forestBiomassMg) : 0);
-    }, 0);
-    const area = forests.reduce((sum: number, f: SavedForest) => {
-      return sum + (f.stats?.forestAreaKm2 || 0);
-    }, 0);
-    return {
-      totalCredits: credits,
-      totalArea: area,
-      totalValue: credits * DEFAULT_PRICE_PER_CREDIT,
-    };
-  }, [forests]);
+  const totalCredits = platformStats?.totalCredits ?? 0;
+  const totalArea = platformStats?.totalAreaKm2 ?? 0;
+  const totalValue = platformStats?.totalValue ?? 0;
+  const activeForests = platformStats?.activeForests ?? forests.length;
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -200,12 +206,7 @@ export default function DashboardPage() {
           value={totalArea.toFixed(2)}
           unit="km²"
         />
-        <OverviewCard
-          title="Active Zones"
-          icon={TrendingUp}
-          value={forests.length}
-          unit="forests"
-        />
+        <OverviewCard title="Active Zones" icon={TrendingUp} value={activeForests} unit="forests" />
       </div>
 
       {/* Main Content */}

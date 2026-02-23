@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -17,19 +17,11 @@ import {
   Hash,
 } from 'lucide-react';
 
-const stats = [
-  { label: 'Verified buyers and sellers', value: 18000, displayValue: '18k+' },
-  {
-    label: 'Tons of CO₂ tracked and monitored',
-    value: 4800000,
-    displayValue: '4.8M+',
-  },
-  {
-    label: 'Forests listed on the marketplace',
-    value: 100,
-    displayValue: '100+',
-  },
-];
+function formatStatValue(value: number, suffix = '+'): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M${suffix}`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k${suffix}`;
+  return `${value}${suffix}`;
+}
 
 const trust = [
   {
@@ -164,6 +156,39 @@ function AnimatedStat({
 }
 
 export default function LandingPage() {
+  const [stats, setStats] = useState([
+    { label: 'Verified buyers and sellers', value: 0, displayValue: '...' },
+    { label: 'Tons of CO₂ tracked and monitored', value: 0, displayValue: '...' },
+    { label: 'Forests listed on the marketplace', value: 0, displayValue: '...' },
+  ]);
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setStats([
+            {
+              label: 'Registered users',
+              value: data.totalUsers || 0,
+              displayValue: formatStatValue(data.totalUsers || 0, '+'),
+            },
+            {
+              label: 'Tons of CO₂ tracked and monitored',
+              value: data.totalCredits || 0,
+              displayValue: formatStatValue(data.totalCredits || 0, '+'),
+            },
+            {
+              label: 'Forests listed on the marketplace',
+              value: data.totalForests || 0,
+              displayValue: formatStatValue(data.totalForests || 0, '+'),
+            },
+          ]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="relative overflow-hidden bg-gradient-to-b from-white via-green-50/40 to-white text-gray-900">
       <div className="absolute inset-0 pointer-events-none">
