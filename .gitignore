@@ -30,6 +30,7 @@ next-env.d.ts
 
 # local data / dumps
 saved_analyses.json
+saved_analyses.json.bak
 *.sql
 
 # os

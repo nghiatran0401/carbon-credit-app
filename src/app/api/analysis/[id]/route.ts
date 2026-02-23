@@ -2,19 +2,21 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'saved_analyses.json');
+const ANALYSES_DIR = path.join(process.cwd(), 'data', 'analyses');
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const data = await fs.readFile(DATA_FILE, 'utf-8');
-    const analyses: Record<string, unknown>[] = JSON.parse(data);
-    const analysis = analyses.find((a) => a.id === id);
+    const filePath = path.join(ANALYSES_DIR, `${id}.json`);
 
-    if (!analysis) {
+    let raw: string;
+    try {
+      raw = await fs.readFile(filePath, 'utf-8');
+    } catch {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    const analysis: Record<string, unknown> = JSON.parse(raw);
     const { biomassData, ...rest } = analysis;
     return NextResponse.json(rest);
   } catch {

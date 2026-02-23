@@ -1,18 +1,54 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type Bounds = { north: number; south: number; east: number; west: number };
 
 interface BiomassMapBaseProps {
   bounds: Bounds | null;
   mask: number[][] | null;
-  // For editor mode, we might want to control the view or layers externally
   onMapReady?: (map: unknown, L: unknown) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
-  // Optional: force a specific view center/zoom
   center?: [number, number];
   zoom?: number;
+}
+
+/**
+ * Pre-renders a mask grid into an offscreen canvas using ImageData (single
+ * putImageData call instead of N*M fillRect calls). The returned canvas is
+ * cols × rows pixels and can be stamped onto the visible canvas with one
+ * drawImage per frame, making zoom/pan redraws essentially free.
+ */
+function buildMaskTexture(mask: number[][]): HTMLCanvasElement {
+  const rows = mask.length;
+  const cols = mask[0]?.length ?? 0;
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = cols;
+  offscreen.height = rows;
+
+  const ctx = offscreen.getContext('2d');
+  if (!ctx || !rows || !cols) return offscreen;
+
+  const imageData = ctx.createImageData(cols, rows);
+  const px = imageData.data; // Uint8ClampedArray — R,G,B,A per pixel
+
+  for (let i = 0; i < rows; i++) {
+    const row = mask[i];
+    const rowOffset = i * cols * 4;
+    for (let j = 0; j < cols; j++) {
+      if (row[j] > 0) {
+        const idx = rowOffset + j * 4;
+        px[idx] = 0; // R
+        px[idx + 1] = 255; // G
+        px[idx + 2] = 0; // B
+        px[idx + 3] = 102; // A  (~0.4 opacity)
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return offscreen;
 }
 
 export default function BiomassMapBase({
@@ -20,7 +56,7 @@ export default function BiomassMapBase({
   mask,
   onMapReady,
   onCanvasReady,
-  center = [10.4, 106.92], // Default to Cần Giờ
+  center = [10.4, 106.92],
   zoom = 11,
 }: BiomassMapBaseProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -31,78 +67,57 @@ export default function BiomassMapBase({
   // eslint-disable-next-line
   const layersRef = useRef<{ street: any; satellite: any }>({ street: null, satellite: null });
 
-  // Draw mask on canvas
-  const drawMaskOnCanvas = () => {
-    if (!canvasRef.current || !mapRef.current || !mask || !bounds) return;
+  // Cached offscreen texture — rebuilt only when `mask` changes
+  const maskTextureRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Build / invalidate the offscreen texture whenever mask changes
+  useEffect(() => {
+    if (mask && mask.length > 0 && mask[0]?.length > 0) {
+      maskTextureRef.current = buildMaskTexture(mask);
+    } else {
+      maskTextureRef.current = null;
+    }
+  }, [mask]);
+
+  // Stamp the pre-built texture onto the visible overlay canvas.
+  // This runs on every zoom/pan but is a single drawImage — sub-ms.
+  const drawMaskOnCanvas = useCallback(() => {
+    if (!canvasRef.current || !mapRef.current || !bounds) return;
+
+    const texture = maskTextureRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const map = mapRef.current;
-
-    // Ensure canvas matches map container size and device pixel ratio
     const mapEl = map.getContainer() as HTMLElement;
     const mapWidth = mapEl.clientWidth;
     const mapHeight = mapEl.clientHeight;
     const dpr = window.devicePixelRatio || 1;
 
-    if (
-      canvas.width !== Math.floor(mapWidth * dpr) ||
-      canvas.height !== Math.floor(mapHeight * dpr)
-    ) {
-      canvas.width = Math.floor(mapWidth * dpr);
-      canvas.height = Math.floor(mapHeight * dpr);
-      const newCtx = canvas.getContext('2d');
-      if (newCtx) newCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    } else {
-      // Clear canvas if size matched (otherwise resize clears it)
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const targetW = Math.floor(mapWidth * dpr);
+    const targetH = Math.floor(mapHeight * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
     }
 
-    // Re-set transform in case context was lost or reset
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, mapWidth, mapHeight); // Clear in logical pixels
+    ctx.clearRect(0, 0, mapWidth, mapHeight);
 
-    // Get bounds in container pixels
-    const rectNE = { lat: bounds.north, lng: bounds.east };
-    const rectSW = { lat: bounds.south, lng: bounds.west };
-    const topRight = map.latLngToContainerPoint(rectNE);
-    const bottomLeft = map.latLngToContainerPoint(rectSW);
+    if (!texture) return;
 
-    const canvasLeft = bottomLeft.x;
-    const canvasTop = topRight.y;
-    const canvasRight = topRight.x;
-    const canvasBottom = bottomLeft.y;
+    const topRight = map.latLngToContainerPoint({ lat: bounds.north, lng: bounds.east });
+    const bottomLeft = map.latLngToContainerPoint({ lat: bounds.south, lng: bounds.west });
 
-    const rectCanvasWidth = canvasRight - canvasLeft;
-    const rectCanvasHeight = canvasBottom - canvasTop;
-
-    // Mask shape
-    const rows = mask.length;
-    const cols = mask[0]?.length || 0;
-    if (!rows || !cols) return;
-
-    const scaleX = rectCanvasWidth / cols;
-    const scaleY = rectCanvasHeight / rows;
-
-    // Draw mask - semi-transparent green for forest
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
-
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        if (mask[i][j] > 0) {
-          // Draw slightly larger to avoid gaps? Math.ceil helps
-          ctx.fillRect(
-            canvasLeft + j * scaleX,
-            canvasTop + i * scaleY,
-            Math.ceil(scaleX),
-            Math.ceil(scaleY),
-          );
-        }
-      }
-    }
-  };
+    ctx.drawImage(
+      texture,
+      bottomLeft.x,
+      topRight.y,
+      topRight.x - bottomLeft.x,
+      bottomLeft.y - topRight.y,
+    );
+  }, [bounds]);
 
   // Initialize Map
   useEffect(() => {
@@ -167,52 +182,44 @@ export default function BiomassMapBase({
         setLeafletReady(false);
       }
     };
-    // Init once; adding deps would re-run map init and cause loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle view updates (bounds change, mask change, resize, zoom/move)
+  // Redraw on map move/zoom — only moveend and resize (not the continuous events)
   useEffect(() => {
     if (!leafletReady || !mapRef.current) return;
     const map = mapRef.current;
 
-    const handleRedraw = () => requestAnimationFrame(drawMaskOnCanvas);
+    let rafId: number | null = null;
+    const handleRedraw = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        drawMaskOnCanvas();
+        rafId = null;
+      });
+    };
 
-    map.on('zoom', handleRedraw);
-    map.on('move', handleRedraw);
-    map.on('zoomend', handleRedraw);
     map.on('moveend', handleRedraw);
     map.on('resize', handleRedraw);
 
     return () => {
-      map.off('zoom', handleRedraw);
-      map.off('move', handleRedraw);
-      map.off('zoomend', handleRedraw);
       map.off('moveend', handleRedraw);
       map.off('resize', handleRedraw);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
-    // drawMaskOnCanvas is stable; adding it would not change behavior
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leafletReady, mask, bounds]);
+  }, [leafletReady, drawMaskOnCanvas]);
 
-  // Trigger redraw when data changes AND fit bounds if bounds changed
+  // Redraw when mask/bounds data arrives
   useEffect(() => {
-    if (leafletReady && mask && bounds && mapRef.current) {
+    if (leafletReady && bounds && mapRef.current) {
       requestAnimationFrame(drawMaskOnCanvas);
     }
-    // drawMaskOnCanvas reads refs; adding it would not change behavior
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mask, bounds, leafletReady]);
+  }, [mask, bounds, leafletReady, drawMaskOnCanvas]);
 
-  // Fit bounds when bounds prop changes (for dashboard navigation)
+  // Fit bounds when bounds prop changes
   useEffect(() => {
     if (leafletReady && bounds && mapRef.current) {
       const map = mapRef.current;
-      // Calculate center and zoom to fit bounds
-      const latCenter = (bounds.north + bounds.south) / 2;
-      const lngCenter = (bounds.east + bounds.west) / 2;
-
-      // Create Leaflet bounds and fit
       import('leaflet').then((L) => {
         const leafletBounds = L.latLngBounds(
           [bounds.south, bounds.west],
@@ -221,7 +228,6 @@ export default function BiomassMapBase({
         map.fitBounds(leafletBounds, { padding: [50, 50], animate: true });
       });
     }
-    // Only trigger on bounds change; adding mapRef would cause re-fit loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bounds, leafletReady]);
 
@@ -256,7 +262,6 @@ export default function BiomassMapBase({
         className="absolute top-0 left-0 w-full h-full z-[400] pointer-events-none"
       />
 
-      {/* Layer Toggle Button - Floating */}
       <button
         className="absolute bottom-4 left-4 z-[500] px-3 py-2 rounded-md text-xs font-medium border border-[#1e3a2a] bg-[#0b1324] text-[#10b981] hover:bg-[#13324a] transition shadow-lg"
         onClick={toggleLayer}
