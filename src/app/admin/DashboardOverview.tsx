@@ -76,17 +76,20 @@ function formatNumber(value: number): string {
   return value.toLocaleString();
 }
 
-function DeltaIndicator({ value }: { value: number }) {
-  if (value === 0) return <span className="text-xs text-muted-foreground">No change</span>;
+function DeltaIndicator({ value, label }: { value: number; label?: string }) {
+  if (value === 0)
+    return <p className="text-xs text-muted-foreground mt-1">{label || 'No change'}</p>;
   const positive = value > 0;
   return (
-    <span
-      className={`inline-flex items-center gap-0.5 text-xs font-medium ${positive ? 'text-emerald-600' : 'text-red-600'}`}
-    >
-      {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-      {Math.abs(value).toFixed(1)}%
-      <span className="text-muted-foreground font-normal ml-1">vs last mo.</span>
-    </span>
+    <p className="mt-1">
+      <span
+        className={`inline-flex items-center gap-0.5 text-xs font-medium ${positive ? 'text-emerald-600' : 'text-red-600'}`}
+      >
+        {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+        {Math.abs(value).toFixed(1)}%
+      </span>
+      <span className="text-xs text-muted-foreground ml-1.5">vs last month</span>
+    </p>
   );
 }
 
@@ -343,16 +346,11 @@ export default function DashboardOverview({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            Monitor your carbon credit platform performance
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
+        <div className="flex items-center gap-2">
           <Select value={String(selectedYear)} onValueChange={(v) => onYearChange(Number(v))}>
-            <SelectTrigger className="w-28">
+            <SelectTrigger className="w-[100px] h-9 text-sm">
               <SelectValue placeholder="Year" />
             </SelectTrigger>
             <SelectContent>
@@ -363,71 +361,61 @@ export default function DashboardOverview({
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={handleDownloadCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
+          <Button variant="outline" size="sm" className="h-9" onClick={handleDownloadCSV}>
+            <Download className="h-4 w-4 mr-1.5" />
+            Export
           </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalRevenue)}</p>
-                <DeltaIndicator value={revenueChange} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <DollarSign className="h-4 w-4 text-emerald-600" />
               </div>
-              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-emerald-600" />
-              </div>
+              <p className="text-sm text-muted-foreground">Total Revenue</p>
             </div>
+            <p className="text-2xl font-bold tracking-tight">{formatCurrency(totalRevenue)}</p>
+            <DeltaIndicator value={revenueChange} />
           </CardContent>
         </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Credits Sold</p>
-                <p className="text-2xl font-bold">{formatNumber(totalCreditsSold)}</p>
-                <DeltaIndicator value={creditsChange} />
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                <Leaf className="h-4 w-4 text-blue-600" />
               </div>
-              <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
-                <Leaf className="h-6 w-6 text-blue-600" />
-              </div>
+              <p className="text-sm text-muted-foreground">Credits Sold</p>
             </div>
+            <p className="text-2xl font-bold tracking-tight">{formatNumber(totalCreditsSold)}</p>
+            <DeltaIndicator value={creditsChange} />
           </CardContent>
         </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Active Projects</p>
-                <p className="text-2xl font-bold">{forests.length}</p>
-                <span className="text-xs text-muted-foreground">
-                  {credits.length} credit listings
-                </span>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                <Globe className="h-4 w-4 text-violet-600" />
               </div>
-              <div className="h-12 w-12 rounded-full bg-violet-50 flex items-center justify-center">
-                <Globe className="h-6 w-6 text-violet-600" />
-              </div>
+              <p className="text-sm text-muted-foreground">Active Projects</p>
             </div>
+            <p className="text-2xl font-bold tracking-tight">{forests.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">{credits.length} credit listings</p>
           </CardContent>
         </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{users.length}</p>
-                <DeltaIndicator value={userGrowthChange} />
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-8 w-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                <Users className="h-4 w-4 text-amber-600" />
               </div>
-              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center">
-                <Users className="h-6 w-6 text-amber-600" />
-              </div>
+              <p className="text-sm text-muted-foreground">Total Users</p>
             </div>
+            <p className="text-2xl font-bold tracking-tight">{users.length}</p>
+            <DeltaIndicator value={userGrowthChange} />
           </CardContent>
         </Card>
       </div>
