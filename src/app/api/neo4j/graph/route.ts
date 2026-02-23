@@ -1,12 +1,18 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { carbonMovementService } from '@/lib/carbon-movement-service';
+import { requireAuth, isAuthError } from '@/lib/auth';
 
-export async function GET(req: Request) {
+const MAX_GRAPH_LIMIT = 500;
+
+export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
+    const rawLimit = parseInt(req.nextUrl.searchParams.get('limit') || '50');
+    const limit = Math.min(Math.max(1, rawLimit), MAX_GRAPH_LIMIT);
 
     const graphData = await carbonMovementService.getCarbonCreditMovementGraph(limit);
 
@@ -21,13 +27,9 @@ export async function GET(req: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('Graph data error:', message);
+    console.error('Graph data error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        message,
-      },
+      { success: false, message: 'Failed to load graph data' },
       { status: 500 },
     );
   }

@@ -1,13 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { biomassToCredits, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
+import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 const ANALYSES_DIR = path.join(process.cwd(), 'data', 'analyses');
 const INDEX_FILE = path.join(ANALYSES_DIR, 'index.json');
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 async function ensureDir() {
   await fs.mkdir(ANALYSES_DIR, { recursive: true });
@@ -44,8 +46,11 @@ export async function GET() {
   return NextResponse.json(index);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
     const body = await req.json();
 
     const newAnalysis: Record<string, unknown> = {
@@ -118,8 +123,11 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 
@@ -127,10 +135,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
+    if (!SAFE_ID_PATTERN.test(id)) {
+      return NextResponse.json({ error: 'Invalid analysis ID' }, { status: 400 });
+    }
+
     const index = await readIndex();
     const toDelete = index.find((a) => a.id === id);
 
-    // Clean up corresponding Prisma Forest (cascade deletes CarbonCredit)
     if (toDelete?.prismaForestId) {
       try {
         await prisma.forest.delete({
@@ -141,17 +152,17 @@ export async function DELETE(req: Request) {
       }
     }
 
-    // Remove from index
     const filtered = index.filter((a) => a.id !== id);
     await writeIndex(filtered);
 
-    // Remove individual file (ignore if missing)
     const filePath = path.join(ANALYSES_DIR, `${id}.json`);
-    await fs.unlink(filePath).catch(() => {});
+    const resolved = path.resolve(filePath);
+    if (resolved.startsWith(path.resolve(ANALYSES_DIR))) {
+      await fs.unlink(filePath).catch(() => {});
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting analysis:', error);
-    return NextResponse.json({ error: 'Failed to delete analysis' }, { status: 500 });
+    return handleRouteError(error, 'Failed to delete analysis');
   }
 }

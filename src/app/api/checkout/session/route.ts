@@ -6,6 +6,19 @@ import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 
+async function runBestEffortSideEffects(orderId: number) {
+  try {
+    await orderAuditMiddleware.ensureOrderAudit(orderId);
+  } catch (err) {
+    console.error(`Failed to create audit trail for order ${orderId}:`, err);
+  }
+  try {
+    await carbonMovementService.trackOrderMovement(orderId);
+  } catch (err) {
+    console.error(`Failed to track movement for order ${orderId}:`, err);
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
@@ -37,41 +50,45 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
+    if (payment.order.userId !== auth.id && auth.role?.toLowerCase() !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     if (payment.order.status === 'PENDING' && payment.status === 'PENDING') {
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: 'PAID', paidAt: new Date() },
+      const paidAt = new Date();
+
+      await prisma.$transaction(async (tx) => {
+        const currentOrder = await tx.order.findUnique({
+          where: { id: payment.order.id },
+          select: { status: true },
+        });
+
+        if (currentOrder?.status !== 'PENDING') {
+          return;
+        }
+
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'PAID', paidAt },
+        });
+
+        await tx.order.update({
+          where: { id: payment.order.id },
+          data: { status: 'COMPLETED', paidAt },
+        });
+
+        await tx.orderHistory.create({
+          data: {
+            orderId: payment.order.id,
+            event: 'paid',
+            message: `Order completed via success page for orderCode ${orderCode}`,
+          },
+        });
+
+        await tx.cartItem.deleteMany({ where: { userId: payment.order.userId } });
       });
 
-      await prisma.order.update({
-        where: { id: payment.order.id },
-        data: {
-          status: 'COMPLETED',
-          paidAt: new Date(),
-        },
-      });
-
-      await prisma.orderHistory.create({
-        data: {
-          orderId: payment.order.id,
-          event: 'paid',
-          message: `Order completed via success page for orderCode ${orderCode}`,
-        },
-      });
-
-      await prisma.cartItem.deleteMany({ where: { userId: payment.order.userId } });
-
-      try {
-        await orderAuditMiddleware.ensureOrderAudit(payment.order.id);
-      } catch (auditError) {
-        console.error(`Failed to create audit trail for order ${payment.order.id}:`, auditError);
-      }
-
-      try {
-        await carbonMovementService.trackOrderMovement(payment.order.id);
-      } catch (movementError) {
-        console.error(`Failed to track movement for order ${payment.order.id}:`, movementError);
-      }
+      await runBestEffortSideEffects(payment.order.id);
 
       const updatedPayment = await prisma.payment.findFirst({
         where: { orderCode },
@@ -92,16 +109,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (payment.order.status === 'COMPLETED') {
-      try {
-        await orderAuditMiddleware.ensureOrderAudit(payment.order.id);
-      } catch {
-        // best-effort
-      }
-      try {
-        await carbonMovementService.trackOrderMovement(payment.order.id);
-      } catch {
-        // best-effort
-      }
+      await runBestEffortSideEffects(payment.order.id);
     }
 
     return NextResponse.json({

@@ -3,8 +3,18 @@ import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/certificates/route';
 import { certificateService } from '@/lib/certificate-service';
 import { pdfCertificateGenerator } from '@/lib/pdf-certificate-generator';
+import type { Certificate } from '@/types';
 
-// Mock dependencies
+const mockOrderFindUnique = vi.fn();
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    order: {
+      findUnique: (...args: unknown[]) => mockOrderFindUnique(...args),
+    },
+  },
+}));
+
 vi.mock('@/lib/certificate-service');
 vi.mock('@/lib/pdf-certificate-generator');
 vi.mock('@/lib/auth', () => {
@@ -56,6 +66,7 @@ describe('Certificate Integration Tests', () => {
         certificateHash: 'test-hash',
         issuedAt: '2024-01-01T00:00:00.000Z',
         status: 'active',
+        order: { userId: 1 },
         metadata: {
           certificateId: 'CC-1-1704067200000',
           orderId: 1,
@@ -79,9 +90,9 @@ describe('Certificate Integration Tests', () => {
         },
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+      } as unknown as Certificate;
 
-      // Mock certificate generation
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.generateCertificate).mockResolvedValue(mockCertificate);
 
       // Step 1: Generate certificate
@@ -150,6 +161,8 @@ describe('Certificate Integration Tests', () => {
         },
       ];
 
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
+
       // Generate first certificate
       vi.mocked(certificateService.generateCertificate).mockResolvedValueOnce(certificates[0]);
       const request1 = mockRequest({ orderId: 1 });
@@ -212,7 +225,7 @@ describe('Certificate Integration Tests', () => {
       const emptyData = await emptyResponse.json();
 
       expect(emptyResponse.status).toBe(400);
-      expect(emptyData.error).toBe('Missing orderId');
+      expect(emptyData.error).toBe('Missing or invalid orderId');
 
       // Test missing parameters in GET
       const noParamsRequest = mockRequest({}, 'GET');
@@ -225,6 +238,7 @@ describe('Certificate Integration Tests', () => {
 
     it('should handle service errors gracefully', async () => {
       // Test certificate generation error
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.generateCertificate).mockRejectedValue(
         new Error('Order not found'),
       );
@@ -258,6 +272,7 @@ describe('Certificate Integration Tests', () => {
       expect(notFoundData.error).toBe('Certificate not found');
 
       // Test certificate not found by order ID
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.getCertificateByOrderId).mockResolvedValue(null);
       const orderNotFoundRequest = mockRequest({}, 'GET', { orderId: '999' });
       const orderNotFoundResponse = await GET(orderNotFoundRequest);
@@ -276,6 +291,7 @@ describe('Certificate Integration Tests', () => {
         certificateHash: 'test-hash',
         issuedAt: '2024-01-01T00:00:00.000Z',
         status: 'active',
+        order: { userId: 1 },
         metadata: {
           certificateId: 'CC-1-1704067200000',
           orderId: 1,
@@ -299,7 +315,7 @@ describe('Certificate Integration Tests', () => {
         },
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+      } as unknown as Certificate;
 
       vi.mocked(certificateService.getCertificateById).mockResolvedValue(mockCertificate);
       const request = mockRequest({}, 'GET', { id: 'test-cert-id' });
@@ -324,10 +340,11 @@ describe('Certificate Integration Tests', () => {
         certificateHash: 'test-hash',
         issuedAt: '2024-01-01T00:00:00.000Z',
         status: 'active',
+        order: { userId: 1 },
         metadata: undefined,
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+      } as unknown as Certificate;
 
       vi.mocked(certificateService.getCertificateById).mockResolvedValue(
         certificateWithoutMetadata,
@@ -349,10 +366,11 @@ describe('Certificate Integration Tests', () => {
         certificateHash: 'hash-1',
         issuedAt: '2024-01-01T00:00:00.000Z',
         status: 'active',
+        order: { userId: 1 },
         metadata: { test: 'data' },
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+      } as unknown as Certificate;
 
       const revokedCertificate = {
         id: 'revoked-cert',
@@ -360,10 +378,11 @@ describe('Certificate Integration Tests', () => {
         certificateHash: 'hash-2',
         issuedAt: '2024-01-01T00:00:00.000Z',
         status: 'revoked',
+        order: { userId: 1 },
         metadata: { test: 'data' },
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+      } as unknown as Certificate;
 
       vi.mocked(certificateService.getCertificateById)
         .mockResolvedValueOnce(activeCertificate)

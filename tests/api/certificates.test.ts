@@ -2,22 +2,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '@/app/api/certificates/route';
 import { certificateService } from '@/lib/certificate-service';
+import type { Certificate } from '@/types';
 
-// Mock Prisma
-vi.mock('@prisma/client', () => ({
-  PrismaClient: vi.fn(() => ({
+const mockOrderFindUnique = vi.fn();
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
     order: {
-      findUnique: vi.fn(),
+      findUnique: (...args: unknown[]) => mockOrderFindUnique(...args),
     },
-    certificate: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      findMany: vi.fn(),
-    },
-  })),
+  },
 }));
 
-// Mock certificate service
 vi.mock('@/lib/certificate-service', () => ({
   certificateService: {
     generateCertificate: vi.fn(),
@@ -27,7 +23,6 @@ vi.mock('@/lib/certificate-service', () => ({
   },
 }));
 
-// Mock auth
 vi.mock('@/lib/auth', () => {
   const { NextResponse } = require('next/server');
   return {
@@ -77,6 +72,7 @@ describe('Certificate API', () => {
         certificateHash: 'test-hash',
         issuedAt: '2024-01-01T00:00:00.000Z',
         status: 'active',
+        order: { userId: 1 },
         metadata: {
           userName: 'Test User',
           userEmail: 'test@example.com',
@@ -86,7 +82,7 @@ describe('Certificate API', () => {
         },
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-      };
+      } as unknown as Certificate;
 
       vi.mocked(certificateService.getCertificateById).mockResolvedValue(mockCertificate);
 
@@ -117,6 +113,7 @@ describe('Certificate API', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.getCertificateByOrderId).mockResolvedValue(mockCertificate);
 
       const request = mockRequest({}, 'GET', { orderId: '1' });
@@ -187,6 +184,7 @@ describe('Certificate API', () => {
     });
 
     it('should return 404 when certificate not found by order ID', async () => {
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.getCertificateByOrderId).mockResolvedValue(null);
 
       const request = mockRequest({}, 'GET', { orderId: '999' });
@@ -204,6 +202,25 @@ describe('Certificate API', () => {
 
       expect(response.status).toBe(400);
       expect(data.error).toBe('Missing id, orderId, or userId parameter');
+    });
+
+    it('should return 403 when user does not own the certificate', async () => {
+      const otherUserCert = {
+        id: 'other-cert',
+        orderId: 5,
+        order: { userId: 999 },
+        certificateHash: 'hash',
+        status: 'active',
+        issuedAt: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      } as unknown as Certificate;
+      vi.mocked(certificateService.getCertificateById).mockResolvedValue(otherUserCert);
+
+      const request = mockRequest({}, 'GET', { id: 'other-cert' });
+      const response = await GET(request);
+
+      expect(response.status).toBe(403);
     });
 
     it('should handle errors gracefully', async () => {
@@ -239,6 +256,7 @@ describe('Certificate API', () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       };
 
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.generateCertificate).mockResolvedValue(mockCertificate);
 
       const request = mockRequest({ orderId: 1 });
@@ -256,10 +274,11 @@ describe('Certificate API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Missing orderId');
+      expect(data.error).toBe('Missing or invalid orderId');
     });
 
     it('should handle certificate generation errors', async () => {
+      mockOrderFindUnique.mockResolvedValue({ userId: 1 });
       vi.mocked(certificateService.generateCertificate).mockRejectedValue(
         new Error('Order not found'),
       );
