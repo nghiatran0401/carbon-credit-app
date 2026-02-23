@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Leaf } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Menu, Leaf } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface MobileNavProps {
   links: Array<{
@@ -35,7 +35,12 @@ export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
         </div>
         <nav className="flex flex-col space-y-4">
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className="text-lg font-medium text-gray-900 hover:text-green-600 transition-colors touch-target flex items-center py-2" onClick={() => setOpen(false)}>
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-lg font-medium text-gray-900 hover:text-green-600 transition-colors touch-target flex items-center py-2"
+              onClick={() => setOpen(false)}
+            >
               {link.label}
             </Link>
           ))}
@@ -47,7 +52,7 @@ export function MobileNav({ links, isAuthenticated, logout }: MobileNavProps) {
                 onClick={() => {
                   if (logout) logout();
                   setOpen(false);
-                  router.push("/");
+                  router.push('/');
                 }}
               >
                 Logout

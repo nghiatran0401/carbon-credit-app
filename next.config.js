@@ -8,41 +8,42 @@ const nextConfig = {
         headers: [
           {
             key: 'X-DNS-Prefetch-Control',
-            value: 'on'
+            value: 'on',
           },
           {
             key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload'
+            value: 'max-age=63072000; includeSubDomains; preload',
           },
           {
             key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
+            value: 'SAMEORIGIN',
           },
           {
             key: 'X-Content-Type-Options',
-            value: 'nosniff'
+            value: 'nosniff',
           },
           {
             key: 'X-XSS-Protection',
-            value: '1; mode=block'
+            value: '1; mode=block',
           },
           {
             key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin'
+            value: 'origin-when-cross-origin',
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()'
+            value: 'camera=(), microphone=(), geolocation=()',
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com *.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' *.supabase.co *.payos.vn; frame-src *.payos.vn; object-src 'none'; base-uri 'self';"
-          }
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com *.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' *.supabase.co *.payos.vn; frame-src *.payos.vn; object-src 'none'; base-uri 'self';",
+          },
         ],
       },
-    ]
+    ];
   },
-  
+
   // Note: 24-hour timeout is excessive. Consider reducing to 30-60 seconds for most routes.
   // For specific long-running routes, implement timeout handling in the route itself.
   experimental: {

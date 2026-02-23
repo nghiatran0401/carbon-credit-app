@@ -30,6 +30,7 @@ describe('immudb-service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (globalThis as any).immudbService = undefined;
     mockClient.initClient.mockResolvedValue(undefined);
     mockClient.currentState.mockResolvedValue({});
     mockClient.set.mockResolvedValue({ id: { toString: () => '123' } });
