@@ -88,7 +88,6 @@ const steps = [
 function AnimatedStat({
   value,
   displayValue,
-  label,
 }: {
   value: number;
   displayValue: string;
@@ -96,48 +95,52 @@ function AnimatedStat({
 }) {
   const elementRef = useRef<HTMLParagraphElement>(null);
   const hasAnimated = useRef(false);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const element = elementRef.current;
+    if (!element || value <= 0) return;
     if (hasAnimated.current) return;
 
-    const element = elementRef.current;
-    if (!element) return;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
           hasAnimated.current = true;
+          observer.disconnect();
+
           const duration = 1500;
           const start = performance.now();
-          const startValue = 0;
 
           const animate = (currentTime: number) => {
             const elapsed = currentTime - start;
             const progress = Math.min(elapsed / duration, 1);
             const easedProgress = 1 - Math.pow(1 - progress, 3);
-            const currentValue = Math.floor(startValue + (value - startValue) * easedProgress);
+            const currentValue = Math.floor(value * easedProgress);
 
             if (element) {
-              if (value >= 1000000) {
-                element.textContent = `${(currentValue / 1000000).toFixed(1)}M+`;
-              } else if (value >= 1000) {
-                element.textContent = `${(currentValue / 1000).toFixed(1)}k+`;
+              if (value >= 1_000_000) {
+                element.textContent = `${(currentValue / 1_000_000).toFixed(1)}M+`;
+              } else if (value >= 1_000) {
+                element.textContent = `${(currentValue / 1_000).toFixed(1)}k+`;
               } else {
                 element.textContent = `${currentValue}+`;
               }
             }
 
             if (progress < 1) {
-              requestAnimationFrame(animate);
-            } else {
-              if (element) {
-                element.textContent = displayValue;
-              }
+              rafRef.current = requestAnimationFrame(animate);
+            } else if (element) {
+              element.textContent = displayValue;
+              rafRef.current = null;
             }
           };
 
-          requestAnimationFrame(animate);
-          observer.disconnect();
+          rafRef.current = requestAnimationFrame(animate);
         }
       },
       { threshold: 0.1 },
@@ -145,8 +148,14 @@ function AnimatedStat({
 
     observer.observe(element);
 
-    return () => observer.disconnect();
-  }, [value, displayValue, label]);
+    return () => {
+      observer.disconnect();
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [value, displayValue]);
 
   return (
     <p ref={elementRef} className="text-5xl font-bold text-emerald-700">
