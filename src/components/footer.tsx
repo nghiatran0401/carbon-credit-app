@@ -13,12 +13,7 @@ const footerLinks = {
     { href: '/biomass-only', label: 'Biomass Analysis' },
     { href: '/order-audit', label: 'Order Audit Trail' },
   ],
-  Administration: [
-    { href: '/admin', label: 'Admin Console' },
-    { href: '/immudb-admin', label: 'ImmuDB Admin' },
-    { href: '/immudb-kv-admin', label: 'KV Store Viewer' },
-    { href: '/immudb-cli', label: 'ImmuDB CLI' },
-  ],
+  Administration: [{ href: '/admin', label: 'Admin Console' }],
 };
 
 export function Footer() {
