@@ -29,18 +29,25 @@ import {
   Package,
   ChevronRight,
   AlertCircle,
+  Plus,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { apiGet, apiPost } from '@/lib/api';
 import useSWR from 'swr';
 import { useToast } from '@/hooks/use-toast';
-import type { CarbonCredit, Forest } from '@/types';
+import type { CarbonCredit } from '@/types';
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();
+}
+
+function formatArea(ha: number): string {
+  if (ha >= 100) return `${(ha / 100).toFixed(1)} km²`;
+  return `${ha.toFixed(1)} ha`;
 }
 
 function AvailabilityBar({ available, total }: { available: number; total: number }) {
@@ -81,16 +88,14 @@ export default function MarketplacePage() {
     error,
     isLoading,
     mutate,
-  } = useSWR('/api/credits', (url: string) => apiGet<CarbonCredit[]>(url));
-  const { data: forests } = useSWR('/api/forests', (url: string) => apiGet<Forest[]>(url));
+  } = useSWR('/api/marketplace/credits', (url: string) => apiGet<CarbonCredit[]>(url));
+
   const { data: exchangeRates } = useSWR('/api/exchange-rates', (url: string) =>
     apiGet<Record<string, unknown>[]>(url),
   );
 
   const [selectedCredit, setSelectedCredit] = useState<CarbonCredit | null>(null);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
-  const [forestType, setForestType] = useState('all');
-  const [certification, setCertification] = useState('all');
   const [sortBy, setSortBy] = useState('price-low');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [availability, setAvailability] = useState('all');
@@ -155,17 +160,7 @@ export default function MarketplacePage() {
 
   const filteredCredits = useMemo(() => {
     if (!credits) return [];
-    const filtered = credits.filter((credit: CarbonCredit & { forest?: { type?: string } }) => {
-      const forestTypeValue = credit.forest?.type ?? '';
-      const forestMatch =
-        forestType === 'all' ||
-        (typeof forestTypeValue === 'string' &&
-          forestTypeValue.toLowerCase() === forestType.toLowerCase());
-      const certValue = credit.certification ?? '';
-      const certMatch =
-        certification === 'all' ||
-        (typeof certValue === 'string' &&
-          certValue.toLowerCase().includes(certification.replace('-', ' ')));
+    const filtered = credits.filter((credit: CarbonCredit) => {
       const isAvailable =
         typeof credit.availableCredits === 'number' && credit.availableCredits > 0;
       const availabilityMatch =
@@ -176,10 +171,11 @@ export default function MarketplacePage() {
       const nameMatch =
         !searchQuery ||
         (credit.forest?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (credit.forest?.location ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         credit.certification.toLowerCase().includes(searchQuery.toLowerCase()) ||
         String(credit.vintage).includes(searchQuery);
 
-      return forestMatch && certMatch && availabilityMatch && nameMatch;
+      return availabilityMatch && nameMatch;
     });
 
     const sorted = [...filtered];
@@ -195,21 +191,23 @@ export default function MarketplacePage() {
         const vb = b.vintage ? String(b.vintage) : '';
         return vb.localeCompare(va);
       });
+    } else if (sortBy === 'credits') {
+      sorted.sort((a, b) => (b.totalCredits ?? 0) - (a.totalCredits ?? 0));
     }
     return sorted;
-  }, [credits, forestType, certification, sortBy, availability, searchQuery]);
+  }, [credits, sortBy, availability, searchQuery]);
 
   const stats = useMemo(() => {
-    if (!credits) return { total: 0, available: 0, forests: 0, minPrice: 0 };
+    if (!credits) return { total: 0, available: 0, totalCredits: 0, minPrice: 0 };
     const available = credits.filter(
       (c) => typeof c.availableCredits === 'number' && c.availableCredits > 0,
     ).length;
-    const forestIds = new Set(credits.map((c) => c.forestId));
+    const totalCredits = credits.reduce((sum, c) => sum + (c.totalCredits ?? 0), 0);
     const prices = credits.map((c) => c.pricePerCredit).filter(Boolean);
     return {
       total: credits.length,
       available,
-      forests: forestIds.size,
+      totalCredits,
       minPrice: prices.length ? Math.min(...prices) : 0,
     };
   }, [credits]);
@@ -246,37 +244,58 @@ export default function MarketplacePage() {
 
   if (!credits?.length) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Trees className="h-16 w-16 text-gray-300 mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No credits available</h3>
-        <p className="text-gray-500 mb-6 max-w-sm">
-          There are no carbon credits listed in the marketplace right now. Check back later or
-          contact us to learn when new credits will be available.
-        </p>
-        <Button
-          variant="outline"
-          onClick={() => mutate()}
-          className="hover:bg-emerald-50 hover:border-emerald-300"
-        >
-          Refresh
-        </Button>
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+            Carbon Credit Marketplace
+          </h1>
+          <p className="text-gray-500">
+            Purchase carbon credits calculated from your saved forest analyses
+          </p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-gray-200">
+          <Trees className="h-16 w-16 text-gray-300 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No credits available yet</h3>
+          <p className="text-gray-500 mb-6 max-w-md">
+            Carbon credits appear here after you analyze a forest&apos;s biomass. Run an analysis to
+            calculate carbon credits, then come back to purchase them.
+          </p>
+          <div className="flex items-center gap-3">
+            <Link href="/biomass-only">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                New Analysis
+              </Button>
+            </Link>
+            <Button variant="outline" onClick={() => mutate()}>
+              Refresh
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const hasActiveFilters =
-    forestType !== 'all' || certification !== 'all' || availability !== 'all' || searchQuery !== '';
+  const hasActiveFilters = availability !== 'all' || searchQuery !== '';
 
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-          Carbon Credit Marketplace
-        </h1>
-        <p className="text-gray-500">
-          Browse and purchase verified carbon credits from protected forests
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+            Carbon Credit Marketplace
+          </h1>
+          <p className="text-gray-500">
+            Purchase carbon credits calculated from your saved forest analyses
+          </p>
+        </div>
+        <Link href="/biomass-only">
+          <Button variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-1" />
+            New Analysis
+          </Button>
+        </Link>
       </div>
 
       {/* Stats Strip */}
@@ -284,7 +303,7 @@ export default function MarketplacePage() {
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
           <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1">
             <Package className="h-3.5 w-3.5" />
-            Total Listings
+            Forests Analyzed
           </div>
           <p className="text-xl font-bold text-gray-900">{stats.total}</p>
         </div>
@@ -297,10 +316,10 @@ export default function MarketplacePage() {
         </div>
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
           <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1">
-            <Trees className="h-3.5 w-3.5" />
-            Forests
+            <Leaf className="h-3.5 w-3.5" />
+            Total Credits
           </div>
-          <p className="text-xl font-bold text-gray-900">{stats.forests}</p>
+          <p className="text-xl font-bold text-gray-900">{formatNumber(stats.totalCredits)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
           <div className="flex items-center gap-2 text-gray-500 text-xs font-medium mb-1">
@@ -319,8 +338,6 @@ export default function MarketplacePage() {
           {hasActiveFilters && (
             <button
               onClick={() => {
-                setForestType('all');
-                setCertification('all');
                 setAvailability('all');
                 setSearchQuery('');
               }}
@@ -330,11 +347,11 @@ export default function MarketplacePage() {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="relative lg:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search forests..."
+              placeholder="Search forests, locations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -350,31 +367,6 @@ export default function MarketplacePage() {
               <SelectItem value="unavailable">Sold Out</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={forestType} onValueChange={setForestType}>
-            <SelectTrigger aria-label="Filter by forest type">
-              <SelectValue placeholder="Forest Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Forest Types</SelectItem>
-              <SelectItem value="mangrove">Mangrove</SelectItem>
-              <SelectItem value="wetland">Wetland</SelectItem>
-              <SelectItem value="tropical evergreen">Tropical Evergreen</SelectItem>
-              <SelectItem value="tropical montane">Tropical Montane</SelectItem>
-              <SelectItem value="dry dipterocarp">Dry Dipterocarp</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={certification} onValueChange={setCertification}>
-            <SelectTrigger aria-label="Filter by certification">
-              <SelectValue placeholder="Certification" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Certifications</SelectItem>
-              <SelectItem value="vcs">VCS</SelectItem>
-              <SelectItem value="gold">Gold Standard</SelectItem>
-              <SelectItem value="ccb">CCB</SelectItem>
-              <SelectItem value="vcs (verified carbon standard)">VCS (Full)</SelectItem>
-            </SelectContent>
-          </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger aria-label="Sort credits by">
               <SelectValue placeholder="Sort by" />
@@ -382,10 +374,17 @@ export default function MarketplacePage() {
             <SelectContent>
               <SelectItem value="price-low">Price: Low to High</SelectItem>
               <SelectItem value="price-high">Price: High to Low</SelectItem>
+              <SelectItem value="credits">Most Credits</SelectItem>
               <SelectItem value="quantity">Most Available</SelectItem>
               <SelectItem value="vintage">Newest Vintage</SelectItem>
             </SelectContent>
           </Select>
+          <Link href="/dashboard" className="flex items-center">
+            <Button variant="outline" className="w-full text-sm" size="default">
+              <Trees className="h-4 w-4 mr-2" />
+              View Saved Forests
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -393,7 +392,7 @@ export default function MarketplacePage() {
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">
           Showing <span className="font-medium text-gray-900">{filteredCredits.length}</span>{' '}
-          {filteredCredits.length === 1 ? 'credit' : 'credits'}
+          {filteredCredits.length === 1 ? 'credit listing' : 'credit listings'}
           {hasActiveFilters && <span> (filtered from {credits.length})</span>}
         </p>
       </div>
@@ -410,8 +409,6 @@ export default function MarketplacePage() {
             variant="outline"
             size="sm"
             onClick={() => {
-              setForestType('all');
-              setCertification('all');
               setAvailability('all');
               setSearchQuery('');
             }}
@@ -430,7 +427,7 @@ export default function MarketplacePage() {
           const usdValue = latestRate
             ? (credit.pricePerCredit * Number(latestRate.rate)).toFixed(2)
             : null;
-          const forest = forests?.find((f) => f.id === credit.forestId);
+          const forest = credit.forest;
 
           return (
             <div
@@ -451,16 +448,20 @@ export default function MarketplacePage() {
                     <div className="min-w-0">
                       <h3
                         className="font-semibold text-gray-900 truncate text-sm"
-                        title={credit.forest?.name || `Credit #${credit.id}`}
+                        title={forest?.name || `Credit #${credit.id}`}
                       >
-                        {credit.forest?.name || `Credit #${credit.id}`}
+                        {forest?.name || `Credit #${credit.id}`}
                       </h3>
                       {forest && (
                         <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                           <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{String(forest.name)}</span>
-                          <span className="text-gray-300">·</span>
-                          <span>{String(forest.area)} ha</span>
+                          <span className="truncate">{forest.location}</span>
+                          {forest.area > 0 && (
+                            <>
+                              <span className="text-gray-300">·</span>
+                              <span className="whitespace-nowrap">{formatArea(forest.area)}</span>
+                            </>
+                          )}
                         </p>
                       )}
                     </div>
@@ -491,20 +492,18 @@ export default function MarketplacePage() {
                     <Shield className="h-3 w-3 mr-1" />
                     {credit.certification}
                   </Badge>
-                  {forest?.type && (
-                    <Badge
-                      variant="secondary"
-                      className="text-xs font-normal bg-gray-100 text-gray-600"
-                    >
-                      {String(forest.type)}
-                    </Badge>
-                  )}
                   <Badge
                     variant="secondary"
                     className="text-xs font-normal bg-gray-100 text-gray-600"
                   >
                     <Calendar className="h-3 w-3 mr-1" />
                     {credit.vintage}
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-normal bg-emerald-50 text-emerald-700"
+                  >
+                    {formatNumber(credit.totalCredits)} {credit.symbol}
                   </Badge>
                 </div>
               </div>
@@ -587,13 +586,11 @@ export default function MarketplacePage() {
                         <Shield className="h-3 w-3 mr-1" />
                         {selectedCredit.certification}
                       </Badge>
-                      {selectedCredit.forest?.type && (
-                        <Badge variant="secondary" className="text-xs bg-white/80">
-                          {selectedCredit.forest.type}
-                        </Badge>
-                      )}
                       <Badge variant="secondary" className="text-xs bg-white/80">
                         Vintage {selectedCredit.vintage}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs bg-white/80">
+                        {formatNumber(selectedCredit.totalCredits)} {selectedCredit.symbol}
                       </Badge>
                     </div>
                   </div>
@@ -640,7 +637,7 @@ export default function MarketplacePage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">
-                      ${selectedCredit.pricePerCredit} × {purchaseQuantity}
+                      ${selectedCredit.pricePerCredit} x {purchaseQuantity}
                     </span>
                     <span className="text-gray-700">
                       ${((selectedCredit.pricePerCredit || 0) * purchaseQuantity).toFixed(2)}
@@ -712,10 +709,10 @@ function MarketplaceLoadingInline() {
           <Skeleton key={i} className="h-[76px] w-full rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-[120px] w-full rounded-xl mb-8" />
+      <Skeleton className="h-[100px] w-full rounded-xl mb-8" />
       <Skeleton className="h-5 w-40 mb-4" />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5 mb-8">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="p-4 pb-3">
               <div className="flex items-start gap-3 mb-3">
@@ -727,9 +724,9 @@ function MarketplaceLoadingInline() {
                 <Skeleton className="h-5 w-16 rounded-full" />
               </div>
               <div className="flex gap-1.5">
-                <Skeleton className="h-5 w-14 rounded-full" />
-                <Skeleton className="h-5 w-20 rounded-full" />
+                <Skeleton className="h-5 w-24 rounded-full" />
                 <Skeleton className="h-5 w-12 rounded-full" />
+                <Skeleton className="h-5 w-20 rounded-full" />
               </div>
             </div>
             <Separator />
