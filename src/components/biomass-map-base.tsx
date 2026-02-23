@@ -62,10 +62,10 @@ export default function BiomassMapBase({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<any>(null);
-  const [isSatellite, setIsSatellite] = useState(true);
+  const [isDark, setIsDark] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
   // eslint-disable-next-line
-  const layersRef = useRef<{ street: any; satellite: any }>({ street: null, satellite: null });
+  const layersRef = useRef<{ light: any; dark: any }>({ light: null, dark: null });
 
   // Cached offscreen texture — rebuilt only when `mask` changes
   const maskTextureRef = useRef<HTMLCanvasElement | null>(null);
@@ -154,17 +154,24 @@ export default function BiomassMapBase({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
+      const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20,
       });
-      const satellite = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { attribution: 'Tiles © Esri', maxZoom: 19 },
+      const light = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+          subdomains: 'abcd',
+          maxZoom: 20,
+        },
       );
 
-      satellite.addTo(map);
-      layersRef.current = { street, satellite };
+      light.addTo(map);
+      layersRef.current = { light, dark };
       mapRef.current = map;
 
       // Leaflet calculates the tile grid from the container's size at init
@@ -261,20 +268,19 @@ export default function BiomassMapBase({
     }
   }, [onCanvasReady]);
 
-  // Layer toggle
   const toggleLayer = () => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    const { street, satellite } = layersRef.current;
+    const { light, dark } = layersRef.current;
 
-    if (isSatellite) {
-      if (map.hasLayer(satellite)) map.removeLayer(satellite);
-      if (!map.hasLayer(street)) street.addTo(map);
+    if (isDark) {
+      if (map.hasLayer(dark)) map.removeLayer(dark);
+      if (!map.hasLayer(light)) light.addTo(map);
     } else {
-      if (map.hasLayer(street)) map.removeLayer(street);
-      if (!map.hasLayer(satellite)) satellite.addTo(map);
+      if (map.hasLayer(light)) map.removeLayer(light);
+      if (!map.hasLayer(dark)) dark.addTo(map);
     }
-    setIsSatellite(!isSatellite);
+    setIsDark(!isDark);
   };
 
   return (
@@ -289,7 +295,7 @@ export default function BiomassMapBase({
         className="absolute bottom-4 left-4 z-[500] px-3 py-2 rounded-md text-xs font-medium border border-[#1e3a2a] bg-[#0b1324] text-[#10b981] hover:bg-[#13324a] transition shadow-lg"
         onClick={toggleLayer}
       >
-        {isSatellite ? 'Show Street View' : 'Show Satellite'}
+        {isDark ? 'Light Map' : 'Dark Map'}
       </button>
     </div>
   );
