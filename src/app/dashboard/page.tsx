@@ -21,6 +21,10 @@ import {
   CreditCard,
   Shield,
   Calendar,
+  ChevronDown,
+  FlaskConical,
+  ArrowRight,
+  Info,
 } from 'lucide-react';
 import Link from 'next/link';
 import BiomassMapBase from '@/components/biomass-map-base';
@@ -28,7 +32,12 @@ import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { apiGet, apiPost } from '@/lib/api';
-import { biomassToCredits, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
+import {
+  biomassToCredits,
+  DEFAULT_PRICE_PER_CREDIT,
+  CARBON_FRACTION,
+  CO2_C_RATIO,
+} from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 interface PlatformStats {
@@ -92,6 +101,19 @@ export default function DashboardPage() {
   } = useSWR<SavedForest[]>('/api/analysis', apiGet);
   const { data: platformStats } = useSWR<PlatformStats>('/api/stats', apiGet);
   const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
+
+  const [formulaOpen, setFormulaOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('dashboard-formula-open') !== 'false';
+    }
+    return true;
+  });
+  const toggleFormula = useCallback(() => {
+    setFormulaOpen((prev) => {
+      localStorage.setItem('dashboard-formula-open', String(!prev));
+      return !prev;
+    });
+  }, []);
 
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
@@ -282,10 +304,18 @@ export default function DashboardPage() {
         <OverviewCard title="Active Zones" icon={TrendingUp} value={activeForests} unit="forests" />
       </div>
 
+      {/* Conversion Formula */}
+      <ConversionFormula
+        open={formulaOpen}
+        onToggle={toggleFormula}
+        biomassMg={selectedForest?.stats?.forestBiomassMg ?? null}
+        forestName={selectedForest?.name ?? null}
+      />
+
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Map View */}
-        <div className="lg:col-span-2 h-[600px] bg-white rounded-lg shadow overflow-hidden border relative">
+        <div className="lg:col-span-2 h-[600px] bg-white rounded-lg shadow overflow-hidden border relative isolate">
           {selectedForest ? (
             isDetailLoading ? (
               <div className="flex items-center justify-center h-full text-gray-400">
@@ -602,5 +632,253 @@ function OverviewCard({ title, icon: Icon, value, unit }: OverviewCardProps) {
         <p className="text-xs text-muted-foreground">{unit}</p>
       </CardContent>
     </Card>
+  );
+}
+
+/* ─── Conversion Formula ─────────────────────────────────────────────────── */
+
+const CAN_GIO_BIOMASS = 1000;
+const CAN_GIO_CARBON = CAN_GIO_BIOMASS * CARBON_FRACTION;
+const CAN_GIO_CO2E = CAN_GIO_BIOMASS * CARBON_FRACTION * CO2_C_RATIO;
+const CAN_GIO_VALUE = CAN_GIO_CO2E * DEFAULT_PRICE_PER_CREDIT;
+
+interface ConversionFormulaProps {
+  open: boolean;
+  onToggle: () => void;
+  biomassMg: number | null;
+  forestName: string | null;
+}
+
+function ConversionFormula({ open, onToggle, biomassMg, forestName }: ConversionFormulaProps) {
+  const hasLive = biomassMg != null && biomassMg > 0;
+  const liveCarbon = hasLive ? biomassMg * CARBON_FRACTION : 0;
+  const liveCo2e = hasLive ? biomassToCredits(biomassMg) : 0;
+  const liveValue = liveCo2e * DEFAULT_PRICE_PER_CREDIT;
+
+  return (
+    <div className="mb-8">
+      <button
+        onClick={onToggle}
+        className="group flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-3"
+      >
+        <FlaskConical className="h-4 w-4" />
+        <span>How Carbon Credits Are Calculated</span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      <div
+        className={`grid transition-all duration-300 ease-in-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+      >
+        <div className="overflow-hidden">
+          <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-white via-white to-emerald-50/40 shadow-sm">
+            {/* Top: formula + explanation */}
+            <div className="p-5 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    From Trees to Carbon Credits
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    We measure how much wood (biomass) a forest has, then calculate how much CO₂ it
+                    holds
+                  </p>
+                </div>
+                <div className="bg-gray-900 text-white rounded-lg px-3 py-2 font-mono text-sm whitespace-nowrap shrink-0">
+                  tCO₂e = Biomass × {CARBON_FRACTION} × {CO2_C_RATIO.toFixed(2)}
+                </div>
+              </div>
+
+              {/* 3 step explainer */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold shrink-0 mt-0.5">
+                    1
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">Measure the forest</p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      AI analyzes satellite images to estimate the total biomass (weight of all
+                      organic material) in <strong>Megagrams (Mg)</strong>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-amber-100 text-amber-700 text-xs font-bold shrink-0 mt-0.5">
+                    2
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">Extract the carbon</p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      About <strong>47%</strong> of wood biomass is pure carbon. Multiply by 0.47
+                      (IPCC standard)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3 items-start">
+                  <div className="flex items-center justify-center h-7 w-7 rounded-full bg-sky-100 text-sky-700 text-xs font-bold shrink-0 mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">Convert to CO₂</p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      Each carbon atom pairs with two oxygens. Multiply by <strong>3.67</strong>{' '}
+                      (molecular weight ratio 44÷12) to get tonnes of CO₂ equivalent
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom: Can Gio worked example */}
+            <div className="border-t border-gray-100 bg-gradient-to-r from-emerald-50/60 via-emerald-50/30 to-transparent px-5 py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Trees className="h-4 w-4 text-emerald-600" />
+                <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">
+                  Worked Example — Can Gio Mangrove Forest
+                </span>
+              </div>
+
+              {/* Pipeline visual */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 sm:gap-0">
+                {/* Step: Biomass */}
+                <div className="flex-1 rounded-lg border border-emerald-200 bg-white p-3">
+                  <div className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">
+                    Biomass
+                  </div>
+                  <div className="text-xl font-bold font-mono tabular-nums text-gray-900">
+                    {CAN_GIO_BIOMASS.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500">Megagrams (Mg)</div>
+                </div>
+
+                {/* Arrow + operator */}
+                <div className="flex sm:flex-col items-center justify-center px-1.5 py-1 sm:py-0 shrink-0">
+                  <ArrowRight className="hidden sm:block h-4 w-4 text-gray-300" />
+                  <span className="text-[11px] font-mono font-bold text-amber-600">× 0.47</span>
+                </div>
+
+                {/* Step: Carbon */}
+                <div className="flex-1 rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider mb-1">
+                    Carbon
+                  </div>
+                  <div className="text-xl font-bold font-mono tabular-nums text-gray-900">
+                    {CAN_GIO_CARBON.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="text-xs text-gray-500">tonnes of Carbon (tC)</div>
+                </div>
+
+                {/* Arrow + operator */}
+                <div className="flex sm:flex-col items-center justify-center px-1.5 py-1 sm:py-0 shrink-0">
+                  <ArrowRight className="hidden sm:block h-4 w-4 text-gray-300" />
+                  <span className="text-[11px] font-mono font-bold text-sky-600">× 3.67</span>
+                </div>
+
+                {/* Step: CO₂ */}
+                <div className="flex-1 rounded-lg border border-sky-200 bg-white p-3">
+                  <div className="text-[10px] font-semibold text-sky-600 uppercase tracking-wider mb-1">
+                    Carbon Credits
+                  </div>
+                  <div className="text-xl font-bold font-mono tabular-nums text-gray-900">
+                    {CAN_GIO_CO2E.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="text-xs text-gray-500">tonnes CO₂ equivalent</div>
+                </div>
+
+                {/* Arrow + operator */}
+                <div className="flex sm:flex-col items-center justify-center px-1.5 py-1 sm:py-0 shrink-0">
+                  <ArrowRight className="hidden sm:block h-4 w-4 text-gray-300" />
+                  <span className="text-[11px] font-mono font-bold text-green-600">
+                    × ${DEFAULT_PRICE_PER_CREDIT}
+                  </span>
+                </div>
+
+                {/* Result: Value */}
+                <div className="flex-1 rounded-lg border-2 border-green-400 bg-green-50 p-3 ring-1 ring-green-100">
+                  <div className="text-[10px] font-semibold text-green-700 uppercase tracking-wider mb-1">
+                    Est. Value
+                  </div>
+                  <div className="text-xl font-bold font-mono tabular-nums text-green-700">
+                    ${CAN_GIO_VALUE.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="text-xs text-green-600/70">USD</div>
+                </div>
+              </div>
+
+              {/* Inline equation recap */}
+              <p className="mt-3 text-xs text-gray-500 font-mono text-center sm:text-left">
+                {CAN_GIO_BIOMASS.toLocaleString()} Mg × 0.47 ={' '}
+                {CAN_GIO_CARBON.toLocaleString(undefined, { maximumFractionDigits: 0 })} tC × 3.67 ={' '}
+                <strong className="text-gray-700">
+                  {CAN_GIO_CO2E.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+                </strong>{' '}
+                × ${DEFAULT_PRICE_PER_CREDIT} ={' '}
+                <strong className="text-green-700">
+                  ${CAN_GIO_VALUE.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </strong>
+              </p>
+            </div>
+
+            {/* Live forest values */}
+            {hasLive && forestName && (
+              <div className="border-t border-gray-100 px-5 py-3 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Leaf className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="font-medium text-gray-700">{forestName}:</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-gray-600">
+                  <span>
+                    {biomassMg.toLocaleString(undefined, { maximumFractionDigits: 0 })} Mg
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-gray-300 hidden sm:block" />
+                  <span>
+                    {liveCarbon.toLocaleString(undefined, { maximumFractionDigits: 0 })} tC
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-gray-300 hidden sm:block" />
+                  <span className="font-semibold text-gray-800">
+                    {liveCo2e.toLocaleString(undefined, { maximumFractionDigits: 0 })} tCO₂e
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-gray-300 hidden sm:block" />
+                  <span className="font-semibold text-green-700">
+                    ${liveValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Footer: source */}
+            <div className="border-t border-gray-100 px-5 py-2.5 space-y-1">
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                <Info className="h-3 w-3 shrink-0" />
+                <span>
+                  Based on IPCC 2006 Guidelines, Vol 4 · CF = 0.47 (Table 4.3) · CO₂/C molar ratio =
+                  44/12 · Adopted by Verra VCS, Gold Standard, ACR
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-[18px] text-[11px]">
+                <a
+                  href="https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/4_Volume4/V4_04_Ch4_Forest_Land.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-600/70 underline decoration-emerald-300/50 hover:text-emerald-700 transition-colors"
+                >
+                  CF = 0.47 — IPCC Vol 4, Ch 4, Table 4.3
+                </a>
+                <a
+                  href="https://www.ipcc-nggip.iges.or.jp/public/2006gl/pdf/4_Volume4/V4_04_Ch4_Forest_Land.pdf#page=48"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-600/70 underline decoration-sky-300/50 hover:text-sky-700 transition-colors"
+                >
+                  44/12 ≈ 3.67 — IPCC Vol 4, Ch 4, Eq. 2.10
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
