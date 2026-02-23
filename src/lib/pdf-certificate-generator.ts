@@ -1,21 +1,19 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import type { Certificate } from '@/types';
 import type { CertificateData } from './certificate-service';
 
 export class PDFCertificateGenerator {
-  /**
-   * Generate a PDF certificate from certificate data
-   */
   async generatePDFCertificate(certificate: Certificate): Promise<Blob> {
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
+
     const metadata = certificate.metadata as unknown as CertificateData;
 
-    // Create a temporary HTML element for the certificate
     const certificateElement = this.createCertificateHTML(certificate, metadata);
     document.body.appendChild(certificateElement);
 
     try {
-      // Convert HTML to canvas
       const canvas = await html2canvas(certificateElement, {
         scale: 2, // Higher resolution
         useCORS: true,
@@ -27,19 +25,11 @@ export class PDFCertificateGenerator {
         removeContainer: true,
       });
 
-      // Convert canvas to PDF
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
 
-      const imgWidth = 210; // A4 width in mm
-      const imgHeight = 295; // A4 height in mm
-
-      // Add image to single page
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-
-      // Convert to blob
-      const pdfBlob = pdf.output('blob');
-      return pdfBlob;
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 295);
+      return pdf.output('blob');
     } finally {
       // Clean up
       document.body.removeChild(certificateElement);

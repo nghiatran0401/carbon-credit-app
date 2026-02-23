@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,6 +65,7 @@ export default function CarbonMovementGraphPage() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedLink, setSelectedLink] = useState<GraphLink | null>(null);
   const [searchUser, setSearchUser] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filteredGraphData, setFilteredGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [graphStats, setGraphStats] = useState({ nodeCount: 0, relationshipCount: 0 });
 
@@ -211,8 +212,7 @@ export default function CarbonMovementGraphPage() {
     setSelectedNode(null); // Clear node selection when link is clicked
   }, []);
 
-  // Format node label (library passes generic node; our graphData uses GraphNode)
-  const getNodeLabel = (node: unknown): string => {
+  const getNodeLabel = useCallback((node: unknown): string => {
     const graphNode = node as GraphNode;
     if (!graphNode.type || !graphNode.properties) {
       return (graphNode as { id?: string }).id || 'Unknown';
@@ -229,7 +229,40 @@ export default function CarbonMovementGraphPage() {
       default:
         return `${graphNode.type} ${graphNode.properties.id}`;
     }
-  };
+  }, []);
+
+  const nodeCanvasObject = useCallback(
+    (node: unknown, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const n = node as GraphNode & { x?: number; y?: number };
+      const label = getNodeLabel(node);
+      const fontSize = 12 / globalScale;
+      ctx.font = `${fontSize}px Sans-Serif`;
+      const textWidth = ctx.measureText(label).width;
+      const bckgDimensions = [textWidth, fontSize].map((d) => d + fontSize * 0.2) as [
+        number,
+        number,
+      ];
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(
+        (n.x || 0) - bckgDimensions[0] / 2,
+        (n.y || 0) - bckgDimensions[1] / 2,
+        bckgDimensions[0],
+        bckgDimensions[1],
+      );
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = n.color || '#6B7280';
+      ctx.fillText(label, n.x || 0, n.y || 0);
+    },
+    [getNodeLabel],
+  );
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchUser), 300);
+    return () => clearTimeout(id);
+  }, [searchUser]);
 
   useEffect(() => {
     testConnection();
@@ -248,15 +281,13 @@ export default function CarbonMovementGraphPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [limit, loadGraphData]);
 
-  // Filter graph data by user search
   useEffect(() => {
-    if (!searchUser.trim()) {
-      // No search, show all data
+    if (!debouncedSearch.trim()) {
       setFilteredGraphData(graphData);
       return;
     }
 
-    const searchLower = searchUser.toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase();
 
     // Find matching user nodes
     const matchingUsers = graphData.nodes.filter(
@@ -329,7 +360,7 @@ export default function CarbonMovementGraphPage() {
       nodes: relatedNodes,
       links: relatedLinks,
     });
-  }, [searchUser, graphData]);
+  }, [debouncedSearch, graphData]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -514,34 +545,7 @@ export default function CarbonMovementGraphPage() {
                   linkColor="color"
                   onNodeClick={handleNodeClick}
                   onLinkClick={handleLinkClick}
-                  nodeCanvasObject={(
-                    node: unknown,
-                    ctx: CanvasRenderingContext2D,
-                    globalScale: number,
-                  ) => {
-                    const n = node as GraphNode & { x?: number; y?: number };
-                    const label = getNodeLabel(node);
-                    const fontSize = 12 / globalScale;
-                    ctx.font = `${fontSize}px Sans-Serif`;
-                    const textWidth = ctx.measureText(label).width;
-                    const bckgDimensions = [textWidth, fontSize].map((d) => d + fontSize * 0.2) as [
-                      number,
-                      number,
-                    ];
-
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                    ctx.fillRect(
-                      (n.x || 0) - bckgDimensions[0] / 2,
-                      (n.y || 0) - bckgDimensions[1] / 2,
-                      bckgDimensions[0],
-                      bckgDimensions[1],
-                    );
-
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = n.color || '#6B7280';
-                    ctx.fillText(label, n.x || 0, n.y || 0);
-                  }}
+                  nodeCanvasObject={nodeCanvasObject}
                   linkDirectionalArrowLength={3.5}
                   linkDirectionalArrowRelPos={1}
                   linkCurvature={0.25}

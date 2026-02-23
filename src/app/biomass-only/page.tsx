@@ -32,8 +32,9 @@ export default function BiomassOnlyPage() {
     drawnItems: null,
   });
 
-  // Canvas painting state
   const paintStateRef = useRef<{ isPainting: boolean }>({ isPainting: false });
+  const forestMaskRef = useRef<number[][] | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const [selectedBounds, setSelectedBounds] = useState<Bounds | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,10 @@ export default function BiomassOnlyPage() {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [saveForm, setSaveForm] = useState({ name: '', description: '' });
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    forestMaskRef.current = forestMask;
+  }, [forestMask]);
 
   // Generate forest mask - downsample for performance on large datasets
   const generateForestMask = (biomassData: number[][]) => {
@@ -294,10 +299,11 @@ export default function BiomassOnlyPage() {
   };
 
   const paint = (e: MouseEvent) => {
+    const mask = forestMaskRef.current;
     if (
       !paintStateRef.current.isPainting ||
       !editMode ||
-      !forestMask ||
+      !mask ||
       !forestMaskShape ||
       !layersRef.current.rectangle ||
       !canvasRef.current ||
@@ -311,7 +317,6 @@ export default function BiomassOnlyPage() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // We need to map these canvas coords to the mask coords.
     const rectBounds = layersRef.current.rectangle.getBounds();
     const rectNE = { lat: rectBounds.getNorth(), lng: rectBounds.getEast() };
     const rectSW = { lat: rectBounds.getSouth(), lng: rectBounds.getWest() };
@@ -338,7 +343,6 @@ export default function BiomassOnlyPage() {
     const brushRadiusY = Math.ceil((brushSize / rectCanvasHeight) * forestMaskShape[0]);
 
     const value = editMode === 'add' ? 1 : 0;
-    const newMask = forestMask.map((row) => [...row]);
 
     for (
       let i = Math.max(0, Math.floor(maskY - brushRadiusY));
@@ -350,22 +354,37 @@ export default function BiomassOnlyPage() {
         j < Math.min(forestMaskShape[1], Math.ceil(maskX + brushRadiusX));
         j++
       ) {
-        newMask[i][j] = value;
+        mask[i][j] = value;
       }
     }
-    setForestMask(newMask);
+
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        if (forestMaskRef.current) {
+          setForestMask(forestMaskRef.current.map((row) => [...row]));
+        }
+      });
+    }
   };
 
   const stopPainting = () => {
     if (paintStateRef.current.isPainting) {
       paintStateRef.current.isPainting = false;
-      if (forestMask) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      const mask = forestMaskRef.current;
+      if (mask) {
+        const snapshot = mask.map((row) => [...row]);
+        setForestMask(snapshot);
         const newHistory = editHistory.slice(0, editHistoryIndex + 1);
-        newHistory.push(forestMask.map((row) => [...row]));
+        newHistory.push(snapshot);
         setEditHistory(newHistory);
         setEditHistoryIndex(newHistory.length - 1);
         if (biomassPrediction && biomassShape && selectedBounds) {
-          computeStats(biomassPrediction, biomassShape, selectedBounds, forestMask);
+          computeStats(biomassPrediction, biomassShape, selectedBounds, mask);
         }
       }
     }
@@ -385,9 +404,8 @@ export default function BiomassOnlyPage() {
       canvas.removeEventListener('mouseup', stopPainting);
       canvas.removeEventListener('mouseleave', stopPainting);
     };
-    // startPainting, paint, stopPainting are stable; adding them would re-attach on every paint
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode, forestMask, brushSize, forestMaskShape]);
+  }, [editMode, brushSize, forestMaskShape]);
 
   // Cursor update
   useEffect(() => {

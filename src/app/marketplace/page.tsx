@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -421,130 +421,22 @@ export default function MarketplacePage() {
       {/* Credit Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5 mb-8">
         {filteredCredits.map((credit) => {
-          const isAvailable =
-            typeof credit.availableCredits === 'number' && credit.availableCredits > 0;
           const latestRate = getLatestExchangeRate(credit.id);
           const usdValue = latestRate
             ? (credit.pricePerCredit * Number(latestRate.rate)).toFixed(2)
             : null;
-          const forest = credit.forest;
 
           return (
-            <div
+            <CreditCard
               key={credit.id}
-              className={`group bg-white rounded-xl border transition-all ${
-                isAvailable
-                  ? 'border-gray-200 hover:border-emerald-300 hover:shadow-lg'
-                  : 'border-gray-100 opacity-60'
-              }`}
-            >
-              {/* Card Header */}
-              <div className="p-4 pb-3">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="shrink-0 rounded-lg bg-emerald-50 p-2">
-                      <Leaf className="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3
-                        className="font-semibold text-gray-900 truncate text-sm"
-                        title={forest?.name || `Credit #${credit.id}`}
-                      >
-                        {forest?.name || `Credit #${credit.id}`}
-                      </h3>
-                      {forest && (
-                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{forest.location}</span>
-                          {forest.area > 0 && (
-                            <>
-                              <span className="text-gray-300">·</span>
-                              <span className="whitespace-nowrap">{formatArea(forest.area)}</span>
-                            </>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {!isAvailable ? (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 border-red-200 bg-red-50 text-red-600 text-xs"
-                    >
-                      Sold Out
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700 text-xs"
-                    >
-                      Available
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Tags */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-normal bg-gray-100 text-gray-600"
-                  >
-                    <Shield className="h-3 w-3 mr-1" />
-                    {credit.certification}
-                  </Badge>
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-normal bg-gray-100 text-gray-600"
-                  >
-                    <Calendar className="h-3 w-3 mr-1" />
-                    {credit.vintage}
-                  </Badge>
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-normal bg-emerald-50 text-emerald-700"
-                  >
-                    {formatNumber(credit.totalCredits)} {credit.symbol}
-                  </Badge>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Pricing + Availability */}
-              <div className="p-4 pt-3">
-                <div className="flex items-baseline justify-between mb-3">
-                  <div>
-                    <span className="text-2xl font-bold text-gray-900">
-                      ${credit.pricePerCredit}
-                    </span>
-                    <span className="text-sm text-gray-500 ml-1">/ credit</span>
-                    {usdValue && (
-                      <span className="text-xs text-gray-400 ml-2">≈ ${usdValue} USD</span>
-                    )}
-                  </div>
-                </div>
-
-                <AvailabilityBar
-                  available={credit.availableCredits ?? 0}
-                  total={credit.totalCredits ?? 0}
-                />
-
-                {/* Action */}
-                <Button
-                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  disabled={!isAvailable}
-                  onClick={() => {
-                    setSelectedCredit(credit);
-                    setPurchaseQuantity(1);
-                    setDialogOpen(true);
-                  }}
-                >
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  {isAvailable ? 'Purchase Credits' : 'Sold Out'}
-                  {isAvailable && <ChevronRight className="h-4 w-4 ml-auto" />}
-                </Button>
-              </div>
-            </div>
+              credit={credit}
+              usdValue={usdValue}
+              onSelect={(c) => {
+                setSelectedCredit(c);
+                setPurchaseQuantity(1);
+                setDialogOpen(true);
+              }}
+            />
           );
         })}
       </div>
@@ -696,6 +588,115 @@ export default function MarketplacePage() {
     </div>
   );
 }
+
+const CreditCard = React.memo(function CreditCard({
+  credit,
+  usdValue,
+  onSelect,
+}: {
+  credit: CarbonCredit;
+  usdValue: string | null;
+  onSelect: (credit: CarbonCredit) => void;
+}) {
+  const isAvailable = typeof credit.availableCredits === 'number' && credit.availableCredits > 0;
+  const forest = credit.forest;
+
+  return (
+    <div
+      className={`group bg-white rounded-xl border transition-all ${
+        isAvailable
+          ? 'border-gray-200 hover:border-emerald-300 hover:shadow-lg'
+          : 'border-gray-100 opacity-60'
+      }`}
+    >
+      <div className="p-4 pb-3">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="shrink-0 rounded-lg bg-emerald-50 p-2">
+              <Leaf className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div className="min-w-0">
+              <h3
+                className="font-semibold text-gray-900 truncate text-sm"
+                title={forest?.name || `Credit #${credit.id}`}
+              >
+                {forest?.name || `Credit #${credit.id}`}
+              </h3>
+              {forest && (
+                <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{forest.location}</span>
+                  {forest.area > 0 && (
+                    <>
+                      <span className="text-gray-300">·</span>
+                      <span className="whitespace-nowrap">{formatArea(forest.area)}</span>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+          {!isAvailable ? (
+            <Badge
+              variant="outline"
+              className="shrink-0 border-red-200 bg-red-50 text-red-600 text-xs"
+            >
+              Sold Out
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700 text-xs"
+            >
+              Available
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge variant="secondary" className="text-xs font-normal bg-gray-100 text-gray-600">
+            <Shield className="h-3 w-3 mr-1" />
+            {credit.certification}
+          </Badge>
+          <Badge variant="secondary" className="text-xs font-normal bg-gray-100 text-gray-600">
+            <Calendar className="h-3 w-3 mr-1" />
+            {credit.vintage}
+          </Badge>
+          <Badge variant="secondary" className="text-xs font-normal bg-emerald-50 text-emerald-700">
+            {formatNumber(credit.totalCredits)} {credit.symbol}
+          </Badge>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="p-4 pt-3">
+        <div className="flex items-baseline justify-between mb-3">
+          <div>
+            <span className="text-2xl font-bold text-gray-900">${credit.pricePerCredit}</span>
+            <span className="text-sm text-gray-500 ml-1">/ credit</span>
+            {usdValue && <span className="text-xs text-gray-400 ml-2">≈ ${usdValue} USD</span>}
+          </div>
+        </div>
+
+        <AvailabilityBar
+          available={credit.availableCredits ?? 0}
+          total={credit.totalCredits ?? 0}
+        />
+
+        <Button
+          className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+          disabled={!isAvailable}
+          onClick={() => onSelect(credit)}
+        >
+          <ShoppingCart className="h-4 w-4 mr-2" />
+          {isAvailable ? 'Purchase Credits' : 'Sold Out'}
+          {isAvailable && <ChevronRight className="h-4 w-4 ml-auto" />}
+        </Button>
+      </div>
+    </div>
+  );
+});
 
 function MarketplaceLoadingInline() {
   return (

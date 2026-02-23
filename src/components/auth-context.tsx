@@ -1,6 +1,15 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  ReactNode,
+} from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { User, AuthContextType } from '@/types';
 
@@ -68,86 +77,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    if (data.user) {
-      setIsAuthenticated(true);
-      await fetchUserFromDb(data.user.email!, data.user.id);
-    }
-  };
+      if (data.user) {
+        setIsAuthenticated(true);
+        await fetchUserFromDb(data.user.email!, data.user.id);
+      }
+    },
+    [supabase],
+  );
 
-  const signup = async (
-    email: string,
-    password: string,
-    firstName: string,
-    lastName: string,
-    company?: string,
-  ) => {
-    // Create user in Supabase Auth
-    // The database trigger will automatically create the User record
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          firstName,
-          lastName,
-          company,
+  const signup = useCallback(
+    async (
+      email: string,
+      password: string,
+      firstName: string,
+      lastName: string,
+      company?: string,
+    ) => {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            firstName,
+            lastName,
+            company,
+          },
         },
-      },
-    });
+      });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    if (!data.user) {
-      throw new Error('Failed to create account');
-    }
+      if (!data.user) {
+        throw new Error('Failed to create account');
+      }
 
-    // Database trigger automatically creates User record
-    // Wait a moment for the trigger to complete, then fetch the user
-    setIsAuthenticated(true);
+      setIsAuthenticated(true);
 
-    // Retry fetching user with exponential backoff (trigger may take a moment)
-    let retries = 0;
-    const maxRetries = 5;
-    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-    let userFound = false;
+      let retries = 0;
+      const maxRetries = 5;
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      let userFound = false;
 
-    while (retries < maxRetries && !userFound) {
-      await delay(retries * 200); // 0ms, 200ms, 400ms, 600ms, 800ms
+      while (retries < maxRetries && !userFound) {
+        await delay(retries * 200);
+        userFound = await fetchUserFromDb(data.user.email!, data.user.id);
+        retries++;
+      }
 
-      userFound = await fetchUserFromDb(data.user.email!, data.user.id);
-      retries++;
-    }
+      if (!userFound) {
+        console.warn(
+          'User record not found immediately after signup. It may be created by trigger shortly.',
+        );
+      }
+    },
+    [supabase],
+  );
 
-    // If user still not found after retries, log warning but don't fail
-    // The trigger should have created it, but we'll let it sync eventually
-    if (!userFound) {
-      console.warn(
-        'User record not found immediately after signup. It may be created by trigger shortly.',
-      );
-      // Still set authenticated state - user can use the app
-      // The user record will be fetched on next page load or auth state change
-    }
-  };
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setIsAuthenticated(false);
     setUser(null);
-  };
+  }, [supabase]);
 
-  return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, signup, loading }}>
-      {children}
-    </AuthContext.Provider>
+  const contextValue = useMemo(
+    () => ({ isAuthenticated, user, login, logout, signup, loading }),
+    [isAuthenticated, user, login, logout, signup, loading],
   );
+
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
