@@ -491,11 +491,19 @@ export default function AuthPage() {
                       className="text-xs text-gray-600 cursor-pointer leading-relaxed"
                     >
                       By creating an account, you agree to our{' '}
-                      <Link href="#" className="text-green-600 hover:underline">
+                      <Link
+                        href="/terms"
+                        className="text-green-600 hover:underline"
+                        target="_blank"
+                      >
                         Terms of Service
                       </Link>{' '}
                       and{' '}
-                      <Link href="#" className="text-green-600 hover:underline">
+                      <Link
+                        href="/privacy"
+                        className="text-green-600 hover:underline"
+                        target="_blank"
+                      >
                         Privacy Policy
                       </Link>
                     </Label>

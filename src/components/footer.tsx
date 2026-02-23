@@ -16,7 +16,8 @@ const footerLinks = {
   'Trust & Company': [
     { href: '/verify', label: 'Verify Transaction' },
     { href: '/about', label: 'About Us' },
-    { href: '/admin', label: 'Admin Console' },
+    { href: '/terms', label: 'Terms of Service' },
+    { href: '/privacy', label: 'Privacy Policy' },
   ],
 };
 
