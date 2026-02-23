@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 
 // Dynamically import ForceGraph2D to avoid SSR issues
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
@@ -306,9 +305,11 @@ export default function CarbonMovementGraphPage() {
       return;
     }
 
+    const getEndpointId = (endpoint: string | any): string =>
+      typeof endpoint === 'string' ? endpoint : (endpoint?.id ?? String(endpoint));
+
     const searchLower = debouncedSearch.toLowerCase();
 
-    // Find matching user nodes
     const matchingUsers = graphData.nodes.filter(
       (node) =>
         node.type === 'User' &&
@@ -324,26 +325,25 @@ export default function CarbonMovementGraphPage() {
 
     const matchingUserIds = new Set(matchingUsers.map((u) => u.id));
 
-    // Build the complete chain of nodes and links
     const relatedNodeIds = new Set<string>(matchingUserIds);
     const relatedLinks: GraphLink[] = [];
     const processedLinks = new Set<string>();
 
-    // Step 1: Get direct links from the user to Orders only (exclude user-to-user transfers)
     graphData.links.forEach((link) => {
       const linkId = link.id;
       if (processedLinks.has(linkId)) return;
 
-      // Only include if it's from the filtered user and NOT a TRANSFERS_TO link
-      if (matchingUserIds.has(link.source as string) && link.type !== 'TRANSFERS_TO') {
+      const sourceId = getEndpointId(link.source);
+      const targetId = getEndpointId(link.target);
+
+      if (matchingUserIds.has(sourceId) && link.type !== 'TRANSFERS_TO') {
         relatedLinks.push(link);
         processedLinks.add(linkId);
-        relatedNodeIds.add(link.source as string);
-        relatedNodeIds.add(link.target as string);
+        relatedNodeIds.add(sourceId);
+        relatedNodeIds.add(targetId);
       }
     });
 
-    // Step 2: Get intermediate nodes (Orders, Credits, Certificates) from Step 1
     const intermediateNodeIds = new Set<string>();
     relatedNodeIds.forEach((nodeId) => {
       const node = graphData.nodes.find((n) => n.id === nodeId);
@@ -355,24 +355,21 @@ export default function CarbonMovementGraphPage() {
       }
     });
 
-    // Step 3: Find all links connected to intermediate nodes to complete the chain
     graphData.links.forEach((link) => {
       const linkId = link.id;
       if (processedLinks.has(linkId)) return;
 
-      // If source or target is an intermediate node, include this link
-      if (
-        intermediateNodeIds.has(link.source as string) ||
-        intermediateNodeIds.has(link.target as string)
-      ) {
+      const sourceId = getEndpointId(link.source);
+      const targetId = getEndpointId(link.target);
+
+      if (intermediateNodeIds.has(sourceId) || intermediateNodeIds.has(targetId)) {
         relatedLinks.push(link);
         processedLinks.add(linkId);
-        relatedNodeIds.add(link.source as string);
-        relatedNodeIds.add(link.target as string);
+        relatedNodeIds.add(sourceId);
+        relatedNodeIds.add(targetId);
       }
     });
 
-    // Get all related nodes
     const relatedNodes = graphData.nodes.filter((node) => relatedNodeIds.has(node.id));
 
     setFilteredGraphData({
@@ -693,19 +690,30 @@ export default function CarbonMovementGraphPage() {
                     <div>
                       <Label className="text-sm font-medium">Order → Credit:</Label>
                       <p className="text-sm">
-                        {selectedLink.source} → {selectedLink.target}
+                        {getLinkEndpointLabel(selectedLink.source)} →{' '}
+                        {getLinkEndpointLabel(selectedLink.target)}
                       </p>
                     </div>
-                    <div>
-                      <Label className="text-sm font-medium">Quantity:</Label>
-                      <p className="text-sm">{selectedLink.properties.quantity} credits</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">Total Price:</Label>
-                      <p className="text-sm">
-                        ${selectedLink.properties.totalPrice?.toLocaleString()}
-                      </p>
-                    </div>
+                    {selectedLink.properties.quantity && (
+                      <div>
+                        <Label className="text-sm font-medium">Quantity:</Label>
+                        <p className="text-sm">{selectedLink.properties.quantity} credits</p>
+                      </div>
+                    )}
+                    {selectedLink.properties.pricePerCredit && (
+                      <div>
+                        <Label className="text-sm font-medium">Price per Credit:</Label>
+                        <p className="text-sm">${selectedLink.properties.pricePerCredit}</p>
+                      </div>
+                    )}
+                    {selectedLink.properties.subtotal && (
+                      <div>
+                        <Label className="text-sm font-medium">Subtotal:</Label>
+                        <p className="text-sm">
+                          ${selectedLink.properties.subtotal?.toLocaleString()}
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -714,13 +722,56 @@ export default function CarbonMovementGraphPage() {
                     <div>
                       <Label className="text-sm font-medium">Forest → Credit:</Label>
                       <p className="text-sm">
-                        {selectedLink.source} → {selectedLink.target}
+                        {getLinkEndpointLabel(selectedLink.source)} →{' '}
+                        {getLinkEndpointLabel(selectedLink.target)}
                       </p>
                     </div>
+                  </>
+                )}
+
+                {selectedLink.type === 'PLACED' && (
+                  <>
                     <div>
-                      <Label className="text-sm font-medium">Generated:</Label>
-                      <p className="text-sm">{selectedLink.properties.quantity} credits</p>
+                      <Label className="text-sm font-medium">User → Order:</Label>
+                      <p className="text-sm">
+                        {getLinkEndpointLabel(selectedLink.source)} →{' '}
+                        {getLinkEndpointLabel(selectedLink.target)}
+                      </p>
                     </div>
+                    {selectedLink.properties.createdAt && (
+                      <div>
+                        <Label className="text-sm font-medium">Placed At:</Label>
+                        <p className="text-sm">
+                          {new Date(selectedLink.properties.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {selectedLink.type === 'OWNS' && (
+                  <>
+                    <div>
+                      <Label className="text-sm font-medium">User → Credit:</Label>
+                      <p className="text-sm">
+                        {getLinkEndpointLabel(selectedLink.source)} →{' '}
+                        {getLinkEndpointLabel(selectedLink.target)}
+                      </p>
+                    </div>
+                    {selectedLink.properties.quantity && (
+                      <div>
+                        <Label className="text-sm font-medium">Quantity:</Label>
+                        <p className="text-sm">{selectedLink.properties.quantity} credits</p>
+                      </div>
+                    )}
+                    {selectedLink.properties.acquiredAt && (
+                      <div>
+                        <Label className="text-sm font-medium">Acquired At:</Label>
+                        <p className="text-sm">
+                          {new Date(selectedLink.properties.acquiredAt).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

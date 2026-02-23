@@ -352,7 +352,7 @@ function SuccessPageContent() {
               </div>
 
               {audit && (
-                <div className="mt-3 space-y-2">
+                <div className="mt-3">
                   <div className="bg-white/80 rounded-lg p-3 border border-purple-100">
                     <p className="text-[10px] font-medium text-purple-500 uppercase tracking-wider mb-1">
                       SHA-256 Hash
@@ -360,27 +360,6 @@ function SuccessPageContent() {
                     <p className="font-mono text-xs text-gray-800 break-all leading-relaxed">
                       {audit.hash}
                     </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-white/80 rounded-lg p-2.5 border border-purple-100">
-                      <p className="text-[10px] font-medium text-purple-500 uppercase tracking-wider">
-                        Credits
-                      </p>
-                      <p className="font-mono font-medium text-gray-900 mt-0.5">
-                        {audit.transactionData.totalCredits}
-                      </p>
-                    </div>
-                    <div className="bg-white/80 rounded-lg p-2.5 border border-purple-100">
-                      <p className="text-[10px] font-medium text-purple-500 uppercase tracking-wider">
-                        Recorded At
-                      </p>
-                      <p className="font-mono font-medium text-gray-900 mt-0.5">
-                        {new Date(audit.timestamp).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                    </div>
                   </div>
                 </div>
               )}
@@ -408,33 +387,27 @@ function SuccessPageContent() {
                   <h3 className="text-sm font-semibold text-blue-900">Neo4j — Provenance Graph</h3>
                   <p className="text-xs text-blue-600">Carbon credit ownership chain tracked</p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 shrink-0">
+                <Link
+                  href="/carbon-movement"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition shrink-0"
+                >
                   <span className="h-2 w-2 rounded-full bg-blue-500" />
                   Recorded
-                </span>
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </Link>
               </div>
-            </div>
-
-            <div className="mt-auto pt-2">
-              <Link
-                href="/carbon-movement"
-                className="flex items-center justify-center gap-2 w-full rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition"
-              >
-                <svg
-                  className="h-4 w-4 text-gray-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-                View Transaction Graph
-              </Link>
             </div>
           </div>
         </div>
