@@ -14,9 +14,6 @@ export function DesktopNav() {
   const cartCount = Array.isArray(cartData) ? cartData.length : cartData ? 1 : 0;
   return (
     <div className="hidden lg:flex items-center space-x-6">
-      <Link href="/about" className="text-gray-600 hover:text-green-600">
-        About
-      </Link>
       {isAuthenticated && (
         <>
           <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
@@ -67,7 +64,10 @@ export function DesktopNav() {
 
 export function MobileNavWrapper() {
   const { isAuthenticated, user, logout } = useAuth();
-  const links = [{ href: '/about', label: 'About' }];
+  const links = [
+    { href: '/about', label: 'About' },
+    { href: '/verify', label: 'Verify' },
+  ];
   if (isAuthenticated) {
     links.push(
       { href: '/dashboard', label: 'Dashboard' },

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Leaf, Github, Mail, Globe } from 'lucide-react';
+import { Leaf, Github, Mail, Globe, ShieldCheck } from 'lucide-react';
 
 const footerLinks = {
   Platform: [
@@ -13,7 +13,8 @@ const footerLinks = {
     { href: '/biomass-only', label: 'Biomass Analysis' },
     { href: '/order-audit', label: 'Order Audit Trail' },
   ],
-  Company: [
+  'Trust & Company': [
+    { href: '/verify', label: 'Verify Transaction' },
     { href: '/about', label: 'About Us' },
     { href: '/admin', label: 'Admin Console' },
   ],
@@ -83,8 +84,15 @@ export function Footer() {
       </div>
 
       <div className="border-t border-gray-800">
-        <div className="container py-6 text-center text-sm text-gray-500">
+        <div className="container py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
           <p>&copy; {new Date().getFullYear()} EcoCredit. All rights reserved.</p>
+          <Link
+            href="/verify"
+            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-green-400 transition-colors"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            <span>Tamper-proof transactions</span>
+          </Link>
         </div>
       </div>
     </footer>

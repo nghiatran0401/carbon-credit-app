@@ -12,6 +12,9 @@ import {
   LineChart,
   Globe2,
   CheckCircle2,
+  Search,
+  Database,
+  Hash,
 } from 'lucide-react';
 
 const stats = [
@@ -273,6 +276,52 @@ export default function LandingPage() {
                   <p className="mt-2 text-sm text-gray-600">{item.description}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Public Verification CTA */}
+      <section className="relative z-10 px-4 pb-16">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-sm overflow-hidden relative">
+            <div className="absolute right-0 top-0 h-48 w-48 rounded-full bg-emerald-50 blur-3xl -translate-y-1/2 translate-x-1/2" />
+            <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] items-center">
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 uppercase tracking-wider">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Public Verification
+                </div>
+                <h2 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
+                  Don&apos;t trust us — verify it yourself
+                </h2>
+                <p className="text-gray-600 max-w-xl">
+                  Every transaction on EcoCredit is hashed with SHA-256 and stored in an immutable
+                  database. Enter any order ID to independently verify its authenticity — no account
+                  required.
+                </p>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Hash className="h-4 w-4 text-emerald-600" />
+                    SHA-256 hashing
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Database className="h-4 w-4 text-emerald-600" />
+                    immudb immutable storage
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Search className="h-4 w-4 text-emerald-600" />
+                    Open verification
+                  </span>
+                </div>
+              </div>
+              <Link
+                href="/verify"
+                className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-6 py-3 text-white font-semibold shadow-lg shadow-emerald-200 hover:-translate-y-0.5 hover:bg-emerald-700 transition whitespace-nowrap"
+              >
+                Verify a transaction
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
             </div>
           </div>
         </div>
