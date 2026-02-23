@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 import { getImmudbService } from './immudb-service';
-import { logger } from './logger';
 
 export interface OrderTransactionData {
   orderId: number;
@@ -39,7 +38,7 @@ class OrderAuditService {
 
     // Compute SHA256 hash
     const hash = crypto.createHash('sha256').update(dataString).digest('hex');
-    logger.debug('Computed order hash', { orderId });
+    console.debug('Computed order hash', { orderId });
 
     return hash;
   }
@@ -79,11 +78,11 @@ class OrderAuditService {
         },
       });
 
-      logger.info('Order audit stored in ImmuDB', { orderId: orderData.orderId });
+      console.log('Order audit stored in ImmuDB', { orderId: orderData.orderId });
 
       return hash;
     } catch (error) {
-      logger.error('Failed to store order audit in ImmuDB', { error });
+      console.error('Failed to store order audit in ImmuDB', { error });
       throw new Error(`Failed to store order audit: ${error}`);
     }
   }
@@ -118,7 +117,7 @@ class OrderAuditService {
 
       const storedHash = storedRecord.metadata.computedHash;
       const isValid = storedHash === computedHash;
-      logger.info('Order integrity verification', { orderId, isValid });
+      console.log('Order integrity verification', { orderId, isValid });
 
       return {
         isValid,
@@ -127,7 +126,7 @@ class OrderAuditService {
         key,
       };
     } catch (error) {
-      logger.error('Failed to verify order integrity', { error });
+      console.error('Failed to verify order integrity', { error });
       throw new Error(`Failed to verify order integrity: ${error}`);
     }
   }
@@ -193,7 +192,7 @@ class OrderAuditService {
         },
       };
     } catch (error) {
-      console.error('Failed to get order audit:', error);
+      console.error('Failed to get order audit', { orderId, error });
       return null;
     }
   }

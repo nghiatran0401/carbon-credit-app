@@ -105,13 +105,22 @@ class Neo4jService {
   }
 }
 
-let _neo4jServiceInstance: Neo4jService | null = null;
+const globalForNeo4j = globalThis as unknown as {
+  neo4jService: Neo4jService | undefined;
+};
 
 export function getNeo4jService(): Neo4jService {
-  if (!_neo4jServiceInstance) {
-    _neo4jServiceInstance = Neo4jService.getInstance();
+  if (globalForNeo4j.neo4jService) {
+    return globalForNeo4j.neo4jService;
   }
-  return _neo4jServiceInstance;
+
+  const instance = Neo4jService.getInstance();
+
+  if (process.env.NODE_ENV !== 'production') {
+    globalForNeo4j.neo4jService = instance;
+  }
+
+  return instance;
 }
 
 /** @deprecated Use getNeo4jService() for lazy initialization */

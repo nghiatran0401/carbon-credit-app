@@ -156,10 +156,11 @@ class ImmudbService {
 
       return null;
     } catch (error) {
-      console.error('Failed to get transaction hash:', error);
-      if (error instanceof Error && error.toString().includes('key not found')) {
+      const errStr = String(error);
+      if (errStr.includes('key not found')) {
         return null;
       }
+      console.error('Failed to get transaction hash:', error);
       throw new Error(`Failed to get transaction hash: ${error}`);
     }
   }
@@ -244,29 +245,36 @@ class ImmudbService {
   }
 }
 
-// Singleton instance
-let immudbServiceInstance: ImmudbService | null = null;
+const globalForImmudb = globalThis as unknown as {
+  immudbService: ImmudbService | undefined;
+};
 
 export function getImmudbService(): ImmudbService {
-  if (!immudbServiceInstance) {
-    if (!process.env.IMMUDB_HOST || !process.env.IMMUDB_USERNAME || !process.env.IMMUDB_PASSWORD) {
-      throw new Error(
-        'ImmuDB configuration missing. Set IMMUDB_HOST, IMMUDB_USERNAME, and IMMUDB_PASSWORD environment variables.',
-      );
-    }
-
-    const config: ImmudbConfig = {
-      host: process.env.IMMUDB_HOST,
-      port: parseInt(process.env.IMMUDB_PORT || '3322'),
-      username: process.env.IMMUDB_USERNAME,
-      password: process.env.IMMUDB_PASSWORD,
-      database: process.env.IMMUDB_DATABASE || 'defaultdb',
-    };
-
-    immudbServiceInstance = new ImmudbService(config);
+  if (globalForImmudb.immudbService) {
+    return globalForImmudb.immudbService;
   }
 
-  return immudbServiceInstance;
+  if (!process.env.IMMUDB_HOST || !process.env.IMMUDB_USERNAME || !process.env.IMMUDB_PASSWORD) {
+    throw new Error(
+      'ImmuDB configuration missing. Set IMMUDB_HOST, IMMUDB_USERNAME, and IMMUDB_PASSWORD environment variables.',
+    );
+  }
+
+  const config: ImmudbConfig = {
+    host: process.env.IMMUDB_HOST,
+    port: parseInt(process.env.IMMUDB_PORT || '3322'),
+    username: process.env.IMMUDB_USERNAME,
+    password: process.env.IMMUDB_PASSWORD,
+    database: process.env.IMMUDB_DATABASE || 'defaultdb',
+  };
+
+  const instance = new ImmudbService(config);
+
+  if (process.env.NODE_ENV !== 'production') {
+    globalForImmudb.immudbService = instance;
+  }
+
+  return instance;
 }
 
 export default ImmudbService;

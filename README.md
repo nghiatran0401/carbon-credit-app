@@ -29,7 +29,6 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits �
 - Shopping cart with multi-item checkout via PayOS
 - Order history with real-time status tracking
 - Digital certificates for completed purchases (PDF generation)
-- Bookmark favorite forest projects
 
 **Analytics & Visualization**
 
@@ -130,6 +129,7 @@ carbon-credit-app/
 │   ├── app/
 │   │   ├── layout.tsx         # Root layout
 │   │   ├── page.tsx           # Landing page
+│   │   ├── about/             # About page
 │   │   ├── admin/             # Admin panel (forests, credits, orders, users)
 │   │   ├── auth/              # Authentication page
 │   │   ├── biomass-only/      # Biomass visualization
@@ -226,13 +226,6 @@ npx prisma studio
 
 All routes are under `/api/` and follow RESTful conventions.
 
-### Authentication
-
-| Method | Endpoint             | Description                      |
-| ------ | -------------------- | -------------------------------- |
-| POST   | `/api/auth/register` | Create a new user account        |
-| POST   | `/api/auth/login`    | Authenticate and receive session |
-
 ### Forests
 
 | Method | Endpoint       | Description             |
@@ -253,13 +246,12 @@ All routes are under `/api/` and follow RESTful conventions.
 
 ### Orders
 
-| Method | Endpoint                    | Description            |
-| ------ | --------------------------- | ---------------------- |
-| GET    | `/api/orders`               | List user orders       |
-| POST   | `/api/orders`               | Create an order        |
-| GET    | `/api/orders/audit`         | Get order audit trail  |
-| POST   | `/api/orders/verify`        | Verify order integrity |
-| POST   | `/api/orders/[id]/complete` | Mark order as complete |
+| Method | Endpoint             | Description            |
+| ------ | -------------------- | ---------------------- |
+| GET    | `/api/orders`        | List user orders       |
+| POST   | `/api/orders`        | Create an order        |
+| GET    | `/api/orders/audit`  | Get order audit trail  |
+| POST   | `/api/orders/verify` | Verify order integrity |
 
 ### Cart & Checkout
 
@@ -277,7 +269,6 @@ All routes are under `/api/` and follow RESTful conventions.
 | Method   | Endpoint            | Description                     |
 | -------- | ------------------- | ------------------------------- |
 | GET      | `/api/users`        | List users (admin)              |
-| GET/POST | `/api/bookmarks`    | Manage bookmarks                |
 | GET/POST | `/api/certificates` | Issue and retrieve certificates |
 | POST     | `/api/webhook`      | PayOS webhook handler           |
 | GET      | `/api/health`       | Health check                    |

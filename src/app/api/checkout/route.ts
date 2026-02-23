@@ -66,9 +66,8 @@ export async function POST(req: NextRequest) {
       })),
     });
 
-    // payOS requires integer amount in VND — convert USD to VND cents equivalent
-    // Using amount in smallest currency unit (cents for USD → integer)
-    const payosAmount = Math.round(total * 100);
+    // Fixed 2000 VND for testing — replace with real conversion in production
+    const payosAmount = 2000;
 
     const returnUrl = `${baseUrl}/api/payment/return?orderCode=${orderCode}`;
     const cancelUrl = `${baseUrl}/api/payment/cancel?orderCode=${orderCode}`;
@@ -84,7 +83,7 @@ export async function POST(req: NextRequest) {
       items: cartItems.map((item) => ({
         name: item.carbonCredit.forest?.name || 'Carbon Credit',
         quantity: item.quantity,
-        price: Math.round(item.carbonCredit.pricePerCredit * 100),
+        price: payosAmount,
       })),
     });
 

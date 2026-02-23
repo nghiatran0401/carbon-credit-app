@@ -1,22 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { orderAuditService } from '@/lib/order-audit-service';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin, isAuthError, handleRouteError } from '@/lib/auth';
+import { requireAuth, requireAdmin, isAuthError, handleRouteError } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAdmin(request);
-    if (isAuthError(auth)) return auth;
-
     const { searchParams } = new URL(request.url);
     const orderId = searchParams.get('orderId');
 
     if (orderId) {
+      const auth = await requireAuth(request);
+      if (isAuthError(auth)) return auth;
+
       const parsedId = parseInt(orderId);
       if (isNaN(parsedId)) {
         return NextResponse.json({ success: false, message: 'Invalid order ID' }, { status: 400 });
+      }
+
+      const order = await prisma.order.findUnique({
+        where: { id: parsedId },
+        select: {
+          id: true,
+          totalCredits: true,
+          totalPrice: true,
+          paidAt: true,
+          buyer: true,
+          seller: true,
+          status: true,
+          userId: true,
+        },
+      });
+
+      if (!order) {
+        return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+      }
+
+      if (order.userId !== auth.id && auth.role?.toLowerCase() !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
 
       const auditRecord = await orderAuditService.getOrderAudit(parsedId);
@@ -31,38 +53,28 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const currentOrder = await prisma.order.findUnique({
-        where: { id: parsedId },
-        select: {
-          id: true,
-          totalCredits: true,
-          totalPrice: true,
-          paidAt: true,
-          buyer: true,
-          seller: true,
-          status: true,
-        },
-      });
-
       let verification = null;
-      if (currentOrder && currentOrder.paidAt) {
-        verification = await orderAuditService.verifyOrderIntegrity(currentOrder.id, {
-          orderId: currentOrder.id,
-          totalCredits: currentOrder.totalCredits,
-          totalPrice: currentOrder.totalPrice,
-          paidAt: currentOrder.paidAt,
-          buyer: currentOrder.buyer,
-          seller: currentOrder.seller,
+      if (order.paidAt) {
+        verification = await orderAuditService.verifyOrderIntegrity(order.id, {
+          orderId: order.id,
+          totalCredits: order.totalCredits,
+          totalPrice: order.totalPrice,
+          paidAt: order.paidAt,
+          buyer: order.buyer,
+          seller: order.seller,
         });
       }
 
       return NextResponse.json({
         success: true,
         audit: auditRecord,
-        currentOrder,
+        currentOrder: order,
         verification,
       });
     } else {
+      const auth = await requireAdmin(request);
+      if (isAuthError(auth)) return auth;
+
       const allAudits = await orderAuditService.getAllOrderAudits();
 
       return NextResponse.json({

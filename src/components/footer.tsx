@@ -13,7 +13,10 @@ const footerLinks = {
     { href: '/biomass-only', label: 'Biomass Analysis' },
     { href: '/order-audit', label: 'Order Audit Trail' },
   ],
-  Administration: [{ href: '/admin', label: 'Admin Console' }],
+  Company: [
+    { href: '/about', label: 'About Us' },
+    { href: '/admin', label: 'Admin Console' },
+  ],
 };
 
 export function Footer() {

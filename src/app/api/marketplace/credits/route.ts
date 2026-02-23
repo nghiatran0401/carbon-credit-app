@@ -74,36 +74,49 @@ export async function GET() {
         if (exists) continue;
       }
 
+      const forestName = analysis.name || 'Forest Analysis';
       const totalCredits = Math.floor(analysis.stats!.forestBiomassMg! / BIOMASS_TO_CO2_FACTOR);
       const areaHa = (analysis.stats?.forestAreaKm2 ?? 0) * 100;
+      const location = formatLocation(analysis.bounds);
 
-      const forest = await prisma.forest.create({
-        data: {
-          name: analysis.name || 'Forest Analysis',
-          location: formatLocation(analysis.bounds),
-          type: 'Analyzed',
-          area: areaHa,
-          description: analysis.description || 'Carbon credit from biomass analysis',
-          status: 'ACTIVE',
-          lastUpdated: new Date(),
-        },
-      });
+      try {
+        const forest = await prisma.forest.create({
+          data: {
+            name: forestName,
+            location,
+            type: 'Analyzed',
+            area: areaHa,
+            description: analysis.description || 'Carbon credit from biomass analysis',
+            status: 'ACTIVE',
+            lastUpdated: new Date(),
+          },
+        });
 
-      await prisma.carbonCredit.create({
-        data: {
-          forestId: forest.id,
-          vintage: new Date().getFullYear(),
-          certification: 'Biomass Analysis',
-          totalCredits,
-          availableCredits: totalCredits,
-          pricePerCredit: DEFAULT_PRICE_PER_CREDIT,
-          symbol: 'tCO₂',
-          retiredCredits: 0,
-        },
-      });
+        const existingCredit = await prisma.carbonCredit.findFirst({
+          where: { forestId: forest.id },
+        });
 
-      analysis.prismaForestId = forest.id;
-      indexUpdated = true;
+        if (!existingCredit) {
+          await prisma.carbonCredit.create({
+            data: {
+              forestId: forest.id,
+              vintage: new Date().getFullYear(),
+              certification: 'Biomass Analysis',
+              totalCredits,
+              availableCredits: totalCredits,
+              pricePerCredit: DEFAULT_PRICE_PER_CREDIT,
+              symbol: 'tCO₂',
+              retiredCredits: 0,
+            },
+          });
+        }
+
+        analysis.prismaForestId = forest.id;
+        indexUpdated = true;
+      } catch (createError) {
+        console.warn(`Skipping forest sync for analysis "${analysis.id}":`, createError);
+        continue;
+      }
     }
 
     if (indexUpdated) {

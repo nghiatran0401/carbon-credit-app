@@ -1,3 +1,4 @@
+import neo4j from 'neo4j-driver';
 import { neo4jService } from './neo4j-service';
 import { prisma } from './prisma';
 import { OrderStatus } from '@prisma/client';
@@ -253,6 +254,24 @@ class CarbonMovementService {
   /**
    * Get carbon credit movement graph for visualization
    */
+  /**
+   * Convert Neo4j-specific types (Integer, DateTime, etc.) to plain JS values
+   * so they serialize correctly to JSON.
+   */
+  private toPlainProps(props: Record<string, any>): Record<string, any> {
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(props)) {
+      if (neo4j.isInt(val)) {
+        result[key] = val.toNumber();
+      } else if (val && typeof val === 'object' && typeof val.toString === 'function' && val.year) {
+        result[key] = val.toString();
+      } else {
+        result[key] = val;
+      }
+    }
+    return result;
+  }
+
   async getCarbonCreditMovementGraph(limit: number = 50): Promise<CarbonCreditMovement> {
     const session = neo4jService.getSession();
     try {
@@ -261,7 +280,7 @@ class CarbonMovementService {
          WHERE n:User OR n:Forest OR n:CarbonCredit OR n:Order
          RETURN n, r, m
          LIMIT $limit`,
-        { limit },
+        { limit: neo4j.int(limit) },
       );
 
       const nodes: MovementNode[] = [];
@@ -273,33 +292,32 @@ class CarbonMovementService {
         const relationship = record.get('r');
         const endNode = record.get('m');
 
-        // Add start node
-        const startNodeId = `${startNode.labels[0]}_${startNode.properties.id}`;
+        const startProps = this.toPlainProps(startNode.properties);
+        const startNodeId = `${startNode.labels[0]}_${startProps.id}`;
         if (!nodeIds.has(startNodeId)) {
           nodes.push({
             id: startNodeId,
             type: startNode.labels[0] as any,
-            properties: startNode.properties,
+            properties: startProps,
           });
           nodeIds.add(startNodeId);
         }
 
-        // Add end node
-        const endNodeId = `${endNode.labels[0]}_${endNode.properties.id}`;
+        const endProps = this.toPlainProps(endNode.properties);
+        const endNodeId = `${endNode.labels[0]}_${endProps.id}`;
         if (!nodeIds.has(endNodeId)) {
           nodes.push({
             id: endNodeId,
             type: endNode.labels[0] as any,
-            properties: endNode.properties,
+            properties: endProps,
           });
           nodeIds.add(endNodeId);
         }
 
-        // Add relationship
         relationships.push({
           id: `${startNodeId}_${relationship.type}_${endNodeId}`,
           type: relationship.type,
-          properties: relationship.properties,
+          properties: this.toPlainProps(relationship.properties),
           startNode: startNodeId,
           endNode: endNodeId,
         });

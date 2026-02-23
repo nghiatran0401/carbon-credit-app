@@ -14,6 +14,9 @@ export function DesktopNav() {
   const cartCount = Array.isArray(cartData) ? cartData.length : cartData ? 1 : 0;
   return (
     <div className="hidden lg:flex items-center space-x-6">
+      <Link href="/about" className="text-gray-600 hover:text-green-600">
+        About
+      </Link>
       {isAuthenticated && (
         <>
           <Link href="/dashboard" className="text-gray-600 hover:text-green-600">
@@ -64,7 +67,7 @@ export function DesktopNav() {
 
 export function MobileNavWrapper() {
   const { isAuthenticated, user, logout } = useAuth();
-  const links = [];
+  const links = [{ href: '/about', label: 'About' }];
   if (isAuthenticated) {
     links.push(
       { href: '/dashboard', label: 'Dashboard' },
@@ -72,7 +75,6 @@ export function MobileNavWrapper() {
       { href: '/history', label: 'History' },
     );
   }
-  links.push({ href: '/about', label: 'About' });
   if (isAuthenticated && user?.role?.toLowerCase() === 'admin') {
     links.push({ href: '/admin', label: 'Admin' });
   }

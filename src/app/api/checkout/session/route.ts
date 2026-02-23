@@ -91,6 +91,19 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    if (payment.order.status === 'COMPLETED') {
+      try {
+        await orderAuditMiddleware.ensureOrderAudit(payment.order.id);
+      } catch {
+        // best-effort
+      }
+      try {
+        await carbonMovementService.trackOrderMovement(payment.order.id);
+      } catch {
+        // best-effort
+      }
+    }
+
     return NextResponse.json({
       payment,
       order: payment.order,

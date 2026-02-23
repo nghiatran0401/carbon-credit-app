@@ -47,12 +47,12 @@ const NODE_COLORS = {
 
 const LINK_COLORS = {
   GENERATES: '#10B981', // Green
-  PLACES: '#3B82F6', // Blue
+  PLACED: '#3B82F6', // Blue
   PURCHASES: '#F59E0B', // Amber
+  OWNS: '#8B5CF6', // Purple
   TRANSFERS_TO: '#8B5CF6', // Purple - User to user transfers
   TRANSFERS_CREDIT: '#A855F7', // Light Purple - Credit lifecycle transfers
   GENERATES_CERTIFICATE: '#EF4444', // Red
-  OWNS: '#8B5CF6', // Purple
   CERTIFIES: '#EF4444', // Red
 };
 
@@ -68,6 +68,7 @@ export default function CarbonMovementGraphPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filteredGraphData, setFilteredGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [graphStats, setGraphStats] = useState({ nodeCount: 0, relationshipCount: 0 });
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const { toast } = useToast();
 
@@ -75,15 +76,14 @@ export default function CarbonMovementGraphPage() {
   const testConnection = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Test mock data endpoint
-      const response = await fetch('/api/carbon-movement/mock');
+      const response = await fetch('/api/neo4j/test');
       const data = await response.json();
 
       if (data.success) {
         setIsConnected(true);
         toast({
-          title: 'Mock Data Ready',
-          description: 'Mock carbon movement data is available for visualization',
+          title: 'Neo4j Connected',
+          description: 'Connected to Neo4j graph database',
         });
       } else {
         setIsConnected(false);
@@ -97,7 +97,7 @@ export default function CarbonMovementGraphPage() {
       setIsConnected(false);
       toast({
         title: 'Connection Error',
-        description: `Failed to load mock data: ${error}`,
+        description: `Failed to connect to Neo4j: ${error}`,
         variant: 'destructive',
       });
     } finally {
@@ -109,17 +109,20 @@ export default function CarbonMovementGraphPage() {
   const syncData = async () => {
     setIsLoading(true);
     try {
-      // Use mock sync endpoint with limit parameter
-      const response = await fetch(`/api/carbon-movement/mock?endpoint=sync&limit=${limit}`);
+      const response = await fetch('/api/neo4j/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync' }),
+      });
       const data = await response.json();
 
       if (data.success) {
         toast({
-          title: 'Mock Data Ready',
-          description: `Mock data loaded: ${data.synced.nodes} nodes, ${data.synced.relationships} relationships`,
+          title: 'Sync Started',
+          description: data.message,
         });
-        // Reload graph data after sync
-        loadGraphData();
+        await new Promise((r) => setTimeout(r, 3000));
+        await loadGraphData();
       } else {
         toast({
           title: 'Sync Failed',
@@ -138,49 +141,60 @@ export default function CarbonMovementGraphPage() {
     }
   };
 
-  // Load graph data
+  // Load graph data from Neo4j
   const loadGraphData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Build query parameters
       const params = new URLSearchParams();
       params.append('limit', limit.toString());
-      if (selectedNodeTypes.length > 0) {
-        params.append('nodeTypes', selectedNodeTypes.join(','));
-      }
 
-      // Use mock data endpoint for demonstration with parameters
-      const response = await fetch(`/api/carbon-movement/mock?${params.toString()}`);
+      const response = await fetch(`/api/neo4j/graph?${params.toString()}`);
       const data = await response.json();
 
       if (data.success) {
-        const nodes: GraphNode[] = data.data.nodes.map((node: GraphNode) => ({
+        const rawNodes = data.data.nodes || [];
+        const rawRels = data.data.relationships || [];
+
+        const nodes: GraphNode[] = rawNodes.map((node: GraphNode) => ({
           ...node,
-          val: node.val || 5 + (node.type === 'CarbonCredit' ? 3 : 0), // Use existing val or calculate
-          color: node.color || NODE_COLORS[node.type as keyof typeof NODE_COLORS] || '#6B7280',
+          val: 5 + (node.type === 'CarbonCredit' ? 3 : 0),
+          color: NODE_COLORS[node.type as keyof typeof NODE_COLORS] || '#6B7280',
         }));
 
-        const links: GraphLink[] = data.data.links.map((link: GraphLink) => ({
-          ...link,
-          value: link.value || 1,
-          color: link.color || LINK_COLORS[link.type as keyof typeof LINK_COLORS] || '#6B7280',
+        const links: GraphLink[] = rawRels.map((rel: any) => ({
+          id: rel.id,
+          type: rel.type,
+          properties: rel.properties,
+          source: rel.startNode,
+          target: rel.endNode,
+          value: 1,
+          color: LINK_COLORS[rel.type as keyof typeof LINK_COLORS] || '#6B7280',
         }));
 
-        setGraphData({ nodes, links });
-
-        // Get statistics from mock data
-        const statsResponse = await fetch('/api/carbon-movement/mock?endpoint=stats');
-        const statsData = await statsResponse.json();
-        if (statsData.success) {
+        // Client-side node type filter
+        if (selectedNodeTypes.length > 0) {
+          const filteredNodeIds = new Set(
+            nodes.filter((n) => selectedNodeTypes.includes(n.type)).map((n) => n.id),
+          );
+          const filteredNodes = nodes.filter((n) => filteredNodeIds.has(n.id));
+          const filteredLinks = links.filter(
+            (l) =>
+              filteredNodeIds.has(l.source as string) && filteredNodeIds.has(l.target as string),
+          );
+          setGraphData({ nodes: filteredNodes, links: filteredLinks });
           setGraphStats({
-            nodeCount: statsData.data.totalNodes,
-            relationshipCount: statsData.data.totalLinks,
+            nodeCount: filteredNodes.length,
+            relationshipCount: filteredLinks.length,
           });
+        } else {
+          setGraphData({ nodes, links });
+          setGraphStats({ nodeCount: nodes.length, relationshipCount: links.length });
         }
 
+        setInitialLoadDone(true);
         toast({
           title: 'Graph Loaded',
-          description: `Loaded ${nodes.length} nodes and ${links.length} relationships from mock data`,
+          description: `Loaded ${nodes.length} nodes and ${links.length} relationships from Neo4j`,
         });
       } else {
         toast({
@@ -259,27 +273,32 @@ export default function CarbonMovementGraphPage() {
     [getNodeLabel],
   );
 
+  const getLinkEndpointLabel = useCallback((endpoint: string | GraphNode | any): string => {
+    if (typeof endpoint === 'string') return endpoint;
+    if (endpoint && typeof endpoint === 'object' && endpoint.id) return endpoint.id;
+    return String(endpoint);
+  }, []);
+
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(searchUser), 300);
     return () => clearTimeout(id);
   }, [searchUser]);
 
   useEffect(() => {
-    testConnection();
-  }, [testConnection]);
+    testConnection().then(() => loadGraphData());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reload graph data when limit changes (with debouncing)
   useEffect(() => {
-    if (graphData.nodes.length > 0) {
+    if (initialLoadDone) {
       const timeoutId = setTimeout(() => {
         loadGraphData();
-      }, 500); // 500ms debounce
-
+      }, 500);
       return () => clearTimeout(timeoutId);
     }
-    // Intentionally omit graphData.nodes.length to avoid reload loop when data arrives
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [limit, loadGraphData]);
+  }, [limit]);
 
   useEffect(() => {
     if (!debouncedSearch.trim()) {
@@ -596,7 +615,8 @@ export default function CarbonMovementGraphPage() {
                     <div>
                       <Label className="text-sm font-medium">From → To:</Label>
                       <p className="text-sm">
-                        {selectedLink.source} → {selectedLink.target}
+                        {getLinkEndpointLabel(selectedLink.source)} →{' '}
+                        {getLinkEndpointLabel(selectedLink.target)}
                       </p>
                     </div>
                     {selectedLink.type === 'TRANSFERS_CREDIT' &&
