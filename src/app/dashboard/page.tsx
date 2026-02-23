@@ -428,6 +428,141 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Purchase Dialog */}
+      <Dialog
+        open={purchaseDialogOpen && !!creditInfo}
+        onOpenChange={(open) => {
+          setPurchaseDialogOpen(open);
+          if (!open && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        }}
+      >
+        <DialogContent
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-md p-0 overflow-hidden"
+        >
+          {creditInfo && (
+            <>
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-5 border-b border-emerald-100">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-white p-2.5 shadow-sm">
+                    <Leaf className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3
+                      className="font-semibold text-gray-900 truncate"
+                      title={selectedForest?.name || 'Forest Credit'}
+                    >
+                      {selectedForest?.name || 'Forest Credit'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <Badge variant="secondary" className="text-xs bg-white/80">
+                        <Shield className="h-3 w-3 mr-1" />
+                        {creditInfo.certification}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs bg-white/80">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Vintage {creditInfo.vintage}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs bg-white/80">
+                        {creditInfo.totalCredits.toLocaleString()} {creditInfo.symbol}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <span className="text-sm text-gray-600">Price per credit</span>
+                  <span className="text-lg font-bold text-gray-900">
+                    ${creditInfo.pricePerCredit}
+                  </span>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label htmlFor="purchase-quantity" className="text-sm font-medium">
+                      Quantity
+                    </Label>
+                    <span className="text-xs text-gray-500">
+                      Max: {creditInfo.availableCredits ?? 0}
+                    </span>
+                  </div>
+                  <Input
+                    id="purchase-quantity"
+                    type="number"
+                    value={purchaseQuantity}
+                    onChange={(e) => {
+                      const max = creditInfo.availableCredits ?? 1;
+                      let val = Number.parseInt(e.target.value) || 1;
+                      if (val > max) val = max;
+                      if (val < 1) val = 1;
+                      setPurchaseQuantity(val);
+                    }}
+                    min="1"
+                    max={creditInfo.availableCredits ?? 1}
+                    className="text-center text-lg font-semibold"
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">
+                      ${creditInfo.pricePerCredit} x {purchaseQuantity}
+                    </span>
+                    <span className="text-gray-700">
+                      ${((creditInfo.pricePerCredit || 0) * purchaseQuantity).toFixed(2)}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-900">Total</span>
+                    <span className="text-xl font-bold text-emerald-700">
+                      ${((creditInfo.pricePerCredit || 0) * purchaseQuantity).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="flex-col sm:flex-row gap-2 p-5 pt-0">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={
+                    purchaseQuantity < 1 || purchaseQuantity > (creditInfo.availableCredits ?? 0)
+                  }
+                  onClick={() => {
+                    addToCart(creditInfo.id, purchaseQuantity);
+                    setPurchaseDialogOpen(false);
+                  }}
+                >
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Add to Cart
+                </Button>
+                <Button
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={
+                    purchaseQuantity < 1 || purchaseQuantity > (creditInfo.availableCredits ?? 0)
+                  }
+                  onClick={async () => {
+                    await addToCart(creditInfo.id, purchaseQuantity);
+                    setPurchaseDialogOpen(false);
+                    router.push('/cart?checkout=1');
+                  }}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Buy Now
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
