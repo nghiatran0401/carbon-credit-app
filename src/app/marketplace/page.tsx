@@ -250,14 +250,14 @@ export default function MarketplacePage() {
             Carbon Credit Marketplace
           </h1>
           <p className="text-gray-500">
-            Purchase carbon credits calculated from your saved forest analyses
+            Browse and purchase carbon credits from forests analyzed by our service
           </p>
         </div>
         <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-gray-200">
           <Trees className="h-16 w-16 text-gray-300 mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No credits available yet</h3>
           <p className="text-gray-500 mb-6 max-w-md">
-            Carbon credits appear here after you analyze a forest&apos;s biomass. Run an analysis to
+            Carbon credits appear here after a forest has been analyzed. Run an analysis to
             calculate carbon credits, then come back to purchase them.
           </p>
           <div className="flex items-center gap-3">
@@ -287,7 +287,7 @@ export default function MarketplacePage() {
             Carbon Credit Marketplace
           </h1>
           <p className="text-gray-500">
-            Purchase carbon credits calculated from your saved forest analyses
+            Browse and purchase carbon credits from forests analyzed by our service
           </p>
         </div>
         <Link href="/biomass-only">
@@ -382,7 +382,7 @@ export default function MarketplacePage() {
           <Link href="/dashboard" className="flex items-center">
             <Button variant="outline" className="w-full text-sm" size="default">
               <Trees className="h-4 w-4 mr-2" />
-              View Saved Forests
+              View Calculated Forests
             </Button>
           </Link>
         </div>

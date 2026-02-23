@@ -537,11 +537,11 @@ export default function BiomassOnlyPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to save');
-      toast({ title: 'Success', description: 'Forest saved successfully!' });
+      toast({ title: 'Success', description: 'Forest calculation saved!' });
       setIsSaveDialogOpen(false);
       setSaveForm({ name: '', description: '' });
     } catch {
-      toast({ title: 'Error', description: 'Failed to save forest.', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to save calculation.', variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
@@ -763,7 +763,7 @@ export default function BiomassOnlyPage() {
       <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
         <DialogContent className="bg-[#151b28] border-[#1e3a2a] text-gray-200 z-[2000]">
           <DialogHeader>
-            <DialogTitle>Save Forest Analysis</DialogTitle>
+            <DialogTitle>Save Calculated Forest</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">

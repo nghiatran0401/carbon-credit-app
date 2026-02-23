@@ -1,16 +1,32 @@
 'use client';
 
-import { useEffect, useState, useMemo, type ComponentType } from 'react';
+import { useEffect, useState, useCallback, useMemo, type ComponentType } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Leaf, DollarSign, MapPin, TrendingUp, Trash2, Trees } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import {
+  Leaf,
+  DollarSign,
+  MapPin,
+  TrendingUp,
+  Trash2,
+  Trees,
+  ShoppingCart,
+  CreditCard,
+  Shield,
+  Calendar,
+} from 'lucide-react';
 import Link from 'next/link';
 import BiomassMapBase from '@/components/biomass-map-base';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import { biomassToCredits, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
@@ -42,11 +58,24 @@ interface SavedForest {
   description?: string;
   stats?: ForestStats;
   bounds?: { north: number; south: number; east: number; west: number } | null;
+  prismaForestId?: number;
   [key: string]: unknown;
 }
 
 interface ForestDetail extends SavedForest {
   mask?: number[][] | null;
+}
+
+interface CreditInfo {
+  id: number;
+  forestId: number;
+  pricePerCredit: number;
+  availableCredits: number;
+  totalCredits: number;
+  certification: string;
+  vintage: number;
+  symbol: string;
+  forest?: { name?: string; location?: string; area?: number };
 }
 
 export default function DashboardPage() {
@@ -62,6 +91,9 @@ export default function DashboardPage() {
   } = useSWR<SavedForest[]>('/api/analysis', apiGet);
   const { data: platformStats } = useSWR<PlatformStats>('/api/stats', apiGet);
   const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
+
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
 
   const { data: forestDetail, isLoading: isDetailLoading } = useSWR<ForestDetail>(
     selectedForestId ? `/api/analysis/${selectedForestId}` : null,
@@ -84,6 +116,43 @@ export default function DashboardPage() {
   const selectedForest = useMemo(
     () => forests.find((f) => f.id === selectedForestId) ?? null,
     [forests, selectedForestId],
+  );
+
+  const selectedPrismaForestId = selectedForest?.prismaForestId;
+  const { data: creditInfo } = useSWR<CreditInfo>(
+    selectedPrismaForestId ? `/api/forests/${selectedPrismaForestId}/credits` : null,
+    apiGet,
+  );
+
+  const addToCart = useCallback(
+    async (creditId: number, quantity: number) => {
+      if (!user) {
+        toast({
+          title: 'Not logged in',
+          description: 'Please log in to purchase credits.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      try {
+        await apiPost('/api/cart', { carbonCreditId: creditId, quantity });
+        toast({
+          title: 'Added to cart',
+          description: `${selectedForest?.name || 'Credits'} x${quantity} added to cart.`,
+        });
+        if (user?.id) {
+          const { mutate: globalMutate } = await import('swr');
+          globalMutate(`/api/cart?userId=${user.id}`);
+        }
+      } catch (err: unknown) {
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Failed to add to cart',
+          variant: 'destructive',
+        });
+      }
+    },
+    [user, toast, selectedForest?.name],
   );
 
   const totalCredits = platformStats?.totalCredits ?? 0;
@@ -181,7 +250,7 @@ export default function DashboardPage() {
       <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Forest Carbon Credit Dashboard</h1>
-          <p className="text-gray-600">Monitor your saved forest analyses</p>
+          <p className="text-gray-600">Monitor forests analyzed by our AI-powered service</p>
         </div>
         <Button onClick={() => router.push('/biomass-only')}>+ New Analysis</Button>
       </div>
@@ -245,15 +314,17 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4 h-[600px]">
           <Card className="flex-1 overflow-hidden flex flex-col">
             <CardHeader>
-              <CardTitle>Saved Forests</CardTitle>
+              <CardTitle>Calculated Forests</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto space-y-3 p-3 pt-0">
               {forests.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <Trees className="h-16 w-16 text-gray-300 mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No forests saved yet</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No forests calculated yet
+                  </h3>
                   <p className="text-gray-500 mb-6 max-w-sm">
-                    Run a new analysis to estimate carbon credits from forest biomass. Your saved
+                    Run a new analysis to estimate carbon credits from forest biomass. Calculated
                     forests will appear here.
                   </p>
                   <Link href="/biomass-only">
@@ -337,6 +408,21 @@ export default function DashboardPage() {
                     ).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
                 </div>
+                {selectedForest.prismaForestId && (
+                  <Button
+                    className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    disabled={!creditInfo || (creditInfo.availableCredits ?? 0) <= 0}
+                    onClick={() => {
+                      setPurchaseQuantity(1);
+                      setPurchaseDialogOpen(true);
+                    }}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {creditInfo && creditInfo.availableCredits > 0
+                      ? 'Purchase Credits'
+                      : 'No Credits Available'}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}

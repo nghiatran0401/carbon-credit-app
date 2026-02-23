@@ -49,7 +49,7 @@ function formatLocation(bounds?: AnalysisEntry['bounds']): string {
 }
 
 /**
- * Returns carbon credits derived from saved forest analyses.
+ * Returns carbon credits derived from calculated forest analyses.
  * Lazily creates Prisma Forest + CarbonCredit records for analyses
  * that haven't been synced yet, ensuring the cart/order purchase
  * flow works with real database IDs.
