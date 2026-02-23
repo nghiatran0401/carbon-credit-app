@@ -80,16 +80,8 @@ export function Footer() {
       </div>
 
       <div className="border-t border-gray-800">
-        <div className="container py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
+        <div className="container py-6 text-center text-sm text-gray-500">
           <p>&copy; {new Date().getFullYear()} EcoCredit. All rights reserved.</p>
-          <div className="flex items-center space-x-6">
-            <Link href="/auth" className="hover:text-green-400 transition-colors">
-              Sign In
-            </Link>
-            <Link href="/api/health" className="hover:text-green-400 transition-colors">
-              System Status
-            </Link>
-          </div>
         </div>
       </div>
     </footer>
