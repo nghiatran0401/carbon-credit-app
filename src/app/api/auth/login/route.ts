@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const rateLimited = checkRateLimit(req, RATE_LIMITS.auth, 'auth-login');
   if (rateLimited) return rateLimited;

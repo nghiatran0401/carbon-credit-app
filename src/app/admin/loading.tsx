@@ -62,7 +62,7 @@ export default function AdminLoading() {
               <div key={i} className="rounded-xl border bg-white p-6">
                 <Skeleton className="h-5 w-36 mb-4" />
                 <div className="space-y-3">
-                  {Array.from({ length: 4 }).map((_, j) => (
+                  {Array.from({ length: 4 }).map((__, j) => (
                     <div key={j} className="flex items-center gap-3">
                       <Skeleton className="h-3 w-3 rounded-full" />
                       <Skeleton className="h-4 flex-1" />

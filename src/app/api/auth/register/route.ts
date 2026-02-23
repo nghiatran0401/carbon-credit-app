@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { getSupabaseUser, handleRouteError } from '@/lib/auth';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   const rateLimited = checkRateLimit(req, RATE_LIMITS.register, 'auth-register');
   if (rateLimited) return rateLimited;

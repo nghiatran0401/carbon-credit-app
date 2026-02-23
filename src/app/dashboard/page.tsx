@@ -93,7 +93,7 @@ export default function DashboardPage() {
       toast({ title: 'Forest deleted' });
       mutate();
       if (selectedForestId === id) setSelectedForestId(null);
-    } catch (e) {
+    } catch {
       toast({ title: 'Failed to delete', variant: 'destructive' });
     }
   };

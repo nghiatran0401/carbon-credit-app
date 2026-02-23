@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -152,16 +151,13 @@ export default function ImmudbCLIPage() {
     { label: 'Get sample key', cmd: 'get tx_debug_test_1761637733905' },
   ];
 
-  const formatResult = (
-    result: CLICommandResult | null | undefined,
-    command: string,
-  ): ReactNode => {
+  const formatResult = (result: CLICommandResult | null | undefined, cmd: string): ReactNode => {
     if (!result || typeof result !== 'object') return 'null';
 
-    const cmd = command.split(' ')[0].toLowerCase();
+    const action = cmd.split(' ')[0].toLowerCase();
     const resultObj = result as Record<string, unknown>;
 
-    switch (cmd) {
+    switch (action) {
       case 'scan':
         if (resultObj.entriesList && Array.isArray(resultObj.entriesList)) {
           return (resultObj.entriesList as CLIEntry[]).map((entry: CLIEntry, index: number) => (

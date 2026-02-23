@@ -4,6 +4,8 @@ import path from 'path';
 import { prisma } from '@/lib/prisma';
 import { BIOMASS_TO_CO2_FACTOR, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
 
+export const dynamic = 'force-dynamic';
+
 const ANALYSES_DIR = path.join(process.cwd(), 'data', 'analyses');
 const INDEX_FILE = path.join(ANALYSES_DIR, 'index.json');
 

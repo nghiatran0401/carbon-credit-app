@@ -3,6 +3,8 @@ import { orderAuditService } from '@/lib/order-audit-service';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request);

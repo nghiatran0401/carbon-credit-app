@@ -4,14 +4,13 @@ import useSWR from 'swr';
 import { apiGet, apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ShoppingCart, Leaf, Shield } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { CartItem } from '@/types';
 
 export default function CartPage() {

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   console.log('🔄 Running background audit check...');
 

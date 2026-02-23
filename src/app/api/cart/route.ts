@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 import { cartItemSchema, validateBody, isValidationError } from '@/lib/validation';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);

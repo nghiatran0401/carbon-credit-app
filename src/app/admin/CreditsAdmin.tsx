@@ -104,8 +104,8 @@ export default function CreditsAdmin() {
   const handleFormChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
-      setForm((form) => ({
-        ...form,
+      setForm((prev) => ({
+        ...prev,
         [name]:
           name === 'forestId' ||
           name === 'vintage' ||

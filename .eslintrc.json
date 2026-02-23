@@ -1,3 +1,8 @@
 {
-  "extends": "next"
+  "extends": "next",
+  "rules": {
+    "no-redeclare": "error",
+    "no-duplicate-imports": "error",
+    "no-shadow": "warn"
+  }
 }

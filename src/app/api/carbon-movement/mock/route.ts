@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { mockCarbonMovementData } from '@/lib/mock-carbon-movement-data';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);

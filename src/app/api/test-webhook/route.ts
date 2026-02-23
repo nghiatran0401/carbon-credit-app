@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { orderAuditService } from '@/lib/order-audit-service';
 import { logger } from '@/lib/logger';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   logger.info('Manual webhook test triggered');
 

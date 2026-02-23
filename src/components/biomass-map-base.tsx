@@ -167,6 +167,15 @@ export default function BiomassMapBase({
       layersRef.current = { street, satellite };
       mapRef.current = map;
 
+      // Leaflet calculates the tile grid from the container's size at init
+      // time. Because we're inside an async import the container is often
+      // not at its final layout dimensions yet, so tiles only cover a
+      // fraction of the viewport.  Force a recalculation after the browser
+      // has had a chance to settle the layout.
+      requestAnimationFrame(() => {
+        if (!cancelled) map.invalidateSize();
+      });
+
       setLeafletReady(true);
 
       if (onMapReady) onMapReady(map, L);
@@ -174,8 +183,20 @@ export default function BiomassMapBase({
 
     loadLeaflet();
 
+    // Keep Leaflet in sync whenever the container is resized (window
+    // resize, sidebar toggle, parent flex/grid reflow, etc.).
+    const container = mapContainerRef.current;
+    let resizeObserver: ResizeObserver | undefined;
+    if (container) {
+      resizeObserver = new ResizeObserver(() => {
+        mapRef.current?.invalidateSize();
+      });
+      resizeObserver.observe(container);
+    }
+
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -220,6 +241,8 @@ export default function BiomassMapBase({
   useEffect(() => {
     if (leafletReady && bounds && mapRef.current) {
       const map = mapRef.current;
+      // Ensure Leaflet knows the true container size before fitting
+      map.invalidateSize();
       import('leaflet').then((L) => {
         const leafletBounds = L.latLngBounds(
           [bounds.south, bounds.west],

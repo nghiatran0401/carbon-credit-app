@@ -9,6 +9,8 @@ import {
 } from '@/lib/auth';
 import { userUpdateSchema, validateBody, isValidationError } from '@/lib/validation';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth(req);

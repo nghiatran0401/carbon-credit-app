@@ -9,6 +9,8 @@ import {
 } from '@/lib/validation';
 import { MARKETPLACE_PAGE_SIZE } from '@/lib/constants';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);

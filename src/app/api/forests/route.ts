@@ -8,6 +8,8 @@ import {
   isValidationError,
 } from '@/lib/validation';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);

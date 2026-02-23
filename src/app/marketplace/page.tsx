@@ -133,8 +133,8 @@ export default function MarketplacePage() {
         if (user?.id) {
           const cartKey = `/api/cart?userId=${user.id}`;
           try {
-            const { mutate } = await import('swr');
-            mutate(cartKey);
+            const { mutate: globalMutate } = await import('swr');
+            globalMutate(cartKey);
           } catch {}
         }
       } catch (err: unknown) {
@@ -427,7 +427,7 @@ export default function MarketplacePage() {
             : null;
 
           return (
-            <CreditCard
+            <CreditCardItem
               key={credit.id}
               credit={credit}
               usdValue={usdValue}
@@ -589,14 +589,14 @@ export default function MarketplacePage() {
   );
 }
 
-const CreditCard = React.memo(function CreditCard({
+const CreditCardItem = React.memo(function CreditCardItem({
   credit,
   usdValue,
   onSelect,
 }: {
   credit: CarbonCredit;
   usdValue: string | null;
-  onSelect: (credit: CarbonCredit) => void;
+  onSelect: (c: CarbonCredit) => void;
 }) {
   const isAvailable = typeof credit.availableCredits === 'number' && credit.availableCredits > 0;
   const forest = credit.forest;

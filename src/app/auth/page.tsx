@@ -1,8 +1,6 @@
 'use client';
 
-import type React from 'react';
-
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +22,6 @@ import {
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -53,13 +50,13 @@ export default function AuthPage() {
   const passwordStrength = activeTab === 'register' ? getPasswordStrength(password) : null;
 
   // Email validation
-  const validateEmail = (email: string) => {
+  const validateEmail = (value: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
+    if (!value) {
       setEmailError(null);
       return false;
     }
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(value)) {
       setEmailError('Please enter a valid email address');
       return false;
     }

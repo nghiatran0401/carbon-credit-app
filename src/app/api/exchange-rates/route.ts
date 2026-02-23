@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const rates = await prisma.exchangeRate.findMany();
@@ -10,6 +12,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    throw error;
+    console.error('Failed to fetch exchange rates:', error);
+    return NextResponse.json({ error: 'Failed to fetch exchange rates' }, { status: 500 });
   }
 }

@@ -4,8 +4,7 @@ import { certificateService } from '@/lib/certificate-service';
 import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { paymentService } from '@/lib/payment-service';
-import { getPayOSService } from '@/lib/payos-service';
-import type { PayOSWebhookData } from '@/lib/payos-service';
+import { getPayOSService, type PayOSWebhookData } from '@/lib/payos-service';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
