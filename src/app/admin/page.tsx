@@ -93,7 +93,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gray-50/50">
+    <div className="container">
       {/* Mobile navigation */}
       <div className="lg:hidden border-b bg-white px-4 py-3 sticky top-0 z-30">
         <div className="flex gap-1 overflow-x-auto pb-1 -mb-1 scrollbar-none">
@@ -122,11 +122,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex min-h-[calc(100vh-4rem)]">
         {/* Desktop sidebar */}
         <aside
           className={`hidden lg:flex flex-col border-r bg-white shrink-0 transition-all duration-200 ${sidebarCollapsed ? 'w-[68px]' : 'w-60'}`}
-          style={{ minHeight: 'calc(100vh - 4rem)' }}
         >
           <div className={`p-4 border-b ${sidebarCollapsed ? 'px-3' : ''}`}>
             {sidebarCollapsed ? (

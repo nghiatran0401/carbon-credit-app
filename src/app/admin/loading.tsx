@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminLoading() {
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gray-50/50">
+    <div className="container">
       {/* Mobile nav skeleton */}
       <div className="lg:hidden border-b bg-white px-4 py-3">
         <div className="flex gap-2">
@@ -12,9 +12,9 @@ export default function AdminLoading() {
         </div>
       </div>
 
-      <div className="flex">
+      <div className="flex min-h-[calc(100vh-4rem)]">
         {/* Sidebar skeleton */}
-        <aside className="hidden lg:flex flex-col border-r bg-white w-60 shrink-0 min-h-[calc(100vh-4rem)]">
+        <aside className="hidden lg:flex flex-col border-r bg-white w-60 shrink-0">
           <div className="p-4 border-b">
             <Skeleton className="h-6 w-20 mb-1" />
             <Skeleton className="h-3 w-36" />
