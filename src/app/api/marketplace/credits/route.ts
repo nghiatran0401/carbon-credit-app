@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
-import { BIOMASS_TO_CO2_FACTOR, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
+import { biomassToCredits, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,7 +75,7 @@ export async function GET() {
       }
 
       const forestName = analysis.name || 'Forest Analysis';
-      const totalCredits = Math.floor(analysis.stats!.forestBiomassMg! / BIOMASS_TO_CO2_FACTOR);
+      const totalCredits = Math.floor(biomassToCredits(analysis.stats!.forestBiomassMg!));
       const areaHa = (analysis.stats?.forestAreaKm2 ?? 0) * 100;
       const location = formatLocation(analysis.bounds);
 

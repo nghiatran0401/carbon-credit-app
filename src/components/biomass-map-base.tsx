@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Map as LeafletMap, TileLayer } from 'leaflet';
 
 export type Bounds = { north: number; south: number; east: number; west: number };
 
@@ -61,11 +62,13 @@ export default function BiomassMapBase({
 }: BiomassMapBaseProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
   const [isDark, setIsDark] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
-  // eslint-disable-next-line
-  const layersRef = useRef<{ light: any; dark: any }>({ light: null, dark: null });
+  const layersRef = useRef<{ light: TileLayer | null; dark: TileLayer | null }>({
+    light: null,
+    dark: null,
+  });
 
   // Cached offscreen texture — rebuilt only when `mask` changes
   const maskTextureRef = useRef<HTMLCanvasElement | null>(null);
@@ -90,7 +93,7 @@ export default function BiomassMapBase({
     if (!ctx) return;
 
     const map = mapRef.current;
-    const mapEl = map.getContainer() as HTMLElement;
+    const mapEl = map.getContainer();
     const mapWidth = mapEl.clientWidth;
     const mapHeight = mapEl.clientHeight;
     const dpr = window.devicePixelRatio || 1;
@@ -269,9 +272,9 @@ export default function BiomassMapBase({
   }, [onCanvasReady]);
 
   const toggleLayer = () => {
-    if (!mapRef.current) return;
     const map = mapRef.current;
     const { light, dark } = layersRef.current;
+    if (!map || !light || !dark) return;
 
     if (isDark) {
       if (map.hasLayer(dark)) map.removeLayer(dark);

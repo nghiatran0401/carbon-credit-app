@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { getImmudbService } from '@/lib/immudb-service';
-import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,7 +72,7 @@ export async function GET(request: NextRequest) {
         immudbStatus = 'not_found';
       }
     } catch (error) {
-      logger.error('ImmuDB lookup failed during public verification', { error });
+      console.error('ImmuDB lookup failed during public verification', error);
       immudbStatus = 'unavailable';
     }
 
@@ -100,7 +99,7 @@ export async function GET(request: NextRequest) {
       verifiedAt: new Date().toISOString(),
     });
   } catch (error) {
-    logger.error('Public verification failed', { error });
+    console.error('Public verification failed', error);
     return NextResponse.json(
       { success: false, message: 'Verification service temporarily unavailable' },
       { status: 500 },

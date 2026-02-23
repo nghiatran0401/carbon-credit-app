@@ -11,7 +11,7 @@ import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { apiGet } from '@/lib/api';
-import { BIOMASS_TO_CO2_FACTOR, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
+import { biomassToCredits, DEFAULT_PRICE_PER_CREDIT } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 
 interface ForestStats {
@@ -73,7 +73,7 @@ export default function DashboardPage() {
 
   const { totalCredits, totalArea, totalValue } = useMemo(() => {
     const credits = forests.reduce((sum: number, f: SavedForest) => {
-      return sum + (f.stats?.forestBiomassMg ? f.stats.forestBiomassMg / BIOMASS_TO_CO2_FACTOR : 0);
+      return sum + (f.stats?.forestBiomassMg ? biomassToCredits(f.stats.forestBiomassMg) : 0);
     }, 0);
     const area = forests.reduce((sum: number, f: SavedForest) => {
       return sum + (f.stats?.forestAreaKm2 || 0);
@@ -331,7 +331,7 @@ export default function DashboardPage() {
                   <span className="font-bold text-green-600">
                     $
                     {(
-                      ((selectedForest.stats?.forestBiomassMg ?? 0) / BIOMASS_TO_CO2_FACTOR) *
+                      biomassToCredits(selectedForest.stats?.forestBiomassMg ?? 0) *
                       DEFAULT_PRICE_PER_CREDIT
                     ).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
