@@ -8,6 +8,13 @@ import {
   PUBLIC_USER_SELECT,
 } from '@/lib/auth';
 import { userUpdateSchema, validateBody, isValidationError } from '@/lib/validation';
+import { z } from 'zod';
+
+const profileUpdateSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  company: z.string().max(200).optional().nullable(),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -130,5 +137,35 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json(updatedUser);
   } catch (error) {
     return handleRouteError(error, 'Failed to update user');
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const validated = validateBody(profileUpdateSchema, body);
+    if (isValidationError(validated)) return validated;
+
+    const updateData: Record<string, unknown> = {};
+    if (validated.firstName !== undefined) updateData.firstName = validated.firstName;
+    if (validated.lastName !== undefined) updateData.lastName = validated.lastName;
+    if (validated.company !== undefined) updateData.company = validated.company;
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: auth.id },
+      data: updateData,
+      select: PUBLIC_USER_SELECT,
+    });
+
+    return NextResponse.json(updatedUser);
+  } catch (error) {
+    return handleRouteError(error, 'Failed to update profile');
   }
 }

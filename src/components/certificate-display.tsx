@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Download, CheckCircle, Leaf, Shield, Users, MapPin } from 'lucide-react';
+import { Download, CheckCircle, Leaf, Shield, MapPin } from 'lucide-react';
 import type { Certificate, CertificateMetadata } from '@/types';
 import { pdfCertificateGenerator } from '@/lib/pdf-certificate-generator';
+import { useToast } from '@/hooks/use-toast';
 
 interface CertificateDisplayProps {
   certificate: Certificate;
@@ -15,6 +15,7 @@ interface CertificateDisplayProps {
 }
 
 export function CertificateDisplay({ certificate, onDownload }: CertificateDisplayProps) {
+  const { toast } = useToast();
   const metadata = certificate.metadata as CertificateMetadata | undefined;
 
   if (!metadata) {
@@ -42,7 +43,11 @@ export function CertificateDisplay({ certificate, onDownload }: CertificateDispl
         URL.revokeObjectURL(url);
       } catch (error) {
         console.error('Error generating PDF:', error);
-        alert('Failed to generate PDF certificate. Please try again.');
+        toast({
+          title: 'Download failed',
+          description: 'Failed to generate PDF certificate. Please try again.',
+          variant: 'destructive',
+        });
       }
     }
   };

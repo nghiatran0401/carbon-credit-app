@@ -15,7 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Download, FileText, Package } from 'lucide-react';
+import { Download, FileText, Package, Leaf } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import type { Order, OrderItem, User, PaginatedResponse } from '@/types';
@@ -66,6 +69,12 @@ export default function HistoryPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [retireTarget, setRetireTarget] = useState<{ itemId: number; qty: number; open: boolean }>({
+    itemId: 0,
+    qty: 0,
+    open: false,
+  });
+  const { toast } = useToast();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -104,6 +113,35 @@ export default function HistoryPage() {
       router.replace('/auth');
     }
   }, [isAuthenticated, router]);
+
+  const handleRetire = async () => {
+    try {
+      const res = await fetch('/api/credits/retire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderItemId: retireTarget.itemId,
+          quantity: retireTarget.qty,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to retire credits');
+      }
+      const data = await res.json();
+      toast({
+        title: 'Credits retired',
+        description: `${data.retiredQuantity} credits have been permanently retired as carbon offsets.`,
+      });
+      mutate();
+    } catch (err: unknown) {
+      toast({
+        title: 'Retirement failed',
+        description: err instanceof Error ? err.message : 'Failed to retire credits.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleDownloadCSV = () => {
     const csv = ordersToCSV(orders);
@@ -239,16 +277,42 @@ export default function HistoryPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {order.items?.map((item: OrderItem) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <span className="font-medium">
-                        {item.carbonCredit?.certification} ({item.carbonCredit?.vintage})
-                      </span>
-                      <span>
-                        {item.quantity} × ${item.pricePerCredit} ={' '}
-                        <span className="font-semibold">${item.subtotal.toFixed(2)}</span>
-                      </span>
+                    <div key={item.id} className="flex items-center justify-between text-sm gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">
+                          {item.carbonCredit?.certification} ({item.carbonCredit?.vintage})
+                        </span>
+                        {item.retired && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-emerald-100 text-emerald-700 text-xs shrink-0"
+                          >
+                            <Leaf className="h-3 w-3 mr-1" />
+                            Retired
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span>
+                          {item.quantity} × ${item.pricePerCredit} ={' '}
+                          <span className="font-semibold">${item.subtotal.toFixed(2)}</span>
+                        </span>
+                        {order.status === 'Completed' && !item.retired && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 px-2 text-xs"
+                            onClick={() =>
+                              setRetireTarget({ itemId: item.id, qty: item.quantity, open: true })
+                            }
+                          >
+                            <Leaf className="h-3 w-3 mr-1" />
+                            Retire
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -326,6 +390,15 @@ export default function HistoryPage() {
           </Link>
         </div>
       )}
+      <ConfirmDialog
+        open={retireTarget.open}
+        onOpenChange={(open) => setRetireTarget((prev) => ({ ...prev, open }))}
+        title="Retire carbon credits"
+        description={`Are you sure you want to retire ${retireTarget.qty} carbon credit(s)? This permanently marks them as used for carbon offsetting and cannot be undone.`}
+        confirmLabel="Retire Credits"
+        onConfirm={handleRetire}
+      />
+
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex justify-center mt-8 gap-2">

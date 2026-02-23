@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,6 +68,23 @@ export default function CarbonMovementGraphPage() {
   const [filteredGraphData, setFilteredGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [graphStats, setGraphStats] = useState({ nodeCount: 0, relationshipCount: 0 });
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [graphDimensions, setGraphDimensions] = useState({ width: 800, height: 384 });
+
+  useEffect(() => {
+    const container = graphContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setGraphDimensions({
+          width: Math.floor(entry.contentRect.width),
+          height: Math.floor(entry.contentRect.height),
+        });
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const { toast } = useToast();
 
@@ -550,12 +567,15 @@ export default function CarbonMovementGraphPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-96 w-full border rounded overflow-hidden relative">
+            <div
+              ref={graphContainerRef}
+              className="h-96 w-full border rounded overflow-hidden relative"
+            >
               {filteredGraphData.nodes.length > 0 ? (
                 <ForceGraph2D
                   graphData={filteredGraphData}
-                  width={800}
-                  height={384}
+                  width={graphDimensions.width}
+                  height={graphDimensions.height}
                   nodeLabel={getNodeLabel}
                   nodeColor="color"
                   linkColor="color"

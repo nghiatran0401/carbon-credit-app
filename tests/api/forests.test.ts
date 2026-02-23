@@ -14,7 +14,6 @@ const { mockForest } = vi.hoisted(() => ({
     createdAt: new Date().toISOString(),
     deletedAt: null,
     credits: [],
-    bookmarks: [],
   },
 }));
 

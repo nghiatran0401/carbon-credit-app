@@ -88,7 +88,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#000000" />
       </head>
 
-      <body className={quicksand.variable}>
+      <body className={`${quicksand.variable} ${quicksand.className}`}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:rounded focus:shadow"

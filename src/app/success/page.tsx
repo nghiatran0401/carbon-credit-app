@@ -2,7 +2,7 @@
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import confetti from 'canvas-confetti';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { CertificateDisplay } from '@/components/certificate-display';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Certificate, OrderItem } from '@/types';
@@ -76,7 +76,10 @@ function SuccessPageContent() {
   const [audit, setAudit] = useState<OrderAudit | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
 
+  const confettiFired = useRef(false);
   useEffect(() => {
+    if (confettiFired.current) return;
+    confettiFired.current = true;
     confetti({
       particleCount: 120,
       spread: 90,
@@ -338,10 +341,26 @@ function SuccessPageContent() {
                       Syncing...
                     </span>
                   ) : audit ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-700">
+                    <Link
+                      href="/order-audit"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-700 hover:text-purple-900 transition"
+                    >
                       <span className="h-2 w-2 rounded-full bg-purple-500" />
                       Verified
-                    </span>
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </Link>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-xs text-purple-600">
                       <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />

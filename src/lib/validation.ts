@@ -79,10 +79,6 @@ export const cartItemSchema = z.object({
   quantity: z.number().int().positive(),
 });
 
-export const bookmarkCreateSchema = z.object({
-  forestId: z.number().int().positive(),
-});
-
 /**
  * Validate request body against a schema.
  * Returns parsed data on success, or a 400 NextResponse on failure.

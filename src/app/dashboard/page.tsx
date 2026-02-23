@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
   Leaf,
   DollarSign,
@@ -94,6 +95,10 @@ export default function DashboardPage() {
 
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; open: boolean }>({
+    id: '',
+    open: false,
+  });
 
   const { data: forestDetail, isLoading: isDetailLoading } = useSWR<ForestDetail>(
     selectedForestId ? `/api/analysis/${selectedForestId}` : null,
@@ -160,9 +165,8 @@ export default function DashboardPage() {
   const totalValue = platformStats?.totalValue ?? 0;
   const activeForests = platformStats?.activeForests ?? forests.length;
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this forest?')) return;
+  const handleDeleteConfirm = async () => {
+    const id = deleteTarget.id;
     try {
       await fetch(`/api/analysis?id=${id}`, { method: 'DELETE' });
       toast({ title: 'Forest deleted' });
@@ -344,7 +348,10 @@ export default function DashboardPage() {
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-gray-400 hover:text-red-500 shrink-0"
-                        onClick={(e) => handleDelete(forest.id, e)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget({ id: forest.id, open: true });
+                        }}
                         aria-label="Delete forest"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -428,6 +435,16 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget.open}
+        onOpenChange={(open) => setDeleteTarget((prev) => ({ ...prev, open }))}
+        title="Delete forest"
+        description="Are you sure you want to delete this forest? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+      />
 
       {/* Purchase Dialog */}
       <Dialog

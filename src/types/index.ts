@@ -29,6 +29,7 @@ export interface AuthContextType {
     company?: string,
   ) => Promise<void>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 // Forest
@@ -153,6 +154,7 @@ export interface OrderItem {
   quantity: number;
   pricePerCredit: number;
   subtotal: number;
+  retired?: boolean;
   order?: Order;
   carbonCredit?: CarbonCredit;
 }
@@ -164,15 +166,6 @@ export interface CartItem {
   carbonCreditId: number;
   quantity: number;
   carbonCredit?: CarbonCredit;
-}
-
-// Bookmark
-export interface Bookmark {
-  id: number;
-  userId: number;
-  forestId: number;
-  createdAt: string;
-  forest?: Forest;
 }
 
 // Exchange Rate

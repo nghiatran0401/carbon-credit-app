@@ -71,13 +71,15 @@ function CartPageContent() {
     setError(msg);
   };
 
-  // Auto-open checkout if ?checkout=1
+  const [autoCheckoutDone, setAutoCheckoutDone] = useState(false);
+
   useEffect(() => {
-    if (searchParams.get('checkout') === '1' && cart.length > 0) {
+    if (searchParams.get('checkout') === '1' && cart.length > 0 && !autoCheckoutDone && !loading) {
+      setAutoCheckoutDone(true);
       handleCheckout();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, cart.length]);
+  }, [searchParams, cart.length, autoCheckoutDone, loading]);
 
   if (!userId) return <div className="p-8">Please log in to view your cart.</div>;
   if (isLoading) return <CartSkeleton />;

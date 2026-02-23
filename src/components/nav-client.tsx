@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-context';
 import { MobileNav } from '@/components/mobile-nav';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, UserCircle } from 'lucide-react';
 import useSWR from 'swr';
 import { apiGet } from '@/lib/api';
 import { useRouter } from 'next/navigation';
@@ -32,7 +32,11 @@ export function DesktopNav() {
           Admin
         </Link>
       )}
-      {/* Cart Icon */}
+      {isAuthenticated && (
+        <Link href="/profile" className="text-gray-600 hover:text-green-600" title="Profile">
+          <UserCircle className="h-6 w-6" />
+        </Link>
+      )}
       {isAuthenticated && (
         <Link href="/cart" className="relative text-gray-600 hover:text-green-600">
           <ShoppingCart className="h-6 w-6" />
@@ -73,6 +77,7 @@ export function MobileNavWrapper() {
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/marketplace', label: 'Marketplace' },
       { href: '/history', label: 'History' },
+      { href: '/profile', label: 'Profile' },
     );
   }
   if (isAuthenticated && user?.role?.toLowerCase() === 'admin') {

@@ -33,7 +33,11 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState('login');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const { isAuthenticated, login, signup, loading } = useAuth();
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const { isAuthenticated, login, signup, resetPassword, loading } = useAuth();
   const router = useRouter();
 
   // Password strength calculation
@@ -305,12 +309,18 @@ export default function AuthPage() {
                         Remember me
                       </Label>
                     </div>
-                    <Link
-                      href="#"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotPasswordMode(true);
+                        setResetEmail(email);
+                        setResetSent(false);
+                        setError(null);
+                      }}
                       className="text-sm text-green-600 hover:text-green-700 hover:underline"
                     >
                       Forgot password?
-                    </Link>
+                    </button>
                   </div>
 
                   <Button
@@ -532,6 +542,89 @@ export default function AuthPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Forgot Password Modal */}
+        {forgotPasswordMode && (
+          <Card className="border-0 shadow-xl bg-white/95 backdrop-blur-sm">
+            <CardHeader className="space-y-1 pb-4">
+              <CardTitle className="text-2xl font-semibold">Reset your password</CardTitle>
+              <CardDescription className="text-base">
+                {resetSent
+                  ? 'Check your email for a password reset link.'
+                  : "Enter your email and we'll send you a reset link."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {resetSent ? (
+                <div className="flex items-center gap-2 text-green-700 text-sm bg-green-50 p-3 rounded-lg border border-green-200">
+                  <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                  <span>Password reset email sent to {resetEmail}. Please check your inbox.</span>
+                </div>
+              ) : (
+                <>
+                  {error && (
+                    <div className="flex items-center gap-2 text-red-700 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email" className="text-sm font-medium text-gray-700">
+                      Email address
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="reset-email"
+                        type="email"
+                        placeholder="your@email.com"
+                        className="pl-10 h-11 border-gray-300"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium"
+                    disabled={resetLoading || !resetEmail}
+                    onClick={async () => {
+                      setResetLoading(true);
+                      setError(null);
+                      try {
+                        await resetPassword(resetEmail);
+                        setResetSent(true);
+                      } catch (err: unknown) {
+                        setError(
+                          err instanceof Error ? err.message : 'Failed to send reset email.',
+                        );
+                      }
+                      setResetLoading(false);
+                    }}
+                  >
+                    {resetLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Send reset link'
+                    )}
+                  </Button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotPasswordMode(false);
+                  setError(null);
+                }}
+                className="w-full text-sm text-green-600 hover:text-green-700 hover:underline"
+              >
+                Back to sign in
+              </button>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

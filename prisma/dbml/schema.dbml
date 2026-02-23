@@ -2,15 +2,6 @@
 //// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 //// ------------------------------------------------------
 
-Table Bookmark {
-  id Int [pk, increment]
-  userId Int [not null]
-  forestId Int [not null]
-  createdAt DateTime [default: `now()`, not null]
-  user User [not null]
-  forest Forest [not null]
-}
-
 Table User {
   id Int [pk, increment]
   email String [unique, not null]
@@ -23,7 +14,6 @@ Table User {
   updatedAt DateTime [not null]
   deletedAt DateTime
   orders Order [not null]
-  bookmarks Bookmark [not null]
   cartItems CartItem [not null]
   emailVerified Boolean [not null, default: false]
 }
@@ -40,7 +30,6 @@ Table Forest {
   createdAt DateTime [default: `now()`, not null]
   deletedAt DateTime
   credits CarbonCredit [not null]
-  bookmarks Bookmark [not null]
 }
 
 Table CarbonCredit {
@@ -215,10 +204,6 @@ Enum CertificateStatus {
   revoked
   expired
 }
-
-Ref: Bookmark.userId > User.id [delete: Cascade]
-
-Ref: Bookmark.forestId > Forest.id [delete: Cascade]
 
 Ref: CarbonCredit.forestId > Forest.id [delete: Cascade]
 
