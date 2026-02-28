@@ -28,7 +28,7 @@ export interface MerkleProofResult {
  */
 export async function buildMerkleTree(): Promise<MerkleTreeResult | null> {
   const immudbService = getImmudbService();
-  const allTransactions = await immudbService.getAllTransactionHashes(10000);
+  const allTransactions = await immudbService.getAllTransactionHashes(2500);
 
   const audits = allTransactions.filter((tx) => tx.transactionType === 'order_audit');
 
