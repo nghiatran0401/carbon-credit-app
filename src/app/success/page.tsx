@@ -3,8 +3,9 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import confetti from 'canvas-confetti';
 import { useEffect, useState, useRef, Suspense } from 'react';
-import { CertificateDisplay } from '@/components/certificate-display';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/components/auth-context';
 import type { Certificate, OrderItem } from '@/types';
 
 interface OrderAudit {
@@ -19,19 +20,56 @@ interface OrderAudit {
   };
 }
 
+interface PublicVerificationResponse {
+  success: boolean;
+  verification: {
+    immudb: {
+      status: 'verified' | 'mismatch' | 'not_found' | 'unavailable';
+      isValid: boolean;
+      computedHash: string;
+      storedHash: string | null;
+    };
+    blockchain: {
+      status: 'anchored' | 'not_anchored' | 'unavailable';
+      txHash?: string | null;
+      blockNumber?: number | null;
+      explorerUrl?: string;
+      merkleRoot?: string;
+      proofValid?: boolean;
+    };
+  };
+}
+
+function normalizeStatus(status?: string) {
+  return String(status ?? '').toUpperCase();
+}
+
+function isSuccessfulStatus(status?: string) {
+  const normalized = normalizeStatus(status);
+  return normalized === 'COMPLETED' || normalized === 'PAID' || normalized === 'PROCESSING';
+}
+
+function formatStatusLabel(status?: string) {
+  const normalized = normalizeStatus(status);
+  if (!normalized) return 'Unknown';
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     COMPLETED: 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
     PAID: 'bg-emerald-100 text-emerald-800 ring-emerald-600/20',
+    PROCESSING: 'bg-blue-100 text-blue-800 ring-blue-600/20',
     PENDING: 'bg-amber-100 text-amber-800 ring-amber-600/20',
     FAILED: 'bg-red-100 text-red-800 ring-red-600/20',
     CANCELLED: 'bg-gray-100 text-gray-800 ring-gray-600/20',
   };
+  const normalized = normalizeStatus(status);
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${styles[status] || styles.PENDING}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${styles[normalized] || styles.PENDING}`}
     >
-      {status}
+      {formatStatusLabel(status)}
     </span>
   );
 }
@@ -66,6 +104,7 @@ function LoadingSkeleton() {
 }
 
 function SuccessPageContent() {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const orderCode = searchParams.get('orderCode');
   const [loading, setLoading] = useState(true);
@@ -74,18 +113,97 @@ function SuccessPageContent() {
   const [payment, setPayment] = useState<any>(null);
   const [certificate, setCertificate] = useState<Certificate | null>(null);
   const [audit, setAudit] = useState<OrderAudit | null>(null);
+  const [publicVerification, setPublicVerification] = useState<PublicVerificationResponse | null>(
+    null,
+  );
   const [auditLoading, setAuditLoading] = useState(false);
+  const [certificateActionLoading, setCertificateActionLoading] = useState(false);
 
   const confettiFired = useRef(false);
-  useEffect(() => {
-    if (confettiFired.current) return;
-    confettiFired.current = true;
-    confetti({
-      particleCount: 120,
-      spread: 90,
-      origin: { y: 0.6 },
-    });
-  }, []);
+  const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confettiIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fireSuccessConfetti = () => {
+    if (confettiTimeoutRef.current) {
+      clearTimeout(confettiTimeoutRef.current);
+      confettiTimeoutRef.current = null;
+    }
+    if (confettiIntervalRef.current) {
+      clearInterval(confettiIntervalRef.current);
+      confettiIntervalRef.current = null;
+    }
+
+    const defaults = {
+      startVelocity: 35,
+      spread: 80,
+      gravity: 0.85,
+      ticks: 220,
+      zIndex: 12000,
+      disableForReducedMotion: false,
+    };
+
+    confetti({ ...defaults, particleCount: 140, origin: { x: 0.2, y: 0.62 } });
+    confetti({ ...defaults, particleCount: 140, origin: { x: 0.8, y: 0.62 } });
+    confettiTimeoutRef.current = setTimeout(() => {
+      confetti({ ...defaults, particleCount: 120, spread: 110, origin: { x: 0.5, y: 0.55 } });
+    }, 180);
+
+    // Keep a short celebratory trail so it is clearly visible.
+    const end = Date.now() + 1400;
+    confettiIntervalRef.current = setInterval(() => {
+      const timeLeft = end - Date.now();
+      if (timeLeft <= 0) {
+        if (confettiIntervalRef.current) {
+          clearInterval(confettiIntervalRef.current);
+          confettiIntervalRef.current = null;
+        }
+        return;
+      }
+      const progress = timeLeft / 1400;
+      const count = Math.max(25, Math.floor(70 * progress));
+      confetti({
+        ...defaults,
+        particleCount: count,
+        spread: 70,
+        scalar: 0.9,
+        origin: { x: Math.random() * 0.6 + 0.2, y: Math.random() * 0.2 + 0.45 },
+      });
+    }, 260);
+  };
+
+  const openCertificate = async () => {
+    if (!order?.id) return;
+    setCertificateActionLoading(true);
+    try {
+      if (certificate?.id) {
+        window.open(`/certificates/${certificate.id}`, '_blank');
+        return;
+      }
+
+      const existing = await fetch(`/api/certificates?orderId=${order.id}`);
+      if (existing.ok) {
+        const certData = await existing.json();
+        setCertificate(certData);
+        window.open(`/certificates/${certData.id}`, '_blank');
+        return;
+      }
+
+      const generated = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      if (generated.ok) {
+        const certData = await generated.json();
+        setCertificate(certData);
+        window.open(`/certificates/${certData.id}`, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to open certificate:', err);
+    } finally {
+      setCertificateActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!orderCode) return;
@@ -99,7 +217,7 @@ function SuccessPageContent() {
         setOrder(data.order);
         setPayment(data.payment);
 
-        if (data.order?.status === 'COMPLETED') {
+        if (isSuccessfulStatus(data.order?.status) || isSuccessfulStatus(data.payment?.status)) {
           try {
             const certResponse = await fetch(`/api/certificates?orderId=${data.order.id}`);
             if (certResponse.ok) {
@@ -131,6 +249,18 @@ function SuccessPageContent() {
           };
           await fetchAudit(2);
           setAuditLoading(false);
+
+          try {
+            const verifyResponse = await fetch(`/api/public/verify?orderId=${data.order.id}`);
+            if (verifyResponse.ok) {
+              const verifyData = await verifyResponse.json();
+              if (verifyData?.success) {
+                setPublicVerification(verifyData);
+              }
+            }
+          } catch (err) {
+            console.error('Error fetching public verification:', err);
+          }
         }
 
         setLoading(false);
@@ -143,6 +273,30 @@ function SuccessPageContent() {
         setLoading(false);
       });
   }, [orderCode]);
+
+  useEffect(() => {
+    confettiFired.current = false;
+  }, [orderCode]);
+
+  useEffect(() => {
+    if (confettiFired.current) return;
+    if (!order || !payment) return;
+    if (!isSuccessfulStatus(order.status) && !isSuccessfulStatus(payment.status)) return;
+
+    confettiFired.current = true;
+    fireSuccessConfetti();
+  }, [order, payment]);
+
+  useEffect(() => {
+    return () => {
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
+      if (confettiIntervalRef.current) {
+        clearInterval(confettiIntervalRef.current);
+      }
+    };
+  }, []);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -182,6 +336,14 @@ function SuccessPageContent() {
 
   const totalItems =
     order.items?.reduce((sum: number, item: OrderItem) => sum + item.quantity, 0) || 0;
+  const showCertificateAction =
+    isSuccessfulStatus(order.status) || isSuccessfulStatus(payment.status);
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const anchorTxHash = publicVerification?.verification?.blockchain?.txHash;
+  const anchorBlock = publicVerification?.verification?.blockchain?.blockNumber;
+  const anchorExplorerUrl =
+    publicVerification?.verification?.blockchain?.explorerUrl ||
+    (anchorTxHash ? `https://sepolia.basescan.org/tx/${anchorTxHash}` : null);
 
   return (
     <div className="max-w-5xl mx-auto w-full px-4 py-12 space-y-8">
@@ -341,26 +503,33 @@ function SuccessPageContent() {
                       Syncing...
                     </span>
                   ) : audit ? (
-                    <Link
-                      href="/order-audit"
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-700 hover:text-purple-900 transition"
-                    >
-                      <span className="h-2 w-2 rounded-full bg-purple-500" />
-                      Verified
-                      <svg
-                        className="h-3.5 w-3.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
+                    isAdmin ? (
+                      <Link
+                        href="/order-audit"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-700 hover:text-purple-900 transition"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                        />
-                      </svg>
-                    </Link>
+                        <span className="h-2 w-2 rounded-full bg-purple-500" />
+                        Verified
+                        <svg
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
+                        </svg>
+                      </Link>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-700">
+                        <span className="h-2 w-2 rounded-full bg-purple-500" />
+                        Verified
+                      </span>
+                    )
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-xs text-purple-600">
                       <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
@@ -384,102 +553,62 @@ function SuccessPageContent() {
               )}
             </div>
 
-            {/* Neo4j */}
-            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 shrink-0">
-                  <svg
-                    className="h-5 w-5 text-blue-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
+            {isAdmin && (
+              <>
+                {/* Neo4j */}
+                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 shrink-0">
+                      <svg
+                        className="h-5 w-5 text-blue-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-blue-900">
+                        Neo4j — Provenance Graph
+                      </h3>
+                      <p className="text-xs text-blue-600">Carbon credit ownership chain tracked</p>
+                    </div>
+                    <Link
+                      href="/carbon-movement"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition shrink-0"
+                    >
+                      <span className="h-2 w-2 rounded-full bg-blue-500" />
+                      Recorded
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-blue-900">Neo4j — Provenance Graph</h3>
-                  <p className="text-xs text-blue-600">Carbon credit ownership chain tracked</p>
-                </div>
-                <Link
-                  href="/carbon-movement"
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 transition shrink-0"
-                >
-                  <span className="h-2 w-2 rounded-full bg-blue-500" />
-                  Recorded
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                    />
-                  </svg>
-                </Link>
-              </div>
-            </div>
-
-            {/* Base Blockchain */}
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 shrink-0">
-                  <svg
-                    className="h-5 w-5 text-emerald-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-emerald-900">
-                    Base L2 — On-Chain Anchor
-                  </h3>
-                  <p className="text-xs text-emerald-600">
-                    Merkle root published to Base blockchain
-                  </p>
-                </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 shrink-0">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  Pending
-                </span>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Certificate */}
-      {certificate && (
-        <div className="space-y-4">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-gray-900">Your Carbon Credit Certificate</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              This certificate verifies your contribution to carbon offset
-            </p>
-          </div>
-          <CertificateDisplay certificate={certificate} />
-        </div>
-      )}
-
       {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-3 pt-2 max-w-2xl mx-auto w-full">
+      <div className="flex flex-col sm:flex-row gap-3 pt-2 max-w-3xl mx-auto w-full">
         <Link
           href="/dashboard"
           className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition"
@@ -508,10 +637,12 @@ function SuccessPageContent() {
           </svg>
           Continue Shopping
         </Link>
-        {certificate && (
-          <Link
-            href="/history"
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition"
+        {showCertificateAction && (
+          <Button
+            variant="outline"
+            onClick={openCertificate}
+            disabled={certificateActionLoading}
+            className="flex-1 rounded-xl px-5 py-3 text-sm font-semibold"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -521,8 +652,8 @@ function SuccessPageContent() {
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            View Certificates
-          </Link>
+            {certificateActionLoading ? 'Opening Certificate...' : 'View Certificate'}
+          </Button>
         )}
       </div>
     </div>

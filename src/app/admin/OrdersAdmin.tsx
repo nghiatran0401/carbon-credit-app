@@ -9,6 +9,18 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
+const STATUS_OPTIONS = ['PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'FAILED'] as const;
+
+function normalizeStatus(status?: string) {
+  return String(status ?? '').toUpperCase();
+}
+
+function formatStatusLabel(status?: string) {
+  const normalized = normalizeStatus(status);
+  if (!normalized) return 'Unknown';
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
 export default function OrdersAdmin() {
   const fetcher = (url: string) => apiGet<Order[]>(url);
   const { data: orders, error, isLoading, mutate } = useSWR('/api/orders', fetcher);
@@ -27,8 +39,8 @@ export default function OrdersAdmin() {
 
   const totalOrders = orders.length;
   const totalValue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
-  const completedOrders = orders.filter((o) => o.status === 'completed').length;
+  const pendingOrders = orders.filter((o) => normalizeStatus(o.status) === 'PENDING').length;
+  const completedOrders = orders.filter((o) => normalizeStatus(o.status) === 'COMPLETED').length;
 
   const handleSelect = (id: number) => {
     setSelectedOrders((prev) =>
@@ -124,14 +136,16 @@ export default function OrdersAdmin() {
   };
 
   const getStatusBadge = (status: string) => {
+    const normalized = normalizeStatus(status);
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      pending: 'secondary',
-      completed: 'default',
-      cancelled: 'destructive',
-      failed: 'destructive',
-      processing: 'outline',
+      PENDING: 'secondary',
+      COMPLETED: 'default',
+      CANCELLED: 'destructive',
+      FAILED: 'destructive',
+      PROCESSING: 'outline',
+      PAID: 'default',
     };
-    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
+    return <Badge variant={variants[normalized] || 'outline'}>{formatStatusLabel(status)}</Badge>;
   };
 
   return (
@@ -274,15 +288,19 @@ export default function OrdersAdmin() {
               <div>
                 <h3 className="font-semibold mb-2">Update Status</h3>
                 <div className="flex gap-2">
-                  {['pending', 'processing', 'completed', 'cancelled', 'failed'].map((status) => (
+                  {STATUS_OPTIONS.map((status) => (
                     <Button
                       key={status}
                       size="sm"
-                      variant={selectedOrder.status === status ? 'default' : 'outline'}
+                      variant={
+                        normalizeStatus(selectedOrder.status) === normalizeStatus(status)
+                          ? 'default'
+                          : 'outline'
+                      }
                       onClick={() => handleStatusUpdate(selectedOrder.id, status)}
                       disabled={statusUpdateLoading}
                     >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                      {formatStatusLabel(status)}
                     </Button>
                   ))}
                 </div>

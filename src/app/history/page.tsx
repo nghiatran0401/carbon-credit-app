@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Download, FileText, Package, Leaf } from 'lucide-react';
+import { Download, FileText, Loader2, MapPin, Package, Leaf } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -55,6 +55,21 @@ function ordersToCSV(orders: Order[]): string {
   return [header, ...rows].map((row) => row.join(',')).join('\n');
 }
 
+function normalizeStatus(status?: string) {
+  return String(status ?? '').toUpperCase();
+}
+
+function isCompletedStatus(status?: string) {
+  const normalized = normalizeStatus(status);
+  return normalized === 'COMPLETED' || normalized === 'PAID';
+}
+
+function formatStatusLabel(status?: string) {
+  const normalized = normalizeStatus(status);
+  if (!normalized) return 'Unknown';
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
+}
+
 export default function HistoryPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
@@ -74,6 +89,7 @@ export default function HistoryPage() {
     qty: 0,
     open: false,
   });
+  const [certificateLoadingOrderId, setCertificateLoadingOrderId] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -154,6 +170,38 @@ export default function HistoryPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleViewCertificate = async (orderId: number) => {
+    setCertificateLoadingOrderId(orderId);
+    try {
+      const response = await fetch(`/api/certificates?orderId=${orderId}`);
+      if (response.ok) {
+        const certificate = await response.json();
+        window.open(`/certificates/${certificate.id}`, '_blank');
+        return;
+      }
+
+      const genResponse = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      if (!genResponse.ok) {
+        const data = await genResponse.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not generate certificate');
+      }
+      const certificate = await genResponse.json();
+      window.open(`/certificates/${certificate.id}`, '_blank');
+    } catch (err: unknown) {
+      toast({
+        title: 'Certificate error',
+        description: err instanceof Error ? err.message : 'Unable to open certificate right now.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCertificateLoadingOrderId(null);
+    }
+  };
+
   if (!isAuthenticated) {
     return <div className="p-8 text-center">Redirecting to sign in...</div>;
   }
@@ -214,7 +262,7 @@ export default function HistoryPage() {
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-2 items-center">
             <Input
-              placeholder="Search by order, certification, vintage..."
+              placeholder="Search by order code, certification, vintage..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -230,9 +278,10 @@ export default function HistoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Cancelled">Cancelled</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
             {user?.role?.toLowerCase() === 'admin' && (
@@ -273,28 +322,79 @@ export default function HistoryPage() {
           {orders.map((order: Order) => (
             <Card key={order.id} className="border border-gray-200 shadow-sm">
               <CardHeader className="rounded-t-lg bg-gray-50/80 flex flex-col md:flex-row md:items-center md:justify-between">
-                <CardTitle className="text-lg">
-                  Order #{order.id}{' '}
-                  <span className="text-xs font-normal text-gray-500 ml-2">({order.status})</span>
-                </CardTitle>
-                <div className="text-sm text-gray-500 mt-1 md:mt-0">
+                <div>
+                  <CardTitle className="text-lg">Order #{order.id}</CardTitle>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">Code #{order.orderCode}</Badge>
+                    <Badge variant="secondary">{formatStatusLabel(order.status)}</Badge>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-500 mt-1 md:mt-0 text-right">
                   Placed: {new Date(order.createdAt).toLocaleString()}
                   <br />
                   {user?.role?.toLowerCase() === 'admin' && <span>User: {order.user?.email}</span>}
                 </div>
               </CardHeader>
               <CardContent>
+                <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="rounded-md border bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                      Credits purchased
+                    </p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Line items</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {order.items?.length ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Order total</p>
+                    <p className="text-sm font-semibold text-emerald-700">
+                      ${order.totalPrice.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  What you bought
+                </p>
                 <div className="space-y-2">
                   {order.items?.map((item: OrderItem) => (
-                    <div key={item.id} className="flex items-center justify-between text-sm gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-medium truncate">
-                          {item.carbonCredit?.certification} ({item.carbonCredit?.vintage})
-                        </span>
+                    <div
+                      key={item.id}
+                      className="flex items-start justify-between text-sm gap-3 rounded-md border p-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">
+                            {item.carbonCredit?.forest?.name ||
+                              `Carbon Credit #${item.carbonCreditId}`}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {item.carbonCredit?.certification || 'Certification'}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {item.carbonCredit?.vintage || 'Vintage'}
+                          </Badge>
+                        </div>
+                        {item.carbonCredit?.forest?.location && (
+                          <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-500">
+                            <MapPin className="h-3 w-3" />
+                            {item.carbonCredit.forest.location}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          {item.quantity} credit{item.quantity !== 1 ? 's' : ''} x $
+                          {item.pricePerCredit.toFixed(2)}
+                        </p>
                         {item.retired && (
                           <Badge
                             variant="secondary"
-                            className="bg-emerald-100 text-emerald-700 text-xs shrink-0"
+                            className="mt-2 bg-emerald-100 text-emerald-700 text-xs shrink-0"
                           >
                             <Leaf className="h-3 w-3 mr-1" />
                             Retired
@@ -302,11 +402,8 @@ export default function HistoryPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span>
-                          {item.quantity} × ${item.pricePerCredit} ={' '}
-                          <span className="font-semibold">${item.subtotal.toFixed(2)}</span>
-                        </span>
-                        {order.status === 'Completed' && !item.retired && (
+                        <span className="font-semibold">${item.subtotal.toFixed(2)}</span>
+                        {isCompletedStatus(order.status) && !item.retired && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -328,14 +425,21 @@ export default function HistoryPage() {
                 {/* Payment status and details */}
                 {order.payments && order.payments.length > 0 && (
                   <div className="mt-2 text-sm">
-                    <span className="font-medium">Payment Status:</span>{' '}
-                    {order.payments[order.payments.length - 1].status}
-                    {order.payments[order.payments.length - 1].status === 'failed' &&
-                      order.payments[order.payments.length - 1].failureReason && (
-                        <span className="ml-2 text-red-600">
-                          ({order.payments[order.payments.length - 1].failureReason})
-                        </span>
-                      )}
+                    {(() => {
+                      const latestPayment = order.payments[order.payments.length - 1];
+                      const failed = normalizeStatus(latestPayment.status) === 'FAILED';
+                      return (
+                        <>
+                          <span className="font-medium">Payment Status:</span>{' '}
+                          {latestPayment.status}
+                          {failed && latestPayment.failureReason && (
+                            <span className="ml-2 text-red-600">
+                              ({latestPayment.failureReason})
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                     {order.paidAt && (
                       <span className="ml-4 text-green-700">
                         Paid at: {new Date(order.paidAt).toLocaleString()}
@@ -345,39 +449,30 @@ export default function HistoryPage() {
                 )}
 
                 {/* Certificate button for completed orders */}
-                {order.status === 'Completed' && (
-                  <div className="mt-3 pt-3 border-t">
+                {isCompletedStatus(order.status) && (
+                  <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-3">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-green-700 border-green-300 hover:bg-green-50"
-                      onClick={async () => {
-                        try {
-                          const response = await fetch(`/api/certificates?orderId=${order.id}`);
-                          if (response.ok) {
-                            const certificate = await response.json();
-                            // Open certificate in new window
-                            window.open(`/certificates/${certificate.id}`, '_blank');
-                          } else {
-                            // Generate certificate if it doesn't exist
-                            const genResponse = await fetch('/api/certificates', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ orderId: order.id }),
-                            });
-                            if (genResponse.ok) {
-                              const certificate = await genResponse.json();
-                              window.open(`/certificates/${certificate.id}`, '_blank');
-                            }
-                          }
-                        } catch (err) {
-                          console.error('Error accessing certificate:', err);
-                        }
-                      }}
+                      className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                      onClick={() => handleViewCertificate(order.id)}
+                      disabled={certificateLoadingOrderId === order.id}
                     >
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Certificate
+                      {certificateLoadingOrderId === order.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Preparing certificate...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          View Certificate
+                        </>
+                      )}
                     </Button>
+                    <span className="text-xs text-gray-500">
+                      Certificate proves your purchase and offset contribution.
+                    </span>
                   </div>
                 )}
               </CardContent>

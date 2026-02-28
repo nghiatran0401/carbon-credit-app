@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   ShieldCheck,
   Search,
@@ -20,10 +21,21 @@ interface VerificationResponse {
   orderId: number;
   status: string;
   verification: {
-    immudbStatus: 'verified' | 'mismatch' | 'not_found' | 'unavailable';
-    isValid: boolean;
-    computedHash: string;
-    storedHash: string | null;
+    immudb: {
+      status: 'verified' | 'mismatch' | 'not_found' | 'unavailable';
+      isValid: boolean;
+      computedHash: string;
+      storedHash: string | null;
+    };
+    blockchain: {
+      status: 'anchored' | 'not_anchored' | 'unavailable';
+      txHash?: string | null;
+      blockNumber?: number | null;
+      explorerUrl?: string;
+      merkleRoot?: string;
+      merkleProof?: string[];
+      proofValid?: boolean;
+    };
   };
   orderSummary: {
     totalCredits: number;
@@ -97,16 +109,26 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function VerifyPage() {
-  const [orderId, setOrderId] = useState('');
+  const searchParams = useSearchParams();
+  const [queryValue, setQueryValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<VerificationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleVerify = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    const id = orderId.trim();
-    if (!id || isNaN(parseInt(id))) {
-      setError('Please enter a valid order ID');
+  const verifyByInput = useCallback(async (rawValue: string) => {
+    const value = rawValue.trim();
+    if (!value) {
+      setError('Please enter an Order ID or SHA-256 hash');
+      return;
+    }
+
+    let query = '';
+    if (/^\d+$/.test(value)) {
+      query = `orderId=${value}`;
+    } else if (/^[a-fA-F0-9]{64}$/.test(value)) {
+      query = `hash=${value.toLowerCase()}`;
+    } else {
+      setError('Enter a numeric Order ID or a 64-character SHA-256 hash');
       return;
     }
 
@@ -115,7 +137,7 @@ export default function VerifyPage() {
     setResult(null);
 
     try {
-      const res = await fetch(`/api/public/verify?orderId=${id}`);
+      const res = await fetch(`/api/public/verify?${query}`);
       const data = await res.json();
 
       if (!data.success) {
@@ -129,9 +151,30 @@ export default function VerifyPage() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const handleVerify = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    await verifyByInput(queryValue);
   };
 
-  const status = result ? statusConfig[result.verification.immudbStatus] : null;
+  useEffect(() => {
+    const orderIdFromUrl = searchParams.get('orderId');
+    const hashFromUrl = searchParams.get('hash');
+
+    if (orderIdFromUrl && /^\d+$/.test(orderIdFromUrl)) {
+      setQueryValue(orderIdFromUrl);
+      void verifyByInput(orderIdFromUrl);
+      return;
+    }
+
+    if (hashFromUrl && /^[a-fA-F0-9]{64}$/.test(hashFromUrl)) {
+      setQueryValue(hashFromUrl);
+      void verifyByInput(hashFromUrl);
+    }
+  }, [searchParams, verifyByInput]);
+
+  const status = result ? statusConfig[result.verification.immudb.status] : null;
   const StatusIcon = status?.icon;
 
   return (
@@ -166,10 +209,10 @@ export default function VerifyPage() {
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
-                type="number"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
-                placeholder="Enter order ID (e.g. 42)"
+                type="text"
+                value={queryValue}
+                onChange={(e) => setQueryValue(e.target.value)}
+                placeholder="Enter Order ID (e.g. 42) or SHA-256 hash"
                 className="w-full rounded-xl border border-gray-200 bg-white py-3.5 pl-12 pr-4 text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100 transition"
               />
             </div>
@@ -251,28 +294,28 @@ export default function VerifyPage() {
               <div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">Stored Hash (ImmuDB)</p>
-                  {result.verification.storedHash && (
-                    <CopyButton text={result.verification.storedHash} />
+                  {result.verification.immudb.storedHash && (
+                    <CopyButton text={result.verification.immudb.storedHash} />
                   )}
                 </div>
                 <p className="mt-1 font-mono text-xs text-gray-800 bg-gray-50 p-3 rounded-lg break-all">
-                  {result.verification.storedHash || 'N/A'}
+                  {result.verification.immudb.storedHash || 'N/A'}
                 </p>
               </div>
 
               <div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">Computed Hash (Live Data)</p>
-                  <CopyButton text={result.verification.computedHash} />
+                  <CopyButton text={result.verification.immudb.computedHash} />
                 </div>
                 <p className="mt-1 font-mono text-xs text-gray-800 bg-gray-50 p-3 rounded-lg break-all">
-                  {result.verification.computedHash}
+                  {result.verification.immudb.computedHash}
                 </p>
               </div>
 
-              {result.verification.storedHash && (
+              {result.verification.immudb.storedHash && (
                 <div className="flex items-center gap-2 text-xs">
-                  {result.verification.isValid ? (
+                  {result.verification.immudb.isValid ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       <span className="text-green-700 font-medium">
@@ -286,6 +329,27 @@ export default function VerifyPage() {
                         Hashes do not match — possible tampering
                       </span>
                     </>
+                  )}
+                </div>
+              )}
+
+              {result.verification.blockchain.status === 'anchored' && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                  <p className="font-medium mb-1">Anchored on Base blockchain</p>
+                  <p>
+                    Block #{result.verification.blockchain.blockNumber ?? 'N/A'} • Proof{' '}
+                    {result.verification.blockchain.proofValid ? 'valid' : 'pending'}
+                  </p>
+                  {result.verification.blockchain.explorerUrl && (
+                    <a
+                      href={result.verification.blockchain.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-2 text-emerald-800 underline underline-offset-2"
+                    >
+                      View anchor transaction
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
                   )}
                 </div>
               )}
@@ -321,6 +385,69 @@ export default function VerifyPage() {
                   </code>
                 </p>
               </div>
+            </div>
+
+            {/* Buyer guide: verify on Base Sepolia */}
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-blue-800">
+                Verify on Base Sepolia (Buyer Guide)
+              </h3>
+              {result.verification.blockchain.status === 'anchored' ? (
+                <>
+                  <p className="text-sm text-blue-900">
+                    This order is anchored on Base Sepolia. You can verify it yourself on BaseScan:
+                  </p>
+                  <ol className="list-decimal pl-5 text-sm text-blue-900 space-y-1">
+                    <li>Open the anchor transaction link below.</li>
+                    <li>Check the transaction status is successful.</li>
+                    <li>
+                      Confirm block number{' '}
+                      <span className="font-semibold">
+                        #{result.verification.blockchain.blockNumber ?? 'N/A'}
+                      </span>{' '}
+                      and network is Base Sepolia.
+                    </li>
+                    <li>
+                      Compare this page&apos;s hash/proof info with your order ID{' '}
+                      <span className="font-semibold">#{result.orderId}</span>.
+                    </li>
+                  </ol>
+                  <div className="text-xs text-blue-900 space-y-1">
+                    {result.verification.blockchain.txHash && (
+                      <p>
+                        <span className="font-medium">Tx Hash:</span>{' '}
+                        <code className="bg-white/80 px-1.5 py-0.5 rounded">
+                          {result.verification.blockchain.txHash}
+                        </code>
+                      </p>
+                    )}
+                    {result.verification.blockchain.merkleRoot && (
+                      <p>
+                        <span className="font-medium">Merkle Root:</span>{' '}
+                        <code className="bg-white/80 px-1.5 py-0.5 rounded break-all">
+                          {result.verification.blockchain.merkleRoot}
+                        </code>
+                      </p>
+                    )}
+                  </div>
+                  {result.verification.blockchain.explorerUrl && (
+                    <a
+                      href={result.verification.blockchain.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-sm text-blue-800 font-medium underline underline-offset-2"
+                    >
+                      Open BaseScan transaction
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-blue-900">
+                  Blockchain anchor is not available yet for this order. Please check again later,
+                  or contact support with your order ID #{result.orderId}.
+                </p>
+              )}
             </div>
 
             {/* Timestamp */}

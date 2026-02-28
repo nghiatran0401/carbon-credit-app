@@ -69,7 +69,21 @@ export async function GET(req: NextRequest) {
         where,
         include: {
           user: true,
-          items: { include: { carbonCredit: true } },
+          items: {
+            include: {
+              carbonCredit: {
+                include: {
+                  forest: {
+                    select: {
+                      name: true,
+                      location: true,
+                      area: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
           payments: true,
           orderHistory: true,
         },
@@ -81,7 +95,21 @@ export async function GET(req: NextRequest) {
     const pageNum = Math.max(1, Number(page));
     const include = {
       user: true,
-      items: { include: { carbonCredit: true } },
+      items: {
+        include: {
+          carbonCredit: {
+            include: {
+              forest: {
+                select: {
+                  name: true,
+                  location: true,
+                  area: true,
+                },
+              },
+            },
+          },
+        },
+      },
       payments: true,
       orderHistory: true,
     };
@@ -156,7 +184,21 @@ export async function POST(req: NextRequest) {
       where: { id: createdOrder.id },
       include: {
         user: true,
-        items: { include: { carbonCredit: true } },
+        items: {
+          include: {
+            carbonCredit: {
+              include: {
+                forest: {
+                  select: {
+                    name: true,
+                    location: true,
+                    area: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         payments: true,
         orderHistory: true,
       },
@@ -198,7 +240,17 @@ export async function PUT(req: NextRequest) {
         user: true,
         items: {
           include: {
-            carbonCredit: true,
+            carbonCredit: {
+              include: {
+                forest: {
+                  select: {
+                    name: true,
+                    location: true,
+                    area: true,
+                  },
+                },
+              },
+            },
           },
         },
         payments: true,
@@ -233,7 +285,17 @@ export async function PUT(req: NextRequest) {
           user: true,
           items: {
             include: {
-              carbonCredit: true,
+              carbonCredit: {
+                include: {
+                  forest: {
+                    select: {
+                      name: true,
+                      location: true,
+                      area: true,
+                    },
+                  },
+                },
+              },
             },
           },
           payments: true,

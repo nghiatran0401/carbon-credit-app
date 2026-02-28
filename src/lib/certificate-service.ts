@@ -32,6 +32,7 @@ export interface CertificateData {
   userEmail: string;
   forestName: string;
   forestType: string;
+  forestNames?: string[];
   totalCredits: number;
   totalValue: number;
   purchaseDate: string;
@@ -116,7 +117,7 @@ export class CertificateService {
   private prepareCertificateData(order: {
     id: number;
     userId: number;
-    totalCredits: number;
+    totalCredits?: number;
     totalPrice: number;
     createdAt: Date;
     user: { firstName: string; lastName: string; email: string };
@@ -139,7 +140,16 @@ export class CertificateService {
       subtotal: item.subtotal,
     }));
 
+    const uniqueForestNames = Array.from(
+      new Set(
+        order.items
+          .map((item) => item.carbonCredit?.forest?.name)
+          .filter((name): name is string => Boolean(name && name.trim())),
+      ),
+    );
+
     const certificateId = `CC-${order.id}-${Date.now()}`;
+    const computedTotalCredits = items.reduce((sum, item) => sum + item.quantity, 0);
 
     return {
       certificateId,
@@ -147,9 +157,10 @@ export class CertificateService {
       userId: order.userId,
       userName: `${order.user.firstName} ${order.user.lastName}`,
       userEmail: order.user.email,
-      forestName: order.items[0]?.carbonCredit?.forest?.name || 'Unknown Forest',
+      forestName: uniqueForestNames[0] || 'Unknown Forest',
       forestType: order.items[0]?.carbonCredit?.forest?.type || 'Unknown Type',
-      totalCredits: order.totalCredits,
+      forestNames: uniqueForestNames,
+      totalCredits: computedTotalCredits,
       totalValue: order.totalPrice,
       purchaseDate: order.createdAt.toISOString(),
       certificateHash: '', // Will be set after generation

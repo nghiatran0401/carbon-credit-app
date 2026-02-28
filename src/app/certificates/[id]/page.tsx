@@ -81,12 +81,21 @@ export default function CertificateViewPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <div className="mb-6 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-white p-5 text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Certificate of Carbon Credit Purchase</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Verified purchase record and project details for this order.
+        </p>
+      </div>
       <div className="mb-8">
         <CertificateDisplay certificate={certificate} />
       </div>
-      <div className="text-center">
+      <div className="text-center flex items-center justify-center gap-2">
+        <Link href="/history">
+          <Button variant="outline">Back to History</Button>
+        </Link>
         <Link href="/">
-          <Button variant="outline">Return to EcoCredit</Button>
+          <Button variant="ghost">Return to EcoCredit</Button>
         </Link>
       </div>
     </div>

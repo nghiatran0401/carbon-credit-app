@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import DashboardOverview from '@/app/admin/DashboardOverview';
 import ForestsAdmin from '@/app/admin/ForestsAdmin';
 import CreditsAdmin from '@/app/admin/CreditsAdmin';
@@ -19,6 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldX,
+  GitBranch,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Order, CarbonCredit, Forest, User } from '@/types';
 
@@ -28,6 +31,11 @@ const NAV_ITEMS = [
   { key: 'credits', label: 'Credits', icon: Coins },
   { key: 'orders', label: 'Orders', icon: ShoppingCart },
   { key: 'users', label: 'Users', icon: Users },
+] as const;
+
+const ADMIN_TOOL_LINKS = [
+  { href: '/carbon-movement', label: 'Carbon Movement', icon: GitBranch },
+  { href: '/order-audit', label: 'Order Audit Trail', icon: ShieldCheck },
 ] as const;
 
 type SectionKey = (typeof NAV_ITEMS)[number]['key'];
@@ -120,6 +128,21 @@ export default function AdminPage() {
             );
           })}
         </div>
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-none">
+          {ADMIN_TOOL_LINKS.map((link) => {
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              >
+                <Icon className="h-4 w-4" />
+                {link.label}
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex min-h-[calc(100vh-4rem)]">
@@ -171,6 +194,32 @@ export default function AdminPage() {
               );
             })}
           </nav>
+
+          <div className="px-2 pb-2 border-t">
+            {!sidebarCollapsed && (
+              <p className="px-2 pt-3 pb-1 text-[11px] uppercase tracking-wider text-gray-400">
+                Admin Tools
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {ADMIN_TOOL_LINKS.map((link) => {
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    title={sidebarCollapsed ? link.label : undefined}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-blue-600 hover:bg-blue-50 hover:text-blue-700 ${
+                      sidebarCollapsed ? 'justify-center px-2' : ''
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {!sidebarCollapsed && <span className="flex-1 text-left">{link.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
 
           <div className="p-2 border-t">
             <button

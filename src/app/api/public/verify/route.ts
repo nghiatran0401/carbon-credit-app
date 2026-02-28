@@ -9,23 +9,73 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const orderIdParam = searchParams.get('orderId');
+  const hashParamRaw = searchParams.get('hash')?.trim().toLowerCase();
+  const isValidSha256 = (value: string) => /^[a-f0-9]{64}$/.test(value);
 
-  if (!orderIdParam) {
+  if (!orderIdParam && !hashParamRaw) {
     return NextResponse.json(
-      { success: false, message: 'Order ID is required as a query parameter' },
+      { success: false, message: 'Provide either orderId or hash as a query parameter' },
       { status: 400 },
     );
   }
 
-  const orderId = parseInt(orderIdParam);
-  if (isNaN(orderId)) {
-    return NextResponse.json(
-      { success: false, message: 'Order ID must be a valid number' },
-      { status: 400 },
-    );
+  let orderId: number | null = null;
+  let requestedHash: string | null = null;
+
+  if (orderIdParam) {
+    const parsedOrderId = parseInt(orderIdParam);
+    if (isNaN(parsedOrderId)) {
+      return NextResponse.json(
+        { success: false, message: 'Order ID must be a valid number' },
+        { status: 400 },
+      );
+    }
+    orderId = parsedOrderId;
+  } else if (hashParamRaw) {
+    if (!isValidSha256(hashParamRaw)) {
+      return NextResponse.json(
+        { success: false, message: 'Hash must be a valid 64-character SHA-256 hex string' },
+        { status: 400 },
+      );
+    }
+    requestedHash = hashParamRaw;
   }
 
   try {
+    if (!orderId && requestedHash) {
+      try {
+        const immudbService = getImmudbService();
+        const allTransactions = await immudbService.getAllTransactionHashes(2500);
+        const matched = allTransactions.find(
+          (tx) =>
+            tx.transactionType === 'order_audit' &&
+            String(tx.metadata?.computedHash ?? '').toLowerCase() === requestedHash,
+        );
+
+        if (!matched?.metadata?.orderId) {
+          return NextResponse.json(
+            { success: false, message: 'No order found for this SHA-256 hash' },
+            { status: 404 },
+          );
+        }
+
+        orderId = Number(matched.metadata.orderId);
+      } catch (error) {
+        console.error('Hash lookup failed in ImmuDB', error);
+        return NextResponse.json(
+          { success: false, message: 'Unable to lookup hash in immutable ledger right now' },
+          { status: 503 },
+        );
+      }
+    }
+
+    if (!orderId) {
+      return NextResponse.json(
+        { success: false, message: 'Could not resolve order ID' },
+        { status: 400 },
+      );
+    }
+
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
@@ -91,13 +141,14 @@ export async function GET(request: NextRequest) {
     } = { status: 'unavailable' };
 
     try {
-      if (computedHash) {
-        const onChainResult = await getOrderVerification(orderId, computedHash);
+      const hashForProof = storedHash || computedHash;
+      if (hashForProof) {
+        const onChainResult = await getOrderVerification(orderId, hashForProof);
         if (onChainResult) {
           const proofValid = verifyOrderProof(
             onChainResult.anchor.merkleRoot,
             orderId,
-            computedHash,
+            hashForProof,
             onChainResult.proof.merkleProof,
           );
           blockchain = {
@@ -123,6 +174,7 @@ export async function GET(request: NextRequest) {
       success: true,
       orderId: order.id,
       status: order.status,
+      requestedHash,
       verification: {
         immudb: {
           status: immudbStatus,

@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { Leaf, Github, Mail, Globe, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/components/auth-context';
 
 const footerLinks = {
   Platform: [
@@ -22,6 +25,13 @@ const footerLinks = {
 };
 
 export function Footer() {
+  const { user } = useAuth();
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+
+  const analyticsLinks = isAdmin
+    ? footerLinks['Analytics & Tools']
+    : footerLinks['Analytics & Tools'].filter((link) => link.href !== '/order-audit');
+
   return (
     <footer className="bg-gray-900 text-white">
       <div className="container py-12">
@@ -68,7 +78,7 @@ export function Footer() {
                 {category}
               </h3>
               <ul className="space-y-2.5">
-                {links.map((link) => (
+                {(category === 'Analytics & Tools' ? analyticsLinks : links).map((link) => (
                   <li key={link.href}>
                     <Link
                       href={link.href}
