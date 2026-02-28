@@ -6,6 +6,7 @@ import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 import { emailService } from '@/lib/email-service';
+import { notifyOrderPaid } from '@/lib/notification-emitter';
 
 async function runBestEffortSideEffects(orderId: number) {
   try {
@@ -90,6 +91,12 @@ export async function GET(req: NextRequest) {
       });
 
       await runBestEffortSideEffects(payment.order.id);
+
+      try {
+        await notifyOrderPaid(payment.order.userId, payment.order.id, orderCode);
+      } catch (notificationError) {
+        console.error('Failed to create checkout-session notification:', notificationError);
+      }
 
       if (emailService.isEnabled()) {
         try {

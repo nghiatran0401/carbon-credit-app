@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { orderAuditService } from '@/lib/order-audit-service';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireAdmin, isAuthError, handleRouteError } from '@/lib/auth';
+import { notifyAuditCreated } from '@/lib/notification-emitter';
 
 export const dynamic = 'force-dynamic';
 
@@ -146,6 +147,12 @@ export async function POST(request: NextRequest) {
       buyer: order.buyer,
       seller: order.seller,
     });
+
+    try {
+      await notifyAuditCreated(order.id);
+    } catch (notificationError) {
+      console.error('Failed to create audit notification:', notificationError);
+    }
 
     return NextResponse.json({
       success: true,

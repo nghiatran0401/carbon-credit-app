@@ -7,6 +7,7 @@ import './globals.css';
 import { AuthProvider } from '@/components/auth-context';
 import { ConditionalNav } from '@/components/conditional-nav';
 import { ScrollToTop } from '@/components/scroll-to-top';
+import { NotificationProvider } from '@/components/notification-provider';
 
 const quicksand = Quicksand({
   subsets: ['latin'],
@@ -96,15 +97,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <AuthProvider>
-          <ConditionalNav />
+          <NotificationProvider>
+            <ConditionalNav />
 
-          <main id="main-content" className="min-h-screen bg-gray-50">
-            {children}
-          </main>
+            <main id="main-content" className="min-h-screen bg-gray-50">
+              {children}
+            </main>
 
-          <Footer />
-          <ScrollToTop />
-          <Toaster />
+            <Footer />
+            <ScrollToTop />
+            <Toaster />
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

@@ -13,6 +13,7 @@ import {
   validateBody,
   isValidationError,
 } from '@/lib/validation';
+import { notifyOrderStatusUpdated } from '@/lib/notification-emitter';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,7 +181,7 @@ export async function PUT(req: NextRequest) {
 
     const currentOrder = await prisma.order.findUnique({
       where: { id: Number(id) },
-      select: { status: true, userId: true },
+      select: { status: true, userId: true, orderCode: true },
     });
 
     if (!currentOrder) {
@@ -213,6 +214,18 @@ export async function PUT(req: NextRequest) {
           message: `Order status changed from ${currentOrder.status} to ${status}`,
         },
       });
+
+      try {
+        await notifyOrderStatusUpdated(
+          currentOrder.userId,
+          Number(id),
+          currentOrder.orderCode,
+          currentOrder.status,
+          status,
+        );
+      } catch (notificationError) {
+        console.error('Failed to create order status notification:', notificationError);
+      }
 
       const updatedOrderWithHistory = await prisma.order.findUnique({
         where: { id: Number(id) },

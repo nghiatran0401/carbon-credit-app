@@ -60,6 +60,8 @@ model User {
   deletedAt      DateTime?
   orders         Order[]
   cartItems      CartItem[]
+  notifications  Notification[]
+  notificationPreference NotificationPreference?
   emailVerified  Boolean        @default(false)
 
   @@index([email])
@@ -233,6 +235,23 @@ model Certificate {
   @@index([status])
 }
 
+model BlockchainAnchor {
+  id          Int       @id @default(autoincrement())
+  merkleRoot  String
+  txHash      String?   @unique
+  blockNumber Int?
+  chainId     Int
+  auditCount  Int
+  orderIds    Int[]
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([merkleRoot])
+}
+
 model WebhookEvent {
   id           String    @id @default(cuid())
   orderCode    Int
@@ -249,4 +268,52 @@ model WebhookEvent {
   @@index([signature])
   @@index([status, createdAt])
   @@index([createdAt])
+}
+
+model Notification {
+  id          String                 @id @default(cuid())
+  userId      Int
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  message     String
+  priority    String                 @default("info")
+  status      String                 @default("unread")
+  entityType  String?
+  entityId    String?
+  dedupeKey   String
+  metadata    Json?
+  createdAt   DateTime               @default(now())
+  readAt      DateTime?
+  archivedAt  DateTime?
+  deliveries  NotificationDelivery[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, status])
+  @@index([type, createdAt])
+  @@unique([userId, type, entityId, dedupeKey])
+}
+
+model NotificationDelivery {
+  id                String       @id @default(cuid())
+  notificationId    String
+  notification      Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  channel           String       @default("in_app")
+  deliveryState     String       @default("delivered")
+  deliveredAt       DateTime     @default(now())
+  providerMessageId String?
+
+  @@index([notificationId, deliveredAt(sort: Desc)])
+}
+
+model NotificationPreference {
+  id            String   @id @default(cuid())
+  userId        Int      @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Boolean  @default(true)
+  certificates  Boolean  @default(true)
+  credits       Boolean  @default(true)
+  adminOps      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

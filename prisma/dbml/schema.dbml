@@ -15,6 +15,8 @@ Table User {
   deletedAt DateTime
   orders Order [not null]
   cartItems CartItem [not null]
+  notifications Notification [not null]
+  notificationPreference NotificationPreference
   emailVerified Boolean [not null, default: false]
 }
 
@@ -157,6 +159,19 @@ Table Certificate {
   updatedAt DateTime [not null]
 }
 
+Table BlockchainAnchor {
+  id Int [pk, increment]
+  merkleRoot String [not null]
+  txHash String [unique]
+  blockNumber Int
+  chainId Int [not null]
+  auditCount Int [not null]
+  orderIds Int[] [not null]
+  status String [not null, default: 'PENDING']
+  createdAt DateTime [default: `now()`, not null]
+  confirmedAt DateTime
+}
+
 Table WebhookEvent {
   id String [pk]
   orderCode Int [not null]
@@ -166,6 +181,51 @@ Table WebhookEvent {
   retryCount Int [not null, default: 0]
   errorMessage String
   webhookData Json [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+}
+
+Table Notification {
+  id String [pk]
+  userId Int [not null]
+  user User [not null]
+  type String [not null]
+  title String [not null]
+  message String [not null]
+  priority String [not null, default: 'info']
+  status String [not null, default: 'unread']
+  entityType String
+  entityId String
+  dedupeKey String [not null]
+  metadata Json
+  createdAt DateTime [default: `now()`, not null]
+  readAt DateTime
+  archivedAt DateTime
+  deliveries NotificationDelivery [not null]
+
+  indexes {
+    (userId, type, entityId, dedupeKey) [unique]
+  }
+}
+
+Table NotificationDelivery {
+  id String [pk]
+  notificationId String [not null]
+  notification Notification [not null]
+  channel String [not null, default: 'in_app']
+  deliveryState String [not null, default: 'delivered']
+  deliveredAt DateTime [default: `now()`, not null]
+  providerMessageId String
+}
+
+Table NotificationPreference {
+  id String [pk]
+  userId Int [unique, not null]
+  user User [not null]
+  orders Boolean [not null, default: true]
+  certificates Boolean [not null, default: true]
+  credits Boolean [not null, default: true]
+  adminOps Boolean [not null, default: true]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
 }
@@ -226,3 +286,9 @@ Ref: Payment.orderId > Order.id [delete: Cascade]
 Ref: OrderHistory.orderId > Order.id [delete: Cascade]
 
 Ref: Certificate.orderId - Order.id [delete: Cascade]
+
+Ref: Notification.userId > User.id [delete: Cascade]
+
+Ref: NotificationDelivery.notificationId > Notification.id [delete: Cascade]
+
+Ref: NotificationPreference.userId - User.id [delete: Cascade]

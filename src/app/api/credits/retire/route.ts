@@ -4,6 +4,7 @@ import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 import { emailService } from '@/lib/email-service';
 import { z } from 'zod';
 import { validateBody, isValidationError } from '@/lib/validation';
+import { notifyCreditsRetired } from '@/lib/notification-emitter';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
       return {
         data: {
           orderItemId,
+          orderId: orderItem.orderId,
           retiredQuantity: quantity,
           totalRetired: alreadyRetired + quantity,
           remaining: available - quantity,
@@ -89,6 +91,12 @@ export async function POST(req: NextRequest) {
 
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    try {
+      await notifyCreditsRetired(auth.id, orderItemId, quantity, result.data.orderId);
+    } catch (notificationError) {
+      console.error('Failed to create retired credits notification:', notificationError);
     }
 
     if (emailService.isEnabled()) {

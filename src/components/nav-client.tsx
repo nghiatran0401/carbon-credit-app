@@ -6,6 +6,7 @@ import { ShoppingCart, UserCircle } from 'lucide-react';
 import useSWR from 'swr';
 import { apiGet } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { NotificationCenter } from '@/components/notification-center';
 export function DesktopNav() {
   const { isAuthenticated, user, logout } = useAuth();
   const router = useRouter();
@@ -37,6 +38,7 @@ export function DesktopNav() {
           <UserCircle className="h-6 w-6" />
         </Link>
       )}
+      {isAuthenticated && <NotificationCenter />}
       {isAuthenticated && (
         <Link href="/cart" className="relative text-gray-600 hover:text-green-600">
           <ShoppingCart className="h-6 w-6" />
@@ -77,6 +79,7 @@ export function MobileNavWrapper() {
       { href: '/dashboard', label: 'Dashboard' },
       { href: '/marketplace', label: 'Marketplace' },
       { href: '/history', label: 'History' },
+      { href: '/notifications', label: 'Notifications' },
       { href: '/profile', label: 'Profile' },
     );
   }

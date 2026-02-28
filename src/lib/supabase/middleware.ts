@@ -43,6 +43,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/api/auth') &&
     !request.nextUrl.pathname.startsWith('/api/health') &&
     !request.nextUrl.pathname.startsWith('/api/webhook') &&
+    !request.nextUrl.pathname.startsWith('/api/public') &&
     request.nextUrl.pathname !== '/'
   ) {
     // no user, potentially respond by redirecting the user to the login page

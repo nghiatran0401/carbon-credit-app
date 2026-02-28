@@ -213,6 +213,23 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface AppNotification {
+  id: string;
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  priority: 'info' | 'success' | 'warning' | 'error' | string;
+  status: 'unread' | 'read' | 'archived' | string;
+  entityType?: string | null;
+  entityId?: string | null;
+  dedupeKey: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  readAt?: string | null;
+  archivedAt?: string | null;
+}
+
 // Admin Analytics Types
 export interface MonthlySalesData {
   month: string;

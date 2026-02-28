@@ -80,6 +80,13 @@ vi.mock('@/lib/carbon-movement-service', () => ({
   },
 }));
 
+vi.mock('@/lib/notification-emitter', () => ({
+  notifyOrderPaid: vi.fn().mockResolvedValue(undefined),
+  notifyOrderFailed: vi.fn().mockResolvedValue(undefined),
+  notifyCertificateIssued: vi.fn().mockResolvedValue(undefined),
+  notifyWebhookFailed: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST, GET } from '@/app/api/webhook/route';
 
 const payosWebhookPayload = {

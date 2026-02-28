@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { getImmudbService } from '@/lib/immudb-service';
+import { getOrderVerification, verifyOrderProof } from '@/lib/blockchain-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
     const dataString = `${order.id}|${buyerStr}|${sellerStr}|${order.totalCredits}|${order.totalPrice}|${paidAtTimestamp}`;
     const computedHash = crypto.createHash('sha256').update(dataString).digest('hex');
 
+    // Layer 1: ImmuDB verification
     let storedHash: string | null = null;
     let immudbVerified = false;
     let immudbStatus: 'verified' | 'mismatch' | 'not_found' | 'unavailable' = 'unavailable';
@@ -76,15 +78,59 @@ export async function GET(request: NextRequest) {
       immudbStatus = 'unavailable';
     }
 
+    // Layer 2: Base blockchain verification (Merkle proof against on-chain root)
+    let blockchain: {
+      status: 'anchored' | 'not_anchored' | 'unavailable';
+      txHash?: string | null;
+      blockNumber?: number | null;
+      chainId?: number;
+      explorerUrl?: string;
+      merkleRoot?: string;
+      merkleProof?: string[];
+      proofValid?: boolean;
+    } = { status: 'unavailable' };
+
+    try {
+      if (computedHash) {
+        const onChainResult = await getOrderVerification(orderId, computedHash);
+        if (onChainResult) {
+          const proofValid = verifyOrderProof(
+            onChainResult.anchor.merkleRoot,
+            orderId,
+            computedHash,
+            onChainResult.proof.merkleProof,
+          );
+          blockchain = {
+            status: 'anchored',
+            txHash: onChainResult.anchor.txHash,
+            blockNumber: onChainResult.anchor.blockNumber,
+            chainId: onChainResult.anchor.chainId,
+            explorerUrl: onChainResult.anchor.explorerUrl,
+            merkleRoot: onChainResult.anchor.merkleRoot,
+            merkleProof: onChainResult.proof.merkleProof,
+            proofValid,
+          };
+        } else {
+          blockchain = { status: 'not_anchored' };
+        }
+      }
+    } catch (error) {
+      console.error('Blockchain verification failed', error);
+      blockchain = { status: 'unavailable' };
+    }
+
     return NextResponse.json({
       success: true,
       orderId: order.id,
       status: order.status,
       verification: {
-        immudbStatus,
-        isValid: immudbVerified,
-        computedHash,
-        storedHash,
+        immudb: {
+          status: immudbStatus,
+          isValid: immudbVerified,
+          computedHash,
+          storedHash,
+        },
+        blockchain,
       },
       orderSummary: {
         totalCredits: order.totalCredits,

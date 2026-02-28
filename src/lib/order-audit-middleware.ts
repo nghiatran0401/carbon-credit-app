@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { orderAuditService } from './order-audit-service';
+import { notifyAuditCreated } from './notification-emitter';
 
 interface OrderForAudit {
   id: number;
@@ -85,6 +86,15 @@ class OrderAuditMiddleware {
       buyer,
       seller,
     });
+
+    try {
+      await notifyAuditCreated(order.id);
+    } catch (notificationError) {
+      console.error(
+        `Failed to create audit notification for order ${order.id}:`,
+        notificationError,
+      );
+    }
 
     return { exists: false, created: true };
   }

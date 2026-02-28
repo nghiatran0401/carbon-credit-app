@@ -41,10 +41,35 @@ interface VerificationResult {
   };
 }
 
+interface BlockchainAnchor {
+  id: number;
+  merkleRoot: string;
+  txHash: string | null;
+  blockNumber: number | null;
+  chainId: number;
+  auditCount: number;
+  orderIds: number[];
+  status: string;
+  createdAt: string;
+  confirmedAt: string | null;
+}
+
+interface WalletInfo {
+  address: string;
+  balance: string;
+  chainId: number;
+  network: string;
+}
+
 const formatTimestamp = (timestamp: number) => new Date(timestamp).toLocaleString();
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+
+const EXPLORER_URLS: Record<number, string> = {
+  84532: 'https://sepolia.basescan.org',
+  8453: 'https://basescan.org',
+};
 
 export default function OrderAuditPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +78,9 @@ export default function OrderAuditPage() {
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [selectedAudit, setSelectedAudit] = useState<OrderAudit | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [anchors, setAnchors] = useState<BlockchainAnchor[]>([]);
+  const [wallet, setWallet] = useState<WalletInfo | null>(null);
+  const [anchorLoading, setAnchorLoading] = useState(false);
 
   const { toast } = useToast();
 
@@ -127,9 +155,57 @@ export default function OrderAuditPage() {
     }
   };
 
+  const loadAnchors = useCallback(async () => {
+    try {
+      const response = await fetch('/api/anchor');
+      if (response.status === 403) return;
+      const data = await response.json();
+      if (data.success) {
+        setAnchors(data.anchors || []);
+        setWallet(data.wallet || null);
+      }
+    } catch {
+      // Blockchain features are optional
+    }
+  }, []);
+
+  const triggerAnchor = async () => {
+    setAnchorLoading(true);
+    try {
+      const response = await fetch('/api/anchor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'anchor' }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: 'Anchored on Base',
+          description: `Merkle root published. Tx: ${data.txHash?.slice(0, 16)}...`,
+        });
+        await loadAnchors();
+      } else {
+        toast({
+          title: 'Anchoring Failed',
+          description: data.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Anchoring Error',
+        description: `${error}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setAnchorLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadAudits();
-  }, [loadAudits]);
+    loadAnchors();
+  }, [loadAudits, loadAnchors]);
 
   const totalCredits = audits.reduce((sum, a) => sum + a.transactionData.totalCredits, 0);
   const totalValue = audits.reduce((sum, a) => sum + a.transactionData.totalPrice, 0);
@@ -144,6 +220,9 @@ export default function OrderAuditPage() {
         <div className="flex space-x-2">
           <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50">
             ImmuDB
+          </Badge>
+          <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">
+            Base L2
           </Badge>
           <Button onClick={loadAudits} disabled={isLoading} variant="outline" size="sm">
             {isLoading ? 'Loading...' : 'Refresh'}
@@ -164,6 +243,9 @@ export default function OrderAuditPage() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="audits">
             Audit Records{audits.length > 0 && ` (${audits.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="blockchain">
+            Blockchain{anchors.length > 0 && ` (${anchors.length})`}
           </TabsTrigger>
           <TabsTrigger value="verify">Verify Order</TabsTrigger>
         </TabsList>
@@ -306,6 +388,109 @@ export default function OrderAuditPage() {
                           <Badge variant="secondary" className="font-mono text-[10px]">
                             {audit.hash.slice(0, 12)}...
                           </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="blockchain" className="space-y-4">
+          {wallet && (
+            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-emerald-900">
+                  Anchoring Wallet
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                <p className="font-mono text-xs text-emerald-800 break-all">{wallet.address}</p>
+                <p className="text-sm text-emerald-700">
+                  {wallet.balance} ETH on {wallet.network}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>On-Chain Anchors</CardTitle>
+                  <CardDescription>
+                    Merkle roots of audit batches published to Base blockchain
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={triggerAnchor}
+                  disabled={anchorLoading || audits.length === 0}
+                  size="sm"
+                >
+                  {anchorLoading ? 'Anchoring...' : 'Anchor Now'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {anchors.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="font-medium">No anchors yet</p>
+                  <p className="text-sm mt-1">
+                    Click &quot;Anchor Now&quot; to publish the current audit Merkle root on-chain.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {anchors.map((a) => (
+                    <div
+                      key={a.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge
+                          variant={a.status === 'CONFIRMED' ? 'default' : 'secondary'}
+                          className={
+                            a.status === 'CONFIRMED'
+                              ? 'bg-emerald-600'
+                              : a.status === 'FAILED'
+                                ? 'bg-red-500'
+                                : ''
+                          }
+                        >
+                          {a.status}
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          {new Date(a.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div>
+                          <Label className="text-[10px] text-gray-500 uppercase">Merkle Root</Label>
+                          <p className="font-mono text-xs break-all">{a.merkleRoot}</p>
+                        </div>
+                        {a.txHash && (
+                          <div>
+                            <Label className="text-[10px] text-gray-500 uppercase">
+                              Transaction
+                            </Label>
+                            <p className="text-xs">
+                              <a
+                                href={`${EXPLORER_URLS[a.chainId] || EXPLORER_URLS[84532]}/tx/${a.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline font-mono"
+                              >
+                                {a.txHash.slice(0, 20)}...{a.txHash.slice(-8)}
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex gap-4 text-xs text-gray-600">
+                          <span>{a.auditCount} audits</span>
+                          {a.blockNumber && <span>Block #{a.blockNumber}</span>}
+                          <span>Chain {a.chainId === 84532 ? 'Base Sepolia' : 'Base'}</span>
                         </div>
                       </div>
                     </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { certificateService } from '@/lib/certificate-service';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
+import { notifyCertificateIssued } from '@/lib/notification-emitter';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,17 @@ export async function POST(req: NextRequest) {
     }
 
     const certificate = await certificateService.generateCertificate(orderId);
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { userId: true, orderCode: true },
+      });
+      if (order) {
+        await notifyCertificateIssued(order.userId, orderId, certificate.id, order.orderCode);
+      }
+    } catch (notificationError) {
+      console.error('Failed to create certificate issued notification:', notificationError);
+    }
     return NextResponse.json(certificate);
   } catch (error) {
     return handleRouteError(error, 'Failed to generate certificate');

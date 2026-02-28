@@ -6,6 +6,12 @@ import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { paymentService } from '@/lib/payment-service';
 import { getPayOSService, type PayOSWebhookData } from '@/lib/payos-service';
 import { emailService } from '@/lib/email-service';
+import {
+  notifyCertificateIssued,
+  notifyOrderFailed,
+  notifyOrderPaid,
+  notifyWebhookFailed,
+} from '@/lib/notification-emitter';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +27,7 @@ function getPayosService() {
 
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID();
+  let orderCodeForError = 0;
 
   try {
     const rawBody = await req.text();
@@ -69,6 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     const orderCode = Number(webhookData.data.orderCode);
+    orderCodeForError = orderCode;
 
     const order = await prisma.order.findUnique({
       where: { orderCode },
@@ -106,6 +114,12 @@ export async function POST(req: NextRequest) {
       });
 
       try {
+        await notifyOrderPaid(order.userId, order.id, orderCode);
+      } catch (notificationError) {
+        console.error('Failed to create order paid notification:', notificationError);
+      }
+
+      try {
         const auditResult = await orderAuditMiddleware.ensureOrderAudit(order.id);
         if (auditResult.created) {
           console.log(`Audit trail created for order ${order.id}`);
@@ -126,6 +140,14 @@ export async function POST(req: NextRequest) {
 
       try {
         const cert = await certificateService.generateCertificate(order.id);
+
+        if (cert && typeof cert === 'object' && 'id' in cert) {
+          try {
+            await notifyCertificateIssued(order.userId, order.id, String(cert.id), orderCode);
+          } catch (notificationError) {
+            console.error('Failed to create certificate notification:', notificationError);
+          }
+        }
 
         if (cert && emailService.isEnabled()) {
           try {
@@ -195,6 +217,12 @@ export async function POST(req: NextRequest) {
           message: `Payment failed via PayOS webhook (orderCode: ${orderCode})`,
         },
       });
+
+      try {
+        await notifyOrderFailed(order.userId, order.id, orderCode);
+      } catch (notificationError) {
+        console.error('Failed to create order failed notification:', notificationError);
+      }
     }
 
     return NextResponse.json({
@@ -204,6 +232,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error(`PayOS webhook processing error [${requestId}]:`, error);
+    if (orderCodeForError) {
+      try {
+        await notifyWebhookFailed(orderCodeForError, 'Unhandled webhook processing error');
+      } catch (notificationError) {
+        console.error('Failed to create webhook failure notification:', notificationError);
+      }
+    }
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }

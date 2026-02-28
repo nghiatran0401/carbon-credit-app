@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { env } from '@/lib/env';
+import { notifyOrderCancelled } from '@/lib/notification-emitter';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     try {
       const order = await prisma.order.findUnique({
         where: { orderCode },
-        select: { status: true },
+        select: { id: true, userId: true, status: true, orderCode: true },
       });
 
       if (order && order.status === 'PENDING') {
@@ -40,6 +41,12 @@ export async function GET(request: NextRequest) {
             data: { status: 'CANCELLED' },
           });
         });
+
+        try {
+          await notifyOrderCancelled(order.userId, order.id, order.orderCode);
+        } catch (notificationError) {
+          console.error('Failed to create order cancelled notification:', notificationError);
+        }
       }
     } catch (error) {
       console.error('Failed to cancel order:', error);
