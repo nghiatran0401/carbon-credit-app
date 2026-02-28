@@ -15,6 +15,8 @@ import {
   Calendar,
   Loader2,
   CheckCircle2,
+  Sparkles,
+  Save,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
@@ -28,6 +30,11 @@ export default function ProfilePage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [company, setCompany] = useState('');
+  const [initialProfile, setInitialProfile] = useState({
+    firstName: '',
+    lastName: '',
+    company: '',
+  });
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
@@ -39,11 +46,33 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (user) {
-      setFirstName(user.firstName ?? '');
-      setLastName(user.lastName ?? '');
-      setCompany(user.company ?? '');
+      const profile = {
+        firstName: user.firstName ?? '',
+        lastName: user.lastName ?? '',
+        company: user.company ?? '',
+      };
+      setFirstName(profile.firstName);
+      setLastName(profile.lastName);
+      setCompany(profile.company);
+      setInitialProfile(profile);
+      setDirty(false);
     }
   }, [user]);
+
+  useEffect(() => {
+    setDirty(
+      firstName !== initialProfile.firstName ||
+        lastName !== initialProfile.lastName ||
+        company !== initialProfile.company,
+    );
+  }, [
+    company,
+    firstName,
+    initialProfile.company,
+    initialProfile.firstName,
+    initialProfile.lastName,
+    lastName,
+  ]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -58,8 +87,9 @@ export default function ProfilePage() {
         throw new Error(data.error || 'Failed to update profile');
       }
       toast({ title: 'Profile updated', description: 'Your changes have been saved.' });
+      setInitialProfile({ firstName, lastName, company });
       setDirty(false);
-      window.location.reload();
+      router.refresh();
     } catch (err: unknown) {
       toast({
         title: 'Error',
@@ -79,23 +109,75 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto max-w-2xl py-8 px-4">
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile</h1>
-      <p className="text-gray-600 mb-8">Manage your account information</p>
+    <div className="container mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-8 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-white p-6">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-100/70 px-3 py-1 text-xs font-medium text-emerald-800">
+          <Sparkles className="h-3.5 w-3.5" />
+          Account Settings
+        </div>
+        <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
+        <p className="mt-1 text-gray-600">Manage your account details and personal information</p>
+      </div>
 
-      <div className="space-y-6">
-        {/* Account Info (read-only) */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-emerald-100">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Email</p>
+            <p className="mt-1 truncate text-sm font-semibold text-gray-900">{user.email}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-100">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Role</p>
+            <Badge
+              variant={user.role?.toLowerCase() === 'admin' ? 'default' : 'secondary'}
+              className="mt-2"
+            >
+              {user.role}
+            </Badge>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-100">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Member since
+            </p>
+            <p className="mt-1 text-sm font-semibold text-gray-900">
+              {new Date(user.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-100">
+          <CardContent className="pt-6">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+              Verification
+            </p>
+            <p className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <CheckCircle2
+                className={`h-4 w-4 ${user.emailVerified ? 'text-emerald-600' : 'text-gray-300'}`}
+              />
+              {user.emailVerified ? 'Verified' : 'Not verified'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.05fr_1.4fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Account</CardTitle>
-            <CardDescription>Your account details</CardDescription>
+            <CardTitle className="text-lg">Account details</CardTitle>
+            <CardDescription>Read-only information linked to your account</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">
               <Mail className="h-4 w-4 text-gray-400" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{user.email}</p>
+                <p className="truncate font-medium text-gray-900">{user.email}</p>
               </div>
             </div>
             <Separator />
@@ -138,11 +220,19 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Editable Profile */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Personal Information</CardTitle>
-            <CardDescription>Update your name and company</CardDescription>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">Personal Information</CardTitle>
+                <CardDescription>Update your public profile details</CardDescription>
+              </div>
+              {dirty && (
+                <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                  Unsaved changes
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -153,10 +243,7 @@ export default function ProfilePage() {
                   <Input
                     id="firstName"
                     value={firstName}
-                    onChange={(e) => {
-                      setFirstName(e.target.value);
-                      setDirty(true);
-                    }}
+                    onChange={(e) => setFirstName(e.target.value)}
                     className="pl-10"
                     placeholder="First name"
                   />
@@ -167,10 +254,7 @@ export default function ProfilePage() {
                 <Input
                   id="lastName"
                   value={lastName}
-                  onChange={(e) => {
-                    setLastName(e.target.value);
-                    setDirty(true);
-                  }}
+                  onChange={(e) => setLastName(e.target.value)}
                   placeholder="Last name"
                 />
               </div>
@@ -182,20 +266,28 @@ export default function ProfilePage() {
                 <Input
                   id="company"
                   value={company}
-                  onChange={(e) => {
-                    setCompany(e.target.value);
-                    setDirty(true);
-                  }}
+                  onChange={(e) => setCompany(e.target.value)}
                   className="pl-10"
                   placeholder="Your company"
                 />
               </div>
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-wrap justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFirstName(initialProfile.firstName);
+                  setLastName(initialProfile.lastName);
+                  setCompany(initialProfile.company);
+                }}
+                disabled={!dirty || saving}
+              >
+                Reset
+              </Button>
               <Button
                 onClick={handleSave}
                 disabled={saving || !dirty || !firstName.trim() || !lastName.trim()}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-emerald-600 hover:bg-emerald-700"
               >
                 {saving ? (
                   <>
@@ -203,7 +295,10 @@ export default function ProfilePage() {
                     Saving...
                   </>
                 ) : (
-                  'Save changes'
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save changes
+                  </>
                 )}
               </Button>
             </div>

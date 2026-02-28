@@ -204,68 +204,75 @@ export default function HistoryPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-        <h1 className="text-3xl font-bold">History</h1>
-        <div className="flex flex-col sm:flex-row gap-2 items-center">
-          <Input
-            placeholder="Search by order, certification, vintage..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <Select
-            value={statusFilter}
-            onValueChange={(val) => {
-              setStatusFilter(val);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-80" aria-label="Filter by order status">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-              <SelectItem value="Cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-          {user?.role?.toLowerCase() === 'admin' && (
+      <div className="mb-6 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-white p-5">
+        <h1 className="text-3xl font-bold text-gray-900">History</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Track orders, retire credits, and download transaction evidence.
+        </p>
+      </div>
+      <Card className="mb-6 border-gray-200">
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <Input
+              placeholder="Search by order, certification, vintage..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
             <Select
-              value={selectedUser}
+              value={statusFilter}
               onValueChange={(val) => {
-                setSelectedUser(val);
+                setStatusFilter(val);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-48" aria-label="Filter by user">
-                <SelectValue placeholder="User" />
+              <SelectTrigger className="w-80" aria-label="Filter by order status">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                {users.map((u: User) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {u.email}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+                <SelectItem value="Cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-          )}
-          {user?.role?.toLowerCase() === 'admin' && (
-            <Button
-              variant="outline"
-              onClick={handleDownloadCSV}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" /> Download CSV
-            </Button>
-          )}
-        </div>
-      </div>
+            {user?.role?.toLowerCase() === 'admin' && (
+              <Select
+                value={selectedUser}
+                onValueChange={(val) => {
+                  setSelectedUser(val);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-48" aria-label="Filter by user">
+                  <SelectValue placeholder="User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {users.map((u: User) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {user?.role?.toLowerCase() === 'admin' && (
+              <Button
+                variant="outline"
+                onClick={handleDownloadCSV}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" /> Download CSV
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
       {orders.length > 0 ? (
         <div className="space-y-4">
           {orders.map((order: Order) => (
-            <Card key={order.id} className="shadow-md border border-gray-200">
-              <CardHeader className="bg-gray-50 rounded-t-lg flex flex-col md:flex-row md:items-center md:justify-between">
+            <Card key={order.id} className="border border-gray-200 shadow-sm">
+              <CardHeader className="rounded-t-lg bg-gray-50/80 flex flex-col md:flex-row md:items-center md:justify-between">
                 <CardTitle className="text-lg">
                   Order #{order.id}{' '}
                   <span className="text-xs font-normal text-gray-500 ml-2">({order.status})</span>
