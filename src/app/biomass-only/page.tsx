@@ -18,7 +18,7 @@ import { biomassToCredits } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { useBiomassApi } from '@/hooks/use-biomass-api';
 
-const BIOMASS_THRESHOLD = 10; // Mg/ha — areas above this are considered forest
+const BIOMASS_THRESHOLD = 1; // Mg/ha — areas above this are considered forest
 const MAX_MASK_DIMENSION = 1024;
 const MAX_UNDO_STEPS = 20;
 
@@ -146,7 +146,7 @@ export default function BiomassOnlyPage() {
 
   // Selection
   const [selectedBounds, setSelectedBounds] = useState<Bounds | null>(null);
-  const [analysisYear, setAnalysisYear] = useState(new Date().getFullYear());
+  const [analysisYear, setAnalysisYear] = useState(2021);
 
   // Forest mask
   const forestMaskRef = useRef<number[][] | null>(null);
@@ -616,9 +616,7 @@ export default function BiomassOnlyPage() {
                     min={2000}
                     max={new Date().getFullYear()}
                     value={analysisYear}
-                    onChange={(e) =>
-                      setAnalysisYear(parseInt(e.target.value) || new Date().getFullYear())
-                    }
+                    onChange={(e) => setAnalysisYear(parseInt(e.target.value) || 2021)}
                     className="bg-[#0b1324] border-[#1e3a2a] h-8 text-sm"
                   />
                 </div>

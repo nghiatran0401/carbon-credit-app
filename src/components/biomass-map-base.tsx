@@ -164,11 +164,9 @@ export default function BiomassMapBase({
         maxZoom: 20,
       });
       const light = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-          subdomains: 'abcd',
+          attribution: 'Tiles &copy; Esri',
           maxZoom: 20,
         },
       );
@@ -298,7 +296,7 @@ export default function BiomassMapBase({
         className="absolute bottom-4 left-4 z-[500] px-3 py-2 rounded-md text-xs font-medium border border-[#1e3a2a] bg-[#0b1324] text-[#10b981] hover:bg-[#13324a] transition shadow-lg"
         onClick={toggleLayer}
       >
-        {isDark ? 'Light Map' : 'Dark Map'}
+        {isDark ? 'Satellite Map' : 'Dark Map'}
       </button>
     </div>
   );

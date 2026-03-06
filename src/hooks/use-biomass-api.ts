@@ -49,12 +49,10 @@ export function useBiomassApi() {
       setResult(null);
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_BIOMASS_API_URL;
-        if (!apiUrl) {
-          throw new Error(
-            'Biomass API URL is not configured. Set NEXT_PUBLIC_BIOMASS_API_URL in your environment.',
-          );
-        }
+        const rawApiUrl =
+          process.env.NEXT_PUBLIC_BIOMASS_API_URL ||
+          'https://investigate-slow-tub-printing.trycloudflare.com';
+        const apiUrl = rawApiUrl.trim();
 
         const res = await fetch(`${apiUrl}/predict_biomass`, {
           method: 'POST',
@@ -62,7 +60,7 @@ export function useBiomassApi() {
             'Content-Type': 'application/json',
             'ngrok-skip-browser-warning': 'true',
           },
-          body: JSON.stringify({ bounds, year: year ?? new Date().getFullYear() }),
+          body: JSON.stringify({ bounds, year: year ?? 2021 }),
           signal: controller.signal,
         });
 
