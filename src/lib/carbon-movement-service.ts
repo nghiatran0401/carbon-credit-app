@@ -348,29 +348,29 @@ class CarbonMovementService {
       // Initialize schema first
       await neo4jService.initializeSchema();
 
-      // Sync all users
-      const users = await prisma.user.findMany();
-      for (const user of users) {
-        await this.syncUser(user.id);
-      }
+      // Fetch all data concurrently
+      const [users, forests, credits, orders] = await Promise.all([
+        prisma.user.findMany(),
+        prisma.forest.findMany(),
+        prisma.carbonCredit.findMany(),
+        prisma.order.findMany(),
+      ]);
 
-      // Sync all forests
-      const forests = await prisma.forest.findMany();
-      for (const forest of forests) {
-        await this.syncForest(forest.id);
-      }
+      // Sync users and forests concurrently (no dependencies between them)
+      await Promise.all([
+        ...users.map((user) => this.syncUser(user.id)),
+        ...forests.map((forest) => this.syncForest(forest.id)),
+      ]);
 
-      // Sync all carbon credits
-      const credits = await prisma.carbonCredit.findMany();
-      for (const credit of credits) {
-        await this.syncCarbonCredit(credit.id);
-      }
+      // Sync carbon credits (depend on forests being synced)
+      await Promise.all(
+        credits.map((credit) => this.syncCarbonCredit(credit.id)),
+      );
 
-      // Sync all orders
-      const orders = await prisma.order.findMany();
-      for (const order of orders) {
-        await this.trackOrderMovement(order.id);
-      }
+      // Track order movements (depend on users and credits being synced)
+      await Promise.all(
+        orders.map((order) => this.trackOrderMovement(order.id)),
+      );
 
       console.log('✅ Full data sync to Neo4j completed');
     } catch (error) {

@@ -30,14 +30,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create notifications for each user
-    for (const user of users) {
-      try {
-        await notificationService.createCreditNotification(user.id, credit.id, credit.forest?.name || "Unknown Forest", `New ${credit.certification} credits available (${credit.availableCredits} credits)`);
-      } catch (error) {
-        console.error(`Failed to create notification for user ${user.id}:`, error);
-      }
-    }
+    // Create notifications for all users concurrently
+    await Promise.all(
+      users.map((user) =>
+        notificationService.createCreditNotification(
+          user.id,
+          credit.id,
+          credit.forest?.name || "Unknown Forest",
+          `New ${credit.certification} credits available (${credit.availableCredits} credits)`,
+        ).catch((error) => {
+          console.error(`Failed to create notification for user ${user.id}:`, error);
+        }),
+      ),
+    );
   } catch (error) {
     console.error("Error creating credit notifications:", error);
   }

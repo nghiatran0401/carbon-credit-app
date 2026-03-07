@@ -32,7 +32,9 @@ export async function POST(req: Request) {
     return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
-  console.log(`🔔 Webhook received: ${event.type} at ${new Date().toISOString()}`);
+  console.log(
+    `🔔 Webhook received: ${event.type} at ${new Date().toISOString()}`,
+  );
 
   // Handle the event
   switch (event.type) {
@@ -40,19 +42,39 @@ export async function POST(req: Request) {
       const session = event.data.object as Stripe.Checkout.Session;
       console.log(`💳 Checkout session completed: ${session.id}`);
 
-      // Find the payment by stripeSessionId
-      const payment = await prisma.payment.findFirst({ where: { stripeSessionId: session.id } });
-      console.log(`🔍 Payment found:`, payment ? `Order ${payment.orderId}` : 'None');
-      
+      // Find the payment by stripeSessionId in paymentData
+      const payment = await prisma.payment.findFirst({
+        where: {
+          paymentData: {
+            path: ["stripeSessionId"],
+            equals: session.id,
+          },
+        },
+      });
+      console.log(
+        `🔍 Payment found:`,
+        payment ? `Order ${payment.orderId}` : "None",
+      );
+
       if (payment) {
-        // Mark payment as succeeded
+        // Mark payment as paid
         await prisma.payment.update({
           where: { id: payment.id },
           data: {
-            status: "SUCCEEDED",
-            amount: session.amount_total ? session.amount_total / 100 : payment.amount,
-            currency: session.currency ? session.currency.toUpperCase() : payment.currency,
-            stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
+            status: "PAID",
+            paidAt: new Date(),
+            amount: session.amount_total
+              ? session.amount_total / 100
+              : payment.amount,
+            currency: session.currency
+              ? session.currency.toUpperCase()
+              : payment.currency,
+            paymentData: {
+              ...((payment.paymentData as any) || {}),
+              stripePaymentIntentId: session.payment_intent
+                ? String(session.payment_intent)
+                : undefined,
+            },
           },
         });
 
@@ -73,71 +95,95 @@ export async function POST(req: Request) {
         });
 
         // Calculate total credits from order items
-        const totalCredits = order.items.reduce((sum, item) => sum + item.quantity, 0);
+        const totalCredits = order.items.reduce(
+          (sum, item) => sum + item.quantity,
+          0,
+        );
 
-        console.log(`Processing webhook for order ${order.id}: ${totalCredits} credits, $${order.totalPrice}, paid at ${order.paidAt}`);
+        console.log(
+          `Processing webhook for order ${order.id}: ${totalCredits} credits, $${order.totalPrice}, paid at ${order.paidAt}`,
+        );
 
-        // Add OrderHistory event
-        await prisma.orderHistory.create({
-          data: {
-            orderId: payment.orderId,
-            event: "paid",
-            message: `Order paid via Stripe session ${session.id}`,
-          },
-        });
+        // Run independent post-payment tasks concurrently
+        await Promise.all([
+          // Add OrderHistory event
+          prisma.orderHistory.create({
+            data: {
+              orderId: payment.orderId,
+              event: "paid",
+              message: `Order paid via Stripe session ${session.id}`,
+            },
+          }),
 
-        // Store immutable audit trail in ImmuDB using middleware
-        try {
-          console.log(`Ensuring audit trail for order ${order.id} (${totalCredits} credits, $${order.totalPrice})`);
-          const auditResult = await orderAuditMiddleware.ensureOrderAudit(order.id);
-          
-          if (auditResult.created) {
-            console.log(`✅ New audit trail created for order ${order.id}`);
-          } else if (auditResult.exists) {
-            console.log(`ℹ️ Audit trail already exists for order ${order.id}`);
-          } else if (auditResult.error) {
-            console.error(`❌ Failed to create audit trail for order ${order.id}: ${auditResult.error}`);
-          }
-        } catch (auditError: any) {
-          console.error(`❌ Error in audit middleware for order ${order.id}:`, auditError.message);
-          // Don't fail the webhook if audit storage fails, but log it
-        }
+          // Store immutable audit trail in ImmuDB using middleware
+          orderAuditMiddleware.ensureOrderAudit(order.id).then((auditResult) => {
+            if (auditResult.created) {
+              console.log(`✅ New audit trail created for order ${order.id}`);
+            } else if (auditResult.exists) {
+              console.log(`ℹ️ Audit trail already exists for order ${order.id}`);
+            } else if (auditResult.error) {
+              console.error(
+                `❌ Failed to create audit trail for order ${order.id}: ${auditResult.error}`,
+              );
+            }
+          }).catch((auditError: any) => {
+            console.error(
+              `❌ Error in audit middleware for order ${order.id}:`,
+              auditError.message,
+            );
+          }),
 
-        // Track carbon credit movement in Neo4j
-        try {
-          console.log(`Tracking carbon credit movement for order ${order.id}`);
-          await carbonMovementService.trackOrderMovement(order.id);
-          console.log(`✅ Carbon credit movement tracked for order ${order.id}`);
-        } catch (movementError: any) {
-          console.error(`❌ Error tracking movement for order ${order.id}:`, movementError.message);
-          // Don't fail the webhook if movement tracking fails
-        }
+          // Track carbon credit movement in Neo4j
+          carbonMovementService.trackOrderMovement(order.id).then(() => {
+            console.log(
+              `✅ Carbon credit movement tracked for order ${order.id}`,
+            );
+          }).catch((movementError: any) => {
+            console.error(
+              `❌ Error tracking movement for order ${order.id}:`,
+              movementError.message,
+            );
+          }),
 
-        // Create order update notification
-        try {
-          await notificationService.createOrderNotification(order.userId, order.id, "Payment Completed", `Your order #${order.id} has been paid successfully.`);
-        } catch (notifError: any) {
-          console.error("Error creating order notification:", notifError.message);
-        }
+          // Create order update notification
+          notificationService.createOrderNotification(
+            order.userId,
+            order.id,
+            "Payment Completed",
+            `Your order #${order.id} has been paid successfully.`,
+          ).catch((notifError: any) => {
+            console.error(
+              "Error creating order notification:",
+              notifError.message,
+            );
+          }),
 
-        // Clear the user's cart after successful payment
-        if (order.userId) {
-          await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
-        }
+          // Clear the user's cart after successful payment
+          order.userId
+            ? prisma.cartItem.deleteMany({ where: { userId: order.userId } })
+            : Promise.resolve(),
 
-        // Generate certificate for the completed order
-        try {
-          await certificateService.generateCertificate(order.id);
-
-          // Create notification for successful payment and certificate generation
-          try {
-            await notificationService.createPaymentNotification(order.userId, order.id, "Successful", `Payment received for order #${order.id}. Your certificate is ready!`);
-          } catch (notifError: any) {
-            console.error("Error creating payment notification:", notifError.message);
-          }
-        } catch (certError: any) {
-          console.error("Error generating certificate for order:", order.id, certError.message);
-        }
+          // Generate certificate and send payment notification
+          certificateService.generateCertificate(order.id).then(() => {
+            return notificationService.createPaymentNotification(
+              order.userId,
+              order.id,
+              "Successful",
+              `Payment received for order #${order.id}. Your certificate is ready!`,
+            ).catch((notifError: any) => {
+              console.error(
+                "Error creating payment notification:",
+                notifError.message,
+              );
+            });
+          }).catch((certError: any) => {
+            console.error(
+              "Error generating certificate for order:",
+              order.id,
+              certError.message,
+            );
+          }),
+        ]);
       } else {
         console.error("No payment found for session:", session.id);
       }
@@ -145,39 +191,56 @@ export async function POST(req: Request) {
     }
     case "payment_intent.payment_failed": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      // Find the payment by stripePaymentIntentId
-      const payment = await prisma.payment.findFirst({ where: { stripePaymentIntentId: paymentIntent.id } });
+      // Find the payment by stripePaymentIntentId in paymentData
+      const payment = await prisma.payment.findFirst({
+        where: {
+          paymentData: {
+            path: ["stripePaymentIntentId"],
+            equals: paymentIntent.id,
+          },
+        },
+      });
       if (payment) {
-        // Mark payment as failed
-        await prisma.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: "FAILED",
-            failureReason: paymentIntent.last_payment_error?.message || "Unknown error",
-          },
-        });
-        // Mark order as failed
-        const order = await prisma.order.update({
-          where: { id: payment.orderId },
-          data: {
-            status: "FAILED",
-          },
-        });
-        // Add OrderHistory event
-        await prisma.orderHistory.create({
-          data: {
-            orderId: payment.orderId,
-            event: "failed",
-            message: `Payment failed: ${paymentIntent.last_payment_error?.message || "Unknown error"}`,
-          },
-        });
+        const failureMessage = paymentIntent.last_payment_error?.message || "Unknown error";
 
-        // Create payment failure notification
-        try {
-          await notificationService.createPaymentNotification(order.userId, order.id, "Failed", `Payment failed for order #${order.id}. Please try again.`);
-        } catch (notifError: any) {
-          console.error("Error creating payment failure notification:", notifError.message);
-        }
+        // Mark payment and order as failed concurrently
+        const [, order] = await Promise.all([
+          prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+              status: "FAILED",
+              failureReason: failureMessage,
+            },
+          }),
+          prisma.order.update({
+            where: { id: payment.orderId },
+            data: {
+              status: "FAILED",
+            },
+          }),
+        ]);
+
+        // Add history and notification concurrently
+        await Promise.all([
+          prisma.orderHistory.create({
+            data: {
+              orderId: payment.orderId,
+              event: "failed",
+              message: `Payment failed: ${failureMessage}`,
+            },
+          }),
+          notificationService.createPaymentNotification(
+            order.userId,
+            order.id,
+            "Failed",
+            `Payment failed for order #${order.id}. Please try again.`,
+          ).catch((notifError: any) => {
+            console.error(
+              "Error creating payment failure notification:",
+              notifError.message,
+            );
+          }),
+        ]);
       }
       break;
     }

@@ -11,7 +11,6 @@ export interface User {
   company?: string | null;
   role: string;
   emailVerified: boolean;
-  stripeCustomerId?: string | null;
   createdAt: string;
   updatedAt: string;
   orders?: Order[];
@@ -22,7 +21,13 @@ export interface AuthContextType {
   user: User | null;
   loading?: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup?: (email: string, password: string, firstName: string, lastName: string, company?: string) => Promise<void>;
+  signup?: (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    company?: string,
+  ) => Promise<void>;
   logout: () => void;
 }
 
@@ -210,7 +215,9 @@ export interface NotificationContextType {
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   fetchNotifications: (force?: boolean) => Promise<void>;
-  addNotification: (notification: Omit<Notification, "id" | "createdAt" | "updatedAt">) => void;
+  addNotification: (
+    notification: Omit<Notification, "id" | "createdAt" | "updatedAt">,
+  ) => void;
   clearError: () => void;
 }
 

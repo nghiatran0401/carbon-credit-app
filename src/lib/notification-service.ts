@@ -16,7 +16,10 @@ export class NotificationService {
     if (!data.userId || data.userId <= 0) {
       throw new Error("Invalid user ID");
     }
-    if (!data.type || !["order", "credit", "system", "payment"].includes(data.type)) {
+    if (
+      !data.type ||
+      !["order", "credit", "system", "payment"].includes(data.type)
+    ) {
       throw new Error("Invalid notification type");
     }
     if (!data.title || data.title.trim().length === 0) {
@@ -40,22 +43,30 @@ export class NotificationService {
       type: notification.type as "order" | "credit" | "system" | "payment",
       title: notification.title,
       message: notification.message,
-      data: notification.data,
-      read: notification.read,
+      data: notification.metadata,
+      read: notification.status === "read",
       readAt: notification.readAt?.toISOString(),
-      createdAt: notification.createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt: notification.updatedAt?.toISOString() || new Date().toISOString(),
+      createdAt:
+        notification.createdAt?.toISOString() || new Date().toISOString(),
+      updatedAt:
+        notification.createdAt?.toISOString() || new Date().toISOString(),
       user: notification.user
         ? {
             ...notification.user,
-            createdAt: notification.user.createdAt?.toISOString() || new Date().toISOString(),
-            updatedAt: notification.user.updatedAt?.toISOString() || new Date().toISOString(),
+            createdAt:
+              notification.user.createdAt?.toISOString() ||
+              new Date().toISOString(),
+            updatedAt:
+              notification.user.updatedAt?.toISOString() ||
+              new Date().toISOString(),
           }
         : undefined,
     };
   }
 
-  async createNotification(data: CreateNotificationData): Promise<Notification> {
+  async createNotification(
+    data: CreateNotificationData,
+  ): Promise<Notification> {
     try {
       this.validateNotificationData(data);
 
@@ -65,7 +76,10 @@ export class NotificationService {
           type: data.type,
           title: data.title.trim(),
           message: data.message.trim(),
-          data: data.data || {},
+          metadata: data.data || {},
+          dedupeKey: `${data.type}-${Date.now()}`,
+          priority: "info",
+          status: "unread",
         },
         include: {
           user: true,
@@ -75,9 +89,11 @@ export class NotificationService {
       const notificationData = this.convertPrismaNotification(notification);
 
       // Send real-time notification via WebSocket (non-blocking)
-      this.sendWebSocketNotification(data.userId, notificationData).catch((error) => {
-        console.error("Failed to send WebSocket notification:", error);
-      });
+      this.sendWebSocketNotification(data.userId, notificationData).catch(
+        (error) => {
+          console.error("Failed to send WebSocket notification:", error);
+        },
+      );
 
       return notificationData;
     } catch (error) {
@@ -86,11 +102,18 @@ export class NotificationService {
     }
   }
 
-  private async sendWebSocketNotification(userId: number, notification: Notification): Promise<void> {
+  private async sendWebSocketNotification(
+    userId: number,
+    notification: Notification,
+  ): Promise<void> {
     // WebSocket notifications handled by polling - no action needed
   }
 
-  async getUserNotifications(userId: number, limit = 50, offset = 0): Promise<Notification[]> {
+  async getUserNotifications(
+    userId: number,
+    limit = 50,
+    offset = 0,
+  ): Promise<Notification[]> {
     try {
       if (!userId || userId <= 0) {
         throw new Error("Invalid user ID");
@@ -112,7 +135,9 @@ export class NotificationService {
         },
       });
 
-      return notifications.map((notification) => this.convertPrismaNotification(notification));
+      return notifications.map((notification) =>
+        this.convertPrismaNotification(notification),
+      );
     } catch (error) {
       console.error("Error fetching user notifications:", error);
       throw error;
@@ -128,7 +153,7 @@ export class NotificationService {
       return await this.prisma.notification.count({
         where: {
           userId,
-          read: false,
+          status: "unread",
         },
       });
     } catch (error) {
@@ -146,7 +171,7 @@ export class NotificationService {
       const notification = await this.prisma.notification.update({
         where: { id: notificationId },
         data: {
-          read: true,
+          status: "read",
           readAt: new Date(),
         },
         include: {
@@ -170,10 +195,10 @@ export class NotificationService {
       await this.prisma.notification.updateMany({
         where: {
           userId,
-          read: false,
+          status: "unread",
         },
         data: {
-          read: true,
+          status: "read",
           readAt: new Date(),
         },
       });
@@ -184,7 +209,12 @@ export class NotificationService {
   }
 
   // Helper methods for creating specific types of notifications
-  async createOrderNotification(userId: number, orderId: number, event: string, message: string): Promise<Notification> {
+  async createOrderNotification(
+    userId: number,
+    orderId: number,
+    event: string,
+    message: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
       type: "order",
@@ -194,7 +224,12 @@ export class NotificationService {
     });
   }
 
-  async createCreditNotification(userId: number, creditId: number, forestName: string, event: string): Promise<Notification> {
+  async createCreditNotification(
+    userId: number,
+    creditId: number,
+    forestName: string,
+    event: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
       type: "credit",
@@ -204,7 +239,12 @@ export class NotificationService {
     });
   }
 
-  async createPaymentNotification(userId: number, orderId: number, status: string, message: string): Promise<Notification> {
+  async createPaymentNotification(
+    userId: number,
+    orderId: number,
+    status: string,
+    message: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
       type: "payment",
@@ -214,7 +254,11 @@ export class NotificationService {
     });
   }
 
-  async createSystemNotification(userId: number, title: string, message: string): Promise<Notification> {
+  async createSystemNotification(
+    userId: number,
+    title: string,
+    message: string,
+  ): Promise<Notification> {
     return await this.createNotification({
       userId,
       type: "system",
@@ -224,17 +268,26 @@ export class NotificationService {
   }
 
   // Batch operations for better performance
-  async createBatchNotifications(notifications: CreateNotificationData[]): Promise<Notification[]> {
+  async createBatchNotifications(
+    notifications: CreateNotificationData[],
+  ): Promise<Notification[]> {
     try {
-      const results: Notification[] = [];
+      const settledResults = await Promise.allSettled(
+        notifications.map((notificationData) =>
+          this.createNotification(notificationData),
+        ),
+      );
 
-      for (const notificationData of notifications) {
-        try {
-          const notification = await this.createNotification(notificationData);
-          results.push(notification);
-        } catch (error) {
-          console.error(`Failed to create notification for user ${notificationData.userId}:`, error);
-          // Continue with other notifications even if one fails
+      const results: Notification[] = [];
+      for (let i = 0; i < settledResults.length; i++) {
+        const result = settledResults[i];
+        if (result.status === "fulfilled") {
+          results.push(result.value);
+        } else {
+          console.error(
+            `Failed to create notification for user ${notifications[i].userId}:`,
+            result.reason,
+          );
         }
       }
 
@@ -256,7 +309,7 @@ export class NotificationService {
           createdAt: {
             lt: cutoffDate,
           },
-          read: true, // Only delete read notifications
+          status: "read", // Only delete read notifications
         },
       });
 

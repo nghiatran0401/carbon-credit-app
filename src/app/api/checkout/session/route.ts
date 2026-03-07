@@ -9,9 +9,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing session_id" }, { status: 400 });
   }
 
-  // Find payment and order by Stripe session ID
+  // Find payment and order by Stripe session ID stored in paymentData
   const payment = await prisma.payment.findFirst({
-    where: { stripeSessionId: sessionId },
+    where: {
+      paymentData: {
+        path: ["stripeSessionId"],
+        equals: sessionId,
+      },
+    },
     include: {
       order: {
         include: {
@@ -29,65 +34,65 @@ export async function GET(req: NextRequest) {
   // Fallback: If order is still pending, mark it as completed
   // This handles cases where the webhook didn't fire
   if (payment.order.status === "PENDING" && payment.status === "PENDING") {
-    // Update payment status
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: "SUCCEEDED",
-      },
-    });
+    const now = new Date();
+    const orderId = payment.order.id;
+    const userId = payment.order.userId;
 
-    // Update order status
-    await prisma.order.update({
-      where: { id: payment.order.id },
-      data: {
-        status: "COMPLETED",
-        paidAt: new Date(),
-      },
-    });
+    // Run all independent post-payment tasks concurrently
+    await Promise.all([
+      // Update payment status
+      prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: "PAID", paidAt: now },
+      }),
 
-    // Add order history
-    await prisma.orderHistory.create({
-      data: {
-        orderId: payment.order.id,
-        event: "paid",
-        message: `Order manually completed via success page for session ${sessionId}`,
-      },
-    });
+      // Update order status
+      prisma.order.update({
+        where: { id: orderId },
+        data: { status: "COMPLETED", paidAt: now },
+      }),
 
-    // Clear the user's cart
-    await prisma.cartItem.deleteMany({ where: { userId: payment.order.userId } });
+      // Add order history
+      prisma.orderHistory.create({
+        data: {
+          orderId,
+          event: "paid",
+          message: `Order manually completed via success page for session ${sessionId}`,
+        },
+      }),
 
-    // Ensure audit trail is created for the completed order
-    try {
-      console.log(`Creating audit trail for order ${payment.order.id} via checkout session`);
-      const auditResult = await orderAuditMiddleware.ensureOrderAudit(payment.order.id);
-      
-      if (auditResult.created) {
-        console.log(`✅ Audit trail created for order ${payment.order.id} via checkout session`);
-      } else if (auditResult.exists) {
-        console.log(`ℹ️ Audit trail already exists for order ${payment.order.id}`);
-      } else if (auditResult.error) {
-        console.error(`❌ Failed to create audit trail for order ${payment.order.id}: ${auditResult.error}`);
-      }
-    } catch (auditError: any) {
-      console.error(`❌ Error in audit middleware for order ${payment.order.id}:`, auditError.message);
-      // Don't fail the request if audit storage fails
-    }
+      // Clear the user's cart
+      prisma.cartItem.deleteMany({ where: { userId } }),
 
-    // Track carbon credit movement in Neo4j
-    try {
-      console.log(`Tracking carbon credit movement for order ${payment.order.id} via checkout session`);
-      await carbonMovementService.trackOrderMovement(payment.order.id);
-      console.log(`✅ Carbon credit movement tracked for order ${payment.order.id}`);
-    } catch (movementError: any) {
-      console.error(`❌ Error tracking movement for order ${payment.order.id}:`, movementError.message);
-      // Don't fail the request if movement tracking fails
-    }
+      // Ensure audit trail is created for the completed order
+      orderAuditMiddleware.ensureOrderAudit(orderId).then((auditResult) => {
+        if (auditResult.created) {
+          console.log(`✅ Audit trail created for order ${orderId} via checkout session`);
+        } else if (auditResult.exists) {
+          console.log(`ℹ️ Audit trail already exists for order ${orderId}`);
+        } else if (auditResult.error) {
+          console.error(`❌ Failed to create audit trail for order ${orderId}: ${auditResult.error}`);
+        }
+      }).catch((auditError: any) => {
+        console.error(`❌ Error in audit middleware for order ${orderId}:`, auditError.message);
+      }),
+
+      // Track carbon credit movement in Neo4j
+      carbonMovementService.trackOrderMovement(orderId).then(() => {
+        console.log(`✅ Carbon credit movement tracked for order ${orderId}`);
+      }).catch((movementError: any) => {
+        console.error(`❌ Error tracking movement for order ${orderId}:`, movementError.message);
+      }),
+    ]);
 
     // Fetch updated data
     const updatedPayment = await prisma.payment.findFirst({
-      where: { stripeSessionId: sessionId },
+      where: {
+        paymentData: {
+          path: ["stripeSessionId"],
+          equals: sessionId,
+        },
+      },
       include: {
         order: {
           include: {

@@ -1,6 +1,3 @@
-// PostgreSQL Schema for Supabase
-// This is the target schema - use this after migration
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,74 +8,22 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-enum OrderStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  CANCELLED
-  FAILED
-}
-
-enum PaymentStatus {
-  PENDING
-  SUCCEEDED
-  FAILED
-  CANCELED
-  REFUNDED
-}
-
-enum UserRole {
-  USER
-  ADMIN
-}
-
-enum ForestStatus {
-  ACTIVE
-  MONITORING
-  INACTIVE
-}
-
-enum NotificationType {
-  order
-  credit
-  system
-  payment
-}
-
-enum CertificateStatus {
-  active
-  revoked
-  expired
-}
-
-model Bookmark {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  forestId  Int
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  forest    Forest   @relation(fields: [forestId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([forestId])
-}
-
 model User {
-  id              Int           @id @default(autoincrement())
-  email           String        @unique
-  supabaseUserId  String?       @unique // Link to Supabase auth.users.id
-  firstName       String
-  lastName        String
-  company         String?
-  role            UserRole      @default(USER)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  orders          Order[]
-  bookmarks       Bookmark[]
-  cartItems       CartItem[]
-  emailVerified   Boolean       @default(false)
-  stripeCustomerId String?
-  notifications   Notification[]
+  id                     Int                     @id @default(autoincrement())
+  email                  String                  @unique
+  firstName              String
+  lastName               String
+  company                String?
+  role                   UserRole                @default(USER)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  emailVerified          Boolean                 @default(false)
+  supabaseUserId         String?                 @unique
+  deletedAt              DateTime?
+  cartItems              CartItem[]
+  notifications          Notification[]
+  NotificationPreference NotificationPreference?
+  orders                 Order[]
 
   @@index([email])
   @@index([role])
@@ -86,16 +31,17 @@ model User {
 }
 
 model Forest {
-  id          Int           @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   name        String
   location    String
   type        String
   area        Float
   description String
-  status      ForestStatus  @default(ACTIVE)
+  status      ForestStatus   @default(ACTIVE)
   lastUpdated DateTime
+  createdAt   DateTime       @default(now())
+  deletedAt   DateTime?
   credits     CarbonCredit[]
-  bookmarks   Bookmark[]
 
   @@index([status])
 }
@@ -110,12 +56,13 @@ model CarbonCredit {
   pricePerCredit   Float
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
-  forest           Forest         @relation(fields: [forestId], references: [id], onDelete: Cascade)
-  orderItems       OrderItem[]
-  cartItems        CartItem[]
   symbol           String         @default("tCO₂")
   retiredCredits   Int            @default(0)
+  deletedAt        DateTime?
+  forest           Forest         @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  cartItems        CartItem[]
   exchangeRates    ExchangeRate[]
+  orderItems       OrderItem[]
 
   @@index([forestId])
   @@index([vintage])
@@ -124,12 +71,12 @@ model CarbonCredit {
 
 model ExchangeRate {
   id             Int          @id @default(autoincrement())
-  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   carbonCreditId Int
   rate           Float
   currency       String       @default("USD")
   effectiveFrom  DateTime
   effectiveTo    DateTime?
+  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   orderItems     OrderItem[]
 
   @@index([carbonCreditId])
@@ -145,23 +92,24 @@ model Order {
   totalCredits    Int            @default(0)
   currency        String         @default("USD")
   totalUsd        Float          @default(0)
-  user            User           @relation(fields: [userId], references: [id])
-  items           OrderItem[]
   seller          String
   buyer           String
-  paymentIntentId String?
   paidAt          DateTime?
   shippingAddress String?
-  stripeSessionId String?        @unique
   failureReason   String?
-  payments        Payment[]
-  orderHistory    OrderHistory[]
+  deletedAt       DateTime?
+  orderCode       Int            @unique
+  paymentProvider String         @default("PAYOS")
   certificate     Certificate?
+  user            User           @relation(fields: [userId], references: [id])
+  orderHistory    OrderHistory[]
+  items           OrderItem[]
+  payments        Payment[]
 
   @@index([userId])
   @@index([status])
   @@index([createdAt])
-  @@index([stripeSessionId])
+  @@index([orderCode])
 }
 
 model OrderItem {
@@ -172,57 +120,62 @@ model OrderItem {
   pricePerCredit Float
   subtotal       Float
   usdAmount      Float         @default(0)
-  exchangeRate   ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
   exchangeRateId Int?
-  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   retired        Boolean       @default(false)
+  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id])
+  exchangeRate   ExchangeRate? @relation(fields: [exchangeRateId], references: [id])
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([carbonCreditId])
 }
 
 model CartItem {
-  id             Int           @id @default(autoincrement())
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
   userId         Int
-  carbonCredit   CarbonCredit  @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
   carbonCreditId Int
   quantity       Int
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  addedAt        DateTime      @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  addedAt        DateTime     @default(now())
+  carbonCredit   CarbonCredit @relation(fields: [carbonCreditId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, carbonCreditId])
   @@index([userId])
 }
 
 model Payment {
-  id                    Int          @id @default(autoincrement())
-  orderId               Int
-  order                 Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stripeSessionId       String?      @unique
-  stripePaymentIntentId String?
-  amount                Float
-  currency              String        @default("USD")
-  status                PaymentStatus @default(PENDING)
-  failureReason         String?
-  method                String?
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime      @updatedAt
+  id                 Int           @id @default(autoincrement())
+  orderId            Int
+  amount             Float
+  currency           String        @default("USD")
+  status             PaymentStatus @default(PENDING)
+  failureReason      String?
+  method             String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  orderCode          Int
+  paidAt             DateTime?
+  paymentData        Json?
+  payosOrderCode     Int?
+  payosPaymentLinkId String?
+  payosReference     String?
+  order              Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([status])
-  @@index([stripeSessionId])
+  @@index([orderCode])
+  @@index([payosPaymentLinkId])
 }
 
 model OrderHistory {
   id        Int      @id @default(autoincrement())
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId   Int
   event     String
   message   String?
   createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([createdAt])
@@ -231,33 +184,132 @@ model OrderHistory {
 model Certificate {
   id              String            @id @default(cuid())
   orderId         Int               @unique
-  order           Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
   certificateHash String            @unique
   issuedAt        DateTime          @default(now())
   status          CertificateStatus @default(active)
   metadata        Json?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  order           Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([status])
 }
 
 model Notification {
-  id        String          @id @default(cuid())
-  userId    Int
-  type      NotificationType
-  title     String
-  message   String
-  data      Json?
-  read      Boolean         @default(false)
-  readAt    DateTime?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String                 @id @default(cuid())
+  userId               Int
+  type                 String
+  title                String
+  message              String
+  priority             String                 @default("info")
+  status               String                 @default("unread")
+  entityType           String?
+  entityId             String?
+  dedupeKey            String
+  metadata             Json?
+  createdAt            DateTime               @default(now())
+  readAt               DateTime?
+  archivedAt           DateTime?
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  NotificationDelivery NotificationDelivery[]
 
-  @@index([userId, read])
-  @@index([userId, createdAt])
-  @@index([type])
+  @@unique([userId, type, entityId, dedupeKey])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type, createdAt])
+  @@index([userId, status])
 }
 
+model BlockchainAnchor {
+  id          Int       @id @default(autoincrement())
+  merkleRoot  String
+  txHash      String?   @unique
+  blockNumber Int?
+  chainId     Int
+  auditCount  Int
+  orderIds    Int[]
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+
+  @@index([createdAt])
+  @@index([merkleRoot])
+  @@index([status])
+}
+
+model NotificationDelivery {
+  id                String       @id
+  notificationId    String
+  channel           String       @default("in_app")
+  deliveryState     String       @default("delivered")
+  deliveredAt       DateTime     @default(now())
+  providerMessageId String?
+  Notification      Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId, deliveredAt(sort: Desc)])
+}
+
+model NotificationPreference {
+  id           String   @id
+  userId       Int      @unique
+  orders       Boolean  @default(true)
+  certificates Boolean  @default(true)
+  credits      Boolean  @default(true)
+  adminOps     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebhookEvent {
+  id           String    @id
+  orderCode    Int
+  signature    String    @unique
+  status       String    @default("RETRYING")
+  processedAt  DateTime?
+  retryCount   Int       @default(0)
+  errorMessage String?
+  webhookData  Json
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+
+  @@index([createdAt])
+  @@index([orderCode])
+  @@index([signature])
+  @@index([status, createdAt])
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+  PAID
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ForestStatus {
+  ACTIVE
+  MONITORING
+  INACTIVE
+}
+
+enum CertificateStatus {
+  active
+  revoked
+  expired
+}

@@ -26,9 +26,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const { userId, status, items } = await req.json();
   let totalPrice = 0;
+  const orderCode = Date.now() % 1000000000;
   const createdOrder = await prisma.order.create({
     data: {
       userId,
+      orderCode,
       status,
       totalPrice: 0, // will update after items
       buyer: String(userId),
@@ -43,7 +45,10 @@ export async function POST(req: Request) {
     },
     include: { items: true },
   });
-  await prisma.order.update({ where: { id: createdOrder.id }, data: { totalPrice } });
+  await prisma.order.update({
+    where: { id: createdOrder.id },
+    data: { totalPrice },
+  });
   const orderWithUser = await prisma.order.findUnique({
     where: { id: createdOrder.id },
     include: {
@@ -56,7 +61,12 @@ export async function POST(req: Request) {
 
   // Create notification for order creation
   try {
-    const notification = await notificationService.createOrderNotification(userId, createdOrder.id, "Order Created", `Your order #${createdOrder.id} has been created successfully. Total: $${totalPrice.toFixed(2)}`);
+    const notification = await notificationService.createOrderNotification(
+      userId,
+      createdOrder.id,
+      "Order Created",
+      `Your order #${createdOrder.id} has been created successfully. Total: $${totalPrice.toFixed(2)}`,
+    );
   } catch (error) {
     console.error("Error creating order notification:", error);
   }
@@ -102,20 +112,24 @@ export async function PUT(req: Request) {
 
     // Create order history entry if status changed
     if (status && status !== currentOrder.status) {
-      await prisma.orderHistory.create({
-        data: {
-          orderId: Number(id),
-          event: "status_updated",
-          message: `Order status changed from ${currentOrder.status} to ${status}`,
-        },
-      });
-
-      // Create notification for status change
-      try {
-        await notificationService.createOrderNotification(currentOrder.userId, Number(id), "Status Updated", `Your order #${id} status has been updated to ${status}`);
-      } catch (error) {
-        console.error("Error creating status update notification:", error);
-      }
+      // Create history entry and notification concurrently, then fetch updated order
+      await Promise.all([
+        prisma.orderHistory.create({
+          data: {
+            orderId: Number(id),
+            event: "status_updated",
+            message: `Order status changed from ${currentOrder.status} to ${status}`,
+          },
+        }),
+        notificationService.createOrderNotification(
+          currentOrder.userId,
+          Number(id),
+          "Status Updated",
+          `Your order #${id} status has been updated to ${status}`,
+        ).catch((error) => {
+          console.error("Error creating status update notification:", error);
+        }),
+      ]);
 
       // Fetch the updated order with the new order history
       const updatedOrderWithHistory = await prisma.order.findUnique({
@@ -138,7 +152,10 @@ export async function PUT(req: Request) {
     return NextResponse.json(updatedOrder);
   } catch (error: any) {
     console.error("Error updating order:", error);
-    return NextResponse.json({ error: error.message || "Failed to update order" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Failed to update order" },
+      { status: 500 },
+    );
   }
 }
 
