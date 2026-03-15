@@ -85,7 +85,10 @@ export async function GET() {
         totalUsers = authUserCount;
       }
     } catch (error) {
-      console.error('Failed to fetch Supabase auth user count, using app user count fallback:', error);
+      console.error(
+        'Failed to fetch Supabase auth user count, using app user count fallback:',
+        error,
+      );
     }
 
     return NextResponse.json({
