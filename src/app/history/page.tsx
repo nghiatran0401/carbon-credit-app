@@ -1,179 +1,422 @@
-"use client";
-import { useAuth } from "@/components/auth-context";
-import { useRouter } from "next/navigation";
-import useSWR from "swr";
-import { apiGet } from "@/lib/api";
-import { useEffect, useMemo, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileText } from "lucide-react";
+'use client';
+import { useAuth } from '@/components/auth-context';
+import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
+import { apiGet } from '@/lib/api';
+import { useEffect, useMemo, useState } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Download, FileText, Loader2, MapPin, Package, Leaf } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+import type { Order, OrderItem, User, PaginatedResponse } from '@/types';
+import { DEFAULT_PAGE_SIZE } from '@/lib/constants';
 
-const PAGE_SIZE = 5;
-
-function ordersToCSV(orders: any[]): string {
-  const header = ["Order ID", "User Email", "Date", "Status", "Total", "Item Certification", "Item Vintage", "Quantity", "Price Per Credit", "Subtotal"];
+function ordersToCSV(orders: Order[]): string {
+  const header = [
+    'Order ID',
+    'User Email',
+    'Date',
+    'Status',
+    'Total',
+    'Item Certification',
+    'Item Vintage',
+    'Quantity',
+    'Price Per Credit',
+    'Subtotal',
+  ];
   const rows = orders.flatMap(
     (order) =>
-      order.items?.map((item: any) => [
+      order.items?.map((item: OrderItem) => [
         order.id,
-        order.user?.email ?? "",
+        order.user?.email ?? '',
         new Date(order.createdAt).toLocaleString(),
         order.status,
         order.totalPrice.toFixed(2),
-        item.carbonCredit?.certification ?? "",
-        item.carbonCredit?.vintage ?? "",
+        item.carbonCredit?.certification ?? '',
+        item.carbonCredit?.vintage ?? '',
         item.quantity,
         item.pricePerCredit,
         item.subtotal.toFixed(2),
-      ]) || []
+      ]) || [],
   );
-  return [header, ...rows].map((row) => row.join(",")).join("\n");
+  return [header, ...rows].map((row) => row.join(',')).join('\n');
+}
+
+function normalizeStatus(status?: string) {
+  return String(status ?? '').toUpperCase();
+}
+
+function isCompletedStatus(status?: string) {
+  const normalized = normalizeStatus(status);
+  return normalized === 'COMPLETED' || normalized === 'PAID';
+}
+
+function formatStatusLabel(status?: string) {
+  const normalized = normalizeStatus(status);
+  if (!normalized) return 'Unknown';
+  return normalized.charAt(0) + normalized.slice(1).toLowerCase();
 }
 
 export default function HistoryPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
-  const { data: usersRaw } = useSWR(user?.role?.toLowerCase() === "admin" ? "/api/users" : null, apiGet);
+  const { data: usersRaw } = useSWR(
+    user?.role?.toLowerCase() === 'admin' ? '/api/users' : null,
+    apiGet,
+  );
   const users = Array.isArray(usersRaw) ? usersRaw : [];
-  const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [selectedUser, setSelectedUser] = useState<string>('all');
 
-  // For admin: fetch all orders, for user: fetch only their orders
-  const ordersUrl = user?.role?.toLowerCase() === "admin" ? "/api/orders" : user?.id ? `/api/orders?userId=${user.id}` : null;
-  const { data: ordersRaw, isLoading, error, mutate } = useSWR(ordersUrl, apiGet);
-  const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
-
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [retireTarget, setRetireTarget] = useState<{ itemId: number; qty: number; open: boolean }>({
+    itemId: 0,
+    qty: 0,
+    open: false,
+  });
+  const [certificateLoadingOrderId, setCertificateLoadingOrderId] = useState<number | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const ordersUrl = useMemo(() => {
+    if (!user?.id) return null;
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(DEFAULT_PAGE_SIZE));
+    if (user.role?.toLowerCase() !== 'admin') {
+      params.set('userId', String(user.id));
+    } else if (selectedUser !== 'all') {
+      params.set('userId', selectedUser);
+    }
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (debouncedSearch) params.set('search', debouncedSearch);
+    return `/api/orders?${params.toString()}`;
+  }, [user, page, statusFilter, debouncedSearch, selectedUser]);
+
+  const {
+    data: ordersResponse,
+    isLoading,
+    error,
+    mutate,
+  } = useSWR(ordersUrl, (url: string) => apiGet<PaginatedResponse<Order>>(url));
+  const orders = ordersResponse?.data ?? [];
+  const pagination = ordersResponse?.pagination;
 
   useEffect(() => {
     if (!isAuthenticated) {
-      router.replace("/auth");
+      router.replace('/auth');
     }
   }, [isAuthenticated, router]);
 
-  // For admin: filter by selected user
-  const filteredOrders = useMemo(() => {
-    let filtered = orders;
-    if (user?.role?.toLowerCase() === "admin" && selectedUser !== "all") {
-      filtered = filtered.filter((order: any) => String(order.user?.id) === selectedUser);
+  const handleRetire = async () => {
+    try {
+      const res = await fetch('/api/credits/retire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderItemId: retireTarget.itemId,
+          quantity: retireTarget.qty,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to retire credits');
+      }
+      const data = await res.json();
+      toast({
+        title: 'Credits retired',
+        description: `${data.retiredQuantity} credits have been permanently retired as carbon offsets.`,
+      });
+      mutate();
+    } catch (err: unknown) {
+      toast({
+        title: 'Retirement failed',
+        description: err instanceof Error ? err.message : 'Failed to retire credits.',
+        variant: 'destructive',
+      });
     }
-    return filtered.filter((order: any) => {
-      const statusMatch = statusFilter === "all" || order.status === statusFilter;
-      const searchMatch =
-        search === "" ||
-        order.id.toString().includes(search) ||
-        order.items?.some((item: any) => item.carbonCredit?.certification?.toLowerCase().includes(search.toLowerCase()) || item.carbonCredit?.vintage?.toString().includes(search));
-      return statusMatch && searchMatch;
-    });
-  }, [orders, statusFilter, search, user, selectedUser]);
-
-  const totalPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
-  const paginatedOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  };
 
   const handleDownloadCSV = () => {
-    const csv = ordersToCSV(filteredOrders);
-    const blob = new Blob([csv], { type: "text/csv" });
+    const csv = ordersToCSV(orders);
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = "order-history.csv";
+    a.download = 'order-history.csv';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleViewCertificate = async (orderId: number) => {
+    setCertificateLoadingOrderId(orderId);
+    try {
+      const response = await fetch(`/api/certificates?orderId=${orderId}`);
+      if (response.ok) {
+        const certificate = await response.json();
+        window.open(`/certificates/${certificate.id}`, '_blank');
+        return;
+      }
+
+      const genResponse = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      });
+      if (!genResponse.ok) {
+        const data = await genResponse.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not generate certificate');
+      }
+      const certificate = await genResponse.json();
+      window.open(`/certificates/${certificate.id}`, '_blank');
+    } catch (err: unknown) {
+      toast({
+        title: 'Certificate error',
+        description: err instanceof Error ? err.message : 'Unable to open certificate right now.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCertificateLoadingOrderId(null);
+    }
   };
 
   if (!isAuthenticated) {
     return <div className="p-8 text-center">Redirecting to sign in...</div>;
   }
-  if (isLoading) return <div className="p-8 text-center">Loading history...</div>;
+  if (isLoading)
+    return (
+      <div className="container mx-auto px-4 py-8 min-h-screen">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+          <Skeleton className="h-9 w-28" />
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <Skeleton className="h-10 w-80 rounded-md" />
+            <Skeleton className="h-10 w-80 sm:w-48 rounded-md" />
+            <Skeleton className="h-10 w-24 rounded-md" />
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-gray-200 bg-white shadow-md overflow-hidden"
+            >
+              <div className="bg-gray-50 rounded-t-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-4 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-44" />
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+                <div className="flex justify-between">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <Skeleton className="h-px w-full my-2" />
+                <div className="flex justify-end">
+                  <Skeleton className="h-5 w-24" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   if (error) return <div className="p-8 text-center text-red-600">{error.message}</div>;
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-        <h1 className="text-3xl font-bold">History</h1>
-        <div className="flex flex-col sm:flex-row gap-2 items-center">
-          <Input
-            placeholder="Search by order, certification, vintage..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            // className="max-w-xs"
-          />
-          <Select
-            value={statusFilter}
-            onValueChange={(val) => {
-              setStatusFilter(val);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-80">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-              <SelectItem value="Cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-          {user?.role?.toLowerCase() === "admin" && (
+      <div className="mb-6 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-white p-5">
+        <h1 className="text-3xl font-bold text-gray-900">History</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Track orders, retire credits, and download transaction evidence.
+        </p>
+      </div>
+      <Card className="mb-6 border-gray-200">
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <Input
+              placeholder="Search by order code, certification, vintage..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
             <Select
-              value={selectedUser}
+              value={statusFilter}
               onValueChange={(val) => {
-                setSelectedUser(val);
+                setStatusFilter(val);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="User" />
+              <SelectTrigger className="w-80" aria-label="Filter by order status">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                {users.map((u: any) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {u.email}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-          )}
-          {user?.role?.toLowerCase() === "admin" && (
-            <Button variant="outline" onClick={handleDownloadCSV} className="flex items-center gap-2">
-              <Download className="h-4 w-4" /> Download CSV
-            </Button>
-          )}
-        </div>
-      </div>
-      {paginatedOrders.length > 0 ? (
+            {user?.role?.toLowerCase() === 'admin' && (
+              <Select
+                value={selectedUser}
+                onValueChange={(val) => {
+                  setSelectedUser(val);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-48" aria-label="Filter by user">
+                  <SelectValue placeholder="User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {users.map((u: User) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {user?.role?.toLowerCase() === 'admin' && (
+              <Button
+                variant="outline"
+                onClick={handleDownloadCSV}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" /> Download CSV
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      {orders.length > 0 ? (
         <div className="space-y-4">
-          {paginatedOrders.map((order: any) => (
-            <Card key={order.id} className="shadow-md border border-gray-200">
-              <CardHeader className="bg-gray-50 rounded-t-lg flex flex-col md:flex-row md:items-center md:justify-between">
-                <CardTitle className="text-lg">
-                  Order #{order.id} <span className="text-xs font-normal text-gray-500 ml-2">({order.status})</span>
-                </CardTitle>
-                <div className="text-sm text-gray-500 mt-1 md:mt-0">
+          {orders.map((order: Order) => (
+            <Card key={order.id} className="border border-gray-200 shadow-sm">
+              <CardHeader className="rounded-t-lg bg-gray-50/80 flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle className="text-lg">Order #{order.id}</CardTitle>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">Code #{order.orderCode}</Badge>
+                    <Badge variant="secondary">{formatStatusLabel(order.status)}</Badge>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-500 mt-1 md:mt-0 text-right">
                   Placed: {new Date(order.createdAt).toLocaleString()}
                   <br />
-                  {user?.role?.toLowerCase() === "admin" && <span>User: {order.user?.email}</span>}
+                  {user?.role?.toLowerCase() === 'admin' && <span>User: {order.user?.email}</span>}
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-1">
-                  {order.items?.map((item: any) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <span className="font-medium">
-                        {item.carbonCredit?.certification} ({item.carbonCredit?.vintage})
-                      </span>
-                      <span>
-                        {item.quantity} × ${item.pricePerCredit} = <span className="font-semibold">${item.subtotal.toFixed(2)}</span>
-                      </span>
+                <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="rounded-md border bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                      Credits purchased
+                    </p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Line items</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {order.items?.length ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-md border bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Order total</p>
+                    <p className="text-sm font-semibold text-emerald-700">
+                      ${order.totalPrice.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  What you bought
+                </p>
+                <div className="space-y-2">
+                  {order.items?.map((item: OrderItem) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start justify-between text-sm gap-3 rounded-md border p-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">
+                            {item.carbonCredit?.forest?.name ||
+                              `Carbon Credit #${item.carbonCreditId}`}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {item.carbonCredit?.certification || 'Certification'}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {item.carbonCredit?.vintage || 'Vintage'}
+                          </Badge>
+                        </div>
+                        {item.carbonCredit?.forest?.location && (
+                          <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-500">
+                            <MapPin className="h-3 w-3" />
+                            {item.carbonCredit.forest.location}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                          {item.quantity} credit{item.quantity !== 1 ? 's' : ''} x $
+                          {item.pricePerCredit.toFixed(2)}
+                        </p>
+                        {item.retired && (
+                          <Badge
+                            variant="secondary"
+                            className="mt-2 bg-emerald-100 text-emerald-700 text-xs shrink-0"
+                          >
+                            <Leaf className="h-3 w-3 mr-1" />
+                            Retired
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-semibold">${item.subtotal.toFixed(2)}</span>
+                        {isCompletedStatus(order.status) && !item.retired && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 px-2 text-xs"
+                            onClick={() =>
+                              setRetireTarget({ itemId: item.id, qty: item.quantity, open: true })
+                            }
+                          >
+                            <Leaf className="h-3 w-3 mr-1" />
+                            Retire
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -182,48 +425,54 @@ export default function HistoryPage() {
                 {/* Payment status and details */}
                 {order.payments && order.payments.length > 0 && (
                   <div className="mt-2 text-sm">
-                    <span className="font-medium">Payment Status:</span> {order.payments[order.payments.length - 1].status}
-                    {order.payments[order.payments.length - 1].status === "failed" && order.payments[order.payments.length - 1].failureReason && (
-                      <span className="ml-2 text-red-600">({order.payments[order.payments.length - 1].failureReason})</span>
+                    {(() => {
+                      const latestPayment = order.payments[order.payments.length - 1];
+                      const failed = normalizeStatus(latestPayment.status) === 'FAILED';
+                      return (
+                        <>
+                          <span className="font-medium">Payment Status:</span>{' '}
+                          {latestPayment.status}
+                          {failed && latestPayment.failureReason && (
+                            <span className="ml-2 text-red-600">
+                              ({latestPayment.failureReason})
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                    {order.paidAt && (
+                      <span className="ml-4 text-green-700">
+                        Paid at: {new Date(order.paidAt).toLocaleString()}
+                      </span>
                     )}
-                    {order.paidAt && <span className="ml-4 text-green-700">Paid at: {new Date(order.paidAt).toLocaleString()}</span>}
                   </div>
                 )}
 
                 {/* Certificate button for completed orders */}
-                {order.status === "Completed" && (
-                  <div className="mt-3 pt-3 border-t">
+                {isCompletedStatus(order.status) && (
+                  <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-3">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-green-700 border-green-300 hover:bg-green-50"
-                      onClick={async () => {
-                        try {
-                          const response = await fetch(`/api/certificates?orderId=${order.id}`);
-                          if (response.ok) {
-                            const certificate = await response.json();
-                            // Open certificate in new window
-                            window.open(`/certificates/${certificate.id}`, "_blank");
-                          } else {
-                            // Generate certificate if it doesn't exist
-                            const genResponse = await fetch("/api/certificates", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ orderId: order.id }),
-                            });
-                            if (genResponse.ok) {
-                              const certificate = await genResponse.json();
-                              window.open(`/certificates/${certificate.id}`, "_blank");
-                            }
-                          }
-                        } catch (err) {
-                          console.error("Error accessing certificate:", err);
-                        }
-                      }}
+                      className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                      onClick={() => handleViewCertificate(order.id)}
+                      disabled={certificateLoadingOrderId === order.id}
                     >
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Certificate
+                      {certificateLoadingOrderId === order.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Preparing certificate...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          View Certificate
+                        </>
+                      )}
                     </Button>
+                    <span className="text-xs text-gray-500">
+                      Certificate proves your purchase and offset contribution.
+                    </span>
                   </div>
                 )}
               </CardContent>
@@ -231,18 +480,47 @@ export default function HistoryPage() {
           ))}
         </div>
       ) : (
-        <div className="p-4 text-center text-gray-500">No orders found.</div>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Package className="h-16 w-16 text-gray-300 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
+          <p className="text-gray-500 mb-6 max-w-sm">
+            You haven&apos;t placed any orders. When you purchase carbon credits from the
+            marketplace, they will appear here.
+          </p>
+          <Link href="/marketplace">
+            <Button className="bg-emerald-600 hover:bg-emerald-700">Browse Marketplace</Button>
+          </Link>
+        </div>
       )}
+      <ConfirmDialog
+        open={retireTarget.open}
+        onOpenChange={(open) => setRetireTarget((prev) => ({ ...prev, open }))}
+        title="Retire carbon credits"
+        description={`Are you sure you want to retire ${retireTarget.qty} carbon credit(s)? This permanently marks them as used for carbon offsetting and cannot be undone.`}
+        confirmLabel="Retire Credits"
+        onConfirm={handleRetire}
+      />
+
       {/* Pagination */}
-      {totalPages > 1 && (
+      {pagination && pagination.totalPages > 1 && (
         <div className="flex justify-center mt-8 gap-2">
-          <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage(page - 1)}
+          >
             Previous
           </Button>
           <span className="px-2 py-1 text-sm text-gray-700">
-            Page {page} of {totalPages}
+            Page {pagination.page} of {pagination.totalPages}
           </span>
-          <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === pagination.totalPages}
+            onClick={() => setPage(page + 1)}
+          >
             Next
           </Button>
         </div>

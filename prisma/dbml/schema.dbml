@@ -2,31 +2,22 @@
 //// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 //// ------------------------------------------------------
 
-Table Bookmark {
-  id Int [pk, increment]
-  userId Int [not null]
-  forestId Int [not null]
-  createdAt DateTime [default: `now()`, not null]
-  user User [not null]
-  forest Forest [not null]
-}
-
 Table User {
   id Int [pk, increment]
   email String [unique, not null]
-  passwordHash String [not null]
+  supabaseUserId String [unique]
   firstName String [not null]
   lastName String [not null]
   company String
-  role String [not null, default: 'user']
+  role UserRole [not null, default: 'USER']
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  deletedAt DateTime
   orders Order [not null]
-  bookmarks Bookmark [not null]
   cartItems CartItem [not null]
-  emailVerified Boolean [not null, default: false]
-  stripeCustomerId String
   notifications Notification [not null]
+  notificationPreference NotificationPreference
+  emailVerified Boolean [not null, default: false]
 }
 
 Table Forest {
@@ -36,10 +27,11 @@ Table Forest {
   type String [not null]
   area Float [not null]
   description String [not null]
-  status String [not null]
+  status ForestStatus [not null, default: 'ACTIVE']
   lastUpdated DateTime [not null]
+  createdAt DateTime [default: `now()`, not null]
+  deletedAt DateTime
   credits CarbonCredit [not null]
-  bookmarks Bookmark [not null]
 }
 
 Table CarbonCredit {
@@ -52,6 +44,7 @@ Table CarbonCredit {
   pricePerCredit Float [not null]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  deletedAt DateTime
   forest Forest [not null]
   orderItems OrderItem [not null]
   cartItems CartItem [not null]
@@ -73,20 +66,23 @@ Table ExchangeRate {
 
 Table Order {
   id Int [pk, increment]
+  orderCode Int [unique, not null]
   userId Int [not null]
   createdAt DateTime [default: `now()`, not null]
-  status String [not null]
+  status OrderStatus [not null, default: 'PENDING']
   totalPrice Float [not null]
   totalCredits Int [not null, default: 0]
   currency String [not null, default: 'USD']
   totalUsd Float [not null, default: 0]
+  deletedAt DateTime
   user User [not null]
   items OrderItem [not null]
-  paymentIntentId String
+  seller String [not null]
+  buyer String [not null]
   paidAt DateTime
   shippingAddress String
-  stripeSessionId String [unique]
   failureReason String
+  paymentProvider String [not null, default: 'PAYOS']
   payments Payment [not null]
   orderHistory OrderHistory [not null]
   certificate Certificate
@@ -127,13 +123,17 @@ Table Payment {
   id Int [pk, increment]
   orderId Int [not null]
   order Order [not null]
-  stripeSessionId String [unique]
-  stripePaymentIntentId String
+  orderCode Int [not null]
   amount Float [not null]
   currency String [not null, default: 'USD']
-  status String [not null]
+  status PaymentStatus [not null, default: 'PENDING']
   failureReason String
   method String
+  paidAt DateTime
+  paymentData Json
+  payosPaymentLinkId String
+  payosOrderCode Int
+  payosReference String
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
 }
@@ -153,8 +153,34 @@ Table Certificate {
   order Order [not null]
   certificateHash String [unique, not null]
   issuedAt DateTime [default: `now()`, not null]
-  status String [not null, default: 'active']
+  status CertificateStatus [not null, default: 'active']
   metadata Json
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+}
+
+Table BlockchainAnchor {
+  id Int [pk, increment]
+  merkleRoot String [not null]
+  txHash String [unique]
+  blockNumber Int
+  chainId Int [not null]
+  auditCount Int [not null]
+  orderIds Int[] [not null]
+  status String [not null, default: 'PENDING']
+  createdAt DateTime [default: `now()`, not null]
+  confirmedAt DateTime
+}
+
+Table WebhookEvent {
+  id String [pk]
+  orderCode Int [not null]
+  signature String [unique, not null]
+  status String [not null, default: 'RETRYING']
+  processedAt DateTime
+  retryCount Int [not null, default: 0]
+  errorMessage String
+  webhookData Json [not null]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
 }
@@ -162,32 +188,94 @@ Table Certificate {
 Table Notification {
   id String [pk]
   userId Int [not null]
+  user User [not null]
   type String [not null]
   title String [not null]
   message String [not null]
-  data Json
-  read Boolean [not null, default: false]
-  readAt DateTime
+  priority String [not null, default: 'info']
+  status String [not null, default: 'unread']
+  entityType String
+  entityId String
+  dedupeKey String [not null]
+  metadata Json
   createdAt DateTime [default: `now()`, not null]
-  updatedAt DateTime [not null]
-  user User [not null]
+  readAt DateTime
+  archivedAt DateTime
+  deliveries NotificationDelivery [not null]
+
+  indexes {
+    (userId, type, entityId, dedupeKey) [unique]
+  }
 }
 
-Ref: Bookmark.userId > User.id [delete: Cascade]
+Table NotificationDelivery {
+  id String [pk]
+  notificationId String [not null]
+  notification Notification [not null]
+  channel String [not null, default: 'in_app']
+  deliveryState String [not null, default: 'delivered']
+  deliveredAt DateTime [default: `now()`, not null]
+  providerMessageId String
+}
 
-Ref: Bookmark.forestId > Forest.id [delete: Cascade]
+Table NotificationPreference {
+  id String [pk]
+  userId Int [unique, not null]
+  user User [not null]
+  orders Boolean [not null, default: true]
+  certificates Boolean [not null, default: true]
+  credits Boolean [not null, default: true]
+  adminOps Boolean [not null, default: true]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+}
+
+Enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+  EXPIRED
+}
+
+Enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+Enum UserRole {
+  USER
+  ADMIN
+}
+
+Enum ForestStatus {
+  ACTIVE
+  MONITORING
+  INACTIVE
+}
+
+Enum CertificateStatus {
+  active
+  revoked
+  expired
+}
 
 Ref: CarbonCredit.forestId > Forest.id [delete: Cascade]
 
 Ref: ExchangeRate.carbonCreditId > CarbonCredit.id [delete: Cascade]
 
-Ref: Order.userId > User.id
+Ref: Order.userId > User.id [delete: Restrict]
 
 Ref: OrderItem.exchangeRateId > ExchangeRate.id
 
 Ref: OrderItem.orderId > Order.id [delete: Cascade]
 
-Ref: OrderItem.carbonCreditId > CarbonCredit.id [delete: Cascade]
+Ref: OrderItem.carbonCreditId > CarbonCredit.id [delete: Restrict]
 
 Ref: CartItem.userId > User.id [delete: Cascade]
 
@@ -200,3 +288,7 @@ Ref: OrderHistory.orderId > Order.id [delete: Cascade]
 Ref: Certificate.orderId - Order.id [delete: Cascade]
 
 Ref: Notification.userId > User.id [delete: Cascade]
+
+Ref: NotificationDelivery.notificationId > Notification.id [delete: Cascade]
+
+Ref: NotificationPreference.userId - User.id [delete: Cascade]

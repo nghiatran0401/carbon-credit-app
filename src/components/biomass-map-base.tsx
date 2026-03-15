@@ -1,18 +1,55 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Map as LeafletMap, TileLayer } from 'leaflet';
 
 export type Bounds = { north: number; south: number; east: number; west: number };
 
 interface BiomassMapBaseProps {
   bounds: Bounds | null;
   mask: number[][] | null;
-  // For editor mode, we might want to control the view or layers externally
-  onMapReady?: (map: any, L: any) => void;
+  onMapReady?: (map: unknown, L: unknown) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
-  // Optional: force a specific view center/zoom
   center?: [number, number];
   zoom?: number;
+}
+
+/**
+ * Pre-renders a mask grid into an offscreen canvas using ImageData (single
+ * putImageData call instead of N*M fillRect calls). The returned canvas is
+ * cols × rows pixels and can be stamped onto the visible canvas with one
+ * drawImage per frame, making zoom/pan redraws essentially free.
+ */
+function buildMaskTexture(mask: number[][]): HTMLCanvasElement {
+  const rows = mask.length;
+  const cols = mask[0]?.length ?? 0;
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = cols;
+  offscreen.height = rows;
+
+  const ctx = offscreen.getContext('2d');
+  if (!ctx || !rows || !cols) return offscreen;
+
+  const imageData = ctx.createImageData(cols, rows);
+  const px = imageData.data; // Uint8ClampedArray — R,G,B,A per pixel
+
+  for (let i = 0; i < rows; i++) {
+    const row = mask[i];
+    const rowOffset = i * cols * 4;
+    for (let j = 0; j < cols; j++) {
+      if (row[j] > 0) {
+        const idx = rowOffset + j * 4;
+        px[idx] = 0; // R
+        px[idx + 1] = 255; // G
+        px[idx + 2] = 0; // B
+        px[idx + 3] = 102; // A  (~0.4 opacity)
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return offscreen;
 }
 
 export default function BiomassMapBase({
@@ -20,134 +57,132 @@ export default function BiomassMapBase({
   mask,
   onMapReady,
   onCanvasReady,
-  center = [10.4, 106.92], // Default to Cần Giờ
+  center = [10.4, 106.92],
   zoom = 11,
 }: BiomassMapBaseProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const [isSatellite, setIsSatellite] = useState(true);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const [isDark, setIsDark] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
-  const layersRef = useRef<{ street: any | null; satellite: any | null }>({ street: null, satellite: null });
+  const layersRef = useRef<{ light: TileLayer | null; dark: TileLayer | null }>({
+    light: null,
+    dark: null,
+  });
 
-  // Draw mask on canvas
-  const drawMaskOnCanvas = () => {
-    if (!canvasRef.current || !mapRef.current || !mask || !bounds) return;
+  // Cached offscreen texture — rebuilt only when `mask` changes
+  const maskTextureRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Build / invalidate the offscreen texture whenever mask changes
+  useEffect(() => {
+    if (mask && mask.length > 0 && mask[0]?.length > 0) {
+      maskTextureRef.current = buildMaskTexture(mask);
+    } else {
+      maskTextureRef.current = null;
+    }
+  }, [mask]);
+
+  // Stamp the pre-built texture onto the visible overlay canvas.
+  // This runs on every zoom/pan but is a single drawImage — sub-ms.
+  const drawMaskOnCanvas = useCallback(() => {
+    if (!canvasRef.current || !mapRef.current || !bounds) return;
+
+    const texture = maskTextureRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const map = mapRef.current;
-
-    // Ensure canvas matches map container size and device pixel ratio
-    const mapEl = map.getContainer() as HTMLElement;
+    const mapEl = map.getContainer();
     const mapWidth = mapEl.clientWidth;
     const mapHeight = mapEl.clientHeight;
     const dpr = window.devicePixelRatio || 1;
 
-    if (canvas.width !== Math.floor(mapWidth * dpr) || canvas.height !== Math.floor(mapHeight * dpr)) {
-      canvas.width = Math.floor(mapWidth * dpr);
-      canvas.height = Math.floor(mapHeight * dpr);
-      const newCtx = canvas.getContext("2d");
-      if (newCtx) newCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    } else {
-      // Clear canvas if size matched (otherwise resize clears it)
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const targetW = Math.floor(mapWidth * dpr);
+    const targetH = Math.floor(mapHeight * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
     }
-    
-    // Re-set transform in case context was lost or reset
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, mapWidth, mapHeight); // Clear in logical pixels
+    ctx.clearRect(0, 0, mapWidth, mapHeight);
 
-    // Get bounds in container pixels
-    const rectNE = { lat: bounds.north, lng: bounds.east };
-    const rectSW = { lat: bounds.south, lng: bounds.west };
-    const topRight = map.latLngToContainerPoint(rectNE);
-    const bottomLeft = map.latLngToContainerPoint(rectSW);
+    if (!texture) return;
 
-    const canvasLeft = bottomLeft.x;
-    const canvasTop = topRight.y;
-    const canvasRight = topRight.x;
-    const canvasBottom = bottomLeft.y;
+    const topRight = map.latLngToContainerPoint({ lat: bounds.north, lng: bounds.east });
+    const bottomLeft = map.latLngToContainerPoint({ lat: bounds.south, lng: bounds.west });
 
-    const rectCanvasWidth = canvasRight - canvasLeft;
-    const rectCanvasHeight = canvasBottom - canvasTop;
-
-    // Mask shape
-    const rows = mask.length;
-    const cols = mask[0]?.length || 0;
-    if (!rows || !cols) return;
-
-    const scaleX = rectCanvasWidth / cols;
-    const scaleY = rectCanvasHeight / rows;
-
-    // Draw mask - semi-transparent green for forest
-    ctx.fillStyle = "rgba(0, 255, 0, 0.4)";
-
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        if (mask[i][j] > 0) {
-          // Draw slightly larger to avoid gaps? Math.ceil helps
-          ctx.fillRect(
-            canvasLeft + j * scaleX,
-            canvasTop + i * scaleY,
-            Math.ceil(scaleX),
-            Math.ceil(scaleY)
-          );
-        }
-      }
-    }
-  };
+    ctx.drawImage(
+      texture,
+      bottomLeft.x,
+      topRight.y,
+      topRight.x - bottomLeft.x,
+      bottomLeft.y - topRight.y,
+    );
+  }, [bounds]);
 
   // Initialize Map
   useEffect(() => {
-    const loadLeaflet = async () => {
-      if (typeof window === "undefined" || mapRef.current) return;
+    let cancelled = false;
 
-      // CSS
-      if (!document.getElementById("leaflet-css")) {
-        const leafletCSS = document.createElement("link");
-        leafletCSS.id = "leaflet-css";
-        leafletCSS.rel = "stylesheet";
-        leafletCSS.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    const loadLeaflet = async () => {
+      if (typeof window === 'undefined') return;
+
+      if (!document.getElementById('leaflet-css')) {
+        const leafletCSS = document.createElement('link');
+        leafletCSS.id = 'leaflet-css';
+        leafletCSS.rel = 'stylesheet';
+        leafletCSS.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
         document.head.appendChild(leafletCSS);
       }
-      
-      // We don't load draw CSS here, parent should if needed, or we can check if we need it.
-      // Actually, let's just load standard leaflet. Draw is specific to Editor.
 
-      const L = await import("leaflet");
-      
-      // Fix markers
+      const L = await import('leaflet');
+
+      if (cancelled || mapRef.current) return;
+
       delete (L.Icon.Default.prototype as any)._getIconUrl;
       L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-        iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-        shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+        iconRetinaUrl:
+          'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
       });
 
       const map = L.map(mapContainerRef.current as HTMLDivElement, {
         center: center,
         zoom: zoom,
-        zoomControl: false // We can add it manually or let default. Default is top-left.
+        zoomControl: false,
       });
-      
-      // Add Zoom Control to top-right to avoid conflict if we have sidebars
+
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors",
-        maxZoom: 19,
+      const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20,
       });
-      const satellite = L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { attribution: "Tiles © Esri", maxZoom: 19 }
+      const light = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: 'Tiles &copy; Esri',
+          maxZoom: 20,
+        },
       );
 
-      satellite.addTo(map);
-      layersRef.current = { street, satellite };
+      light.addTo(map);
+      layersRef.current = { light, dark };
       mapRef.current = map;
+
+      // Leaflet calculates the tile grid from the container's size at init
+      // time. Because we're inside an async import the container is often
+      // not at its final layout dimensions yet, so tiles only cover a
+      // fraction of the viewport.  Force a recalculation after the browser
+      // has had a chance to settle the layout.
+      requestAnimationFrame(() => {
+        if (!cancelled) map.invalidateSize();
+      });
 
       setLeafletReady(true);
 
@@ -155,55 +190,77 @@ export default function BiomassMapBase({
     };
 
     loadLeaflet();
-  }, []); // Init once
 
-  // Handle view updates (bounds change, mask change, resize, zoom/move)
+    // Keep Leaflet in sync whenever the container is resized (window
+    // resize, sidebar toggle, parent flex/grid reflow, etc.).
+    const container = mapContainerRef.current;
+    let resizeObserver: ResizeObserver | undefined;
+    if (container) {
+      resizeObserver = new ResizeObserver(() => {
+        mapRef.current?.invalidateSize();
+      });
+      resizeObserver.observe(container);
+    }
+
+    return () => {
+      cancelled = true;
+      resizeObserver?.disconnect();
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+        setLeafletReady(false);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Redraw on map move/zoom — only moveend and resize (not the continuous events)
   useEffect(() => {
     if (!leafletReady || !mapRef.current) return;
     const map = mapRef.current;
 
-    const handleRedraw = () => requestAnimationFrame(drawMaskOnCanvas);
-    
-    map.on("zoom", handleRedraw);
-    map.on("move", handleRedraw);
-    map.on("zoomend", handleRedraw);
-    map.on("moveend", handleRedraw);
-    map.on("resize", handleRedraw);
+    let rafId: number | null = null;
+    const handleRedraw = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        drawMaskOnCanvas();
+        rafId = null;
+      });
+    };
+
+    map.on('moveend', handleRedraw);
+    map.on('resize', handleRedraw);
 
     return () => {
-        map.off("zoom", handleRedraw);
-        map.off("move", handleRedraw);
-        map.off("zoomend", handleRedraw);
-        map.off("moveend", handleRedraw);
-        map.off("resize", handleRedraw);
-    }
-  }, [leafletReady, mask, bounds]); // Re-attach handlers when mask or bounds change
+      map.off('moveend', handleRedraw);
+      map.off('resize', handleRedraw);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [leafletReady, drawMaskOnCanvas]);
 
-  // Trigger redraw when data changes AND fit bounds if bounds changed
+  // Redraw when mask/bounds data arrives
   useEffect(() => {
-    if (leafletReady && mask && bounds && mapRef.current) {
-       requestAnimationFrame(drawMaskOnCanvas);
+    if (leafletReady && bounds && mapRef.current) {
+      requestAnimationFrame(drawMaskOnCanvas);
     }
-  }, [mask, bounds, leafletReady]);
+  }, [mask, bounds, leafletReady, drawMaskOnCanvas]);
 
-  // Fit bounds when bounds prop changes (for dashboard navigation)
+  // Fit bounds when bounds prop changes
   useEffect(() => {
     if (leafletReady && bounds && mapRef.current) {
       const map = mapRef.current;
-      // Calculate center and zoom to fit bounds
-      const latCenter = (bounds.north + bounds.south) / 2;
-      const lngCenter = (bounds.east + bounds.west) / 2;
-      
-      // Create Leaflet bounds and fit
-      import('leaflet').then(L => {
+      // Ensure Leaflet knows the true container size before fitting
+      map.invalidateSize();
+      import('leaflet').then((L) => {
         const leafletBounds = L.latLngBounds(
           [bounds.south, bounds.west],
-          [bounds.north, bounds.east]
+          [bounds.north, bounds.east],
         );
         map.fitBounds(leafletBounds, { padding: [50, 50], animate: true });
       });
     }
-  }, [bounds, leafletReady]); // Only trigger on bounds change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bounds, leafletReady]);
 
   // Handle Canvas Ref for parent
   useEffect(() => {
@@ -212,20 +269,19 @@ export default function BiomassMapBase({
     }
   }, [onCanvasReady]);
 
-  // Layer toggle
   const toggleLayer = () => {
-    if (!mapRef.current) return;
     const map = mapRef.current;
-    const { street, satellite } = layersRef.current;
-    
-    if (isSatellite) {
-        if (map.hasLayer(satellite)) map.removeLayer(satellite);
-        if (!map.hasLayer(street)) street.addTo(map);
+    const { light, dark } = layersRef.current;
+    if (!map || !light || !dark) return;
+
+    if (isDark) {
+      if (map.hasLayer(dark)) map.removeLayer(dark);
+      if (!map.hasLayer(light)) light.addTo(map);
     } else {
-        if (map.hasLayer(street)) map.removeLayer(street);
-        if (!map.hasLayer(satellite)) satellite.addTo(map);
+      if (map.hasLayer(light)) map.removeLayer(light);
+      if (!map.hasLayer(dark)) dark.addTo(map);
     }
-    setIsSatellite(!isSatellite);
+    setIsDark(!isDark);
   };
 
   return (
@@ -233,17 +289,15 @@ export default function BiomassMapBase({
       <div ref={mapContainerRef} className="w-full h-full bg-[#1a1f2e]" />
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 z-[400] pointer-events-none" // Lower z-index to be below UI but above map
+        className="absolute top-0 left-0 w-full h-full z-[400] pointer-events-none"
       />
-      
-      {/* Layer Toggle Button - Floating */}
+
       <button
         className="absolute bottom-4 left-4 z-[500] px-3 py-2 rounded-md text-xs font-medium border border-[#1e3a2a] bg-[#0b1324] text-[#10b981] hover:bg-[#13324a] transition shadow-lg"
         onClick={toggleLayer}
       >
-        {isSatellite ? "Show Street View" : "Show Satellite"}
+        {isDark ? 'Satellite Map' : 'Dark Map'}
       </button>
     </div>
   );
 }
-

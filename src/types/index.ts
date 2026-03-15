@@ -5,7 +5,7 @@
 export interface User {
   id: number;
   email: string;
-  supabaseUserId?: string | null; // Link to Supabase auth.users.id
+  supabaseUserId?: string | null;
   firstName: string;
   lastName: string;
   company?: string | null;
@@ -29,6 +29,7 @@ export interface AuthContextType {
     company?: string,
   ) => Promise<void>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 // Forest
@@ -65,13 +66,17 @@ export interface CarbonCredit {
 export interface Payment {
   id: number;
   orderId: number;
-  stripeSessionId?: string;
-  stripePaymentIntentId?: string;
+  orderCode: number;
   amount: number;
   currency: string;
   status: string;
   failureReason?: string;
   method?: string;
+  paidAt?: string;
+  paymentData?: any;
+  payosPaymentLinkId?: string;
+  payosOrderCode?: number;
+  payosReference?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +105,16 @@ export interface Certificate {
 
 // Certificate Metadata
 export interface CertificateMetadata {
+  certificateId?: string;
+  orderId?: number;
+  userId?: number;
+  userName?: string;
+  userEmail?: string;
+  forestName?: string;
+  forestType?: string;
+  totalCredits?: number;
+  totalValue?: number;
+  purchaseDate?: string;
   items?: CertificateItem[];
   [key: string]: unknown;
 }
@@ -116,10 +131,12 @@ export interface CertificateItem {
 // Order
 export interface Order {
   id: number;
+  orderCode: number;
   userId: number;
   createdAt: string;
   status: string;
   totalPrice: number;
+  paymentProvider?: string;
   user?: User;
   items?: OrderItem[];
   payments?: Payment[];
@@ -137,6 +154,7 @@ export interface OrderItem {
   quantity: number;
   pricePerCredit: number;
   subtotal: number;
+  retired?: boolean;
   order?: Order;
   carbonCredit?: CarbonCredit;
 }
@@ -148,15 +166,6 @@ export interface CartItem {
   carbonCreditId: number;
   quantity: number;
   carbonCredit?: CarbonCredit;
-}
-
-// Bookmark
-export interface Bookmark {
-  id: number;
-  userId: number;
-  forestId: number;
-  createdAt: string;
-  forest?: Forest;
 }
 
 // Exchange Rate
@@ -182,45 +191,6 @@ export interface ForestZone {
   status?: string;
 }
 
-// Notification Types
-export interface Notification {
-  id: string;
-  userId: number;
-  type: "order" | "credit" | "system" | "payment";
-  title: string;
-  message: string;
-  data?: NotificationData;
-  read: boolean;
-  readAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  user?: User;
-}
-
-// Notification Data
-export interface NotificationData {
-  orderId?: number;
-  creditId?: number;
-  forestName?: string;
-  event?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-export interface NotificationContextType {
-  notifications: Notification[];
-  unreadCount: number;
-  isLoading: boolean;
-  error: string | null;
-  markAsRead: (notificationId: string) => Promise<void>;
-  markAllAsRead: () => Promise<void>;
-  fetchNotifications: (force?: boolean) => Promise<void>;
-  addNotification: (
-    notification: Omit<Notification, "id" | "createdAt" | "updatedAt">,
-  ) => void;
-  clearError: () => void;
-}
-
 // API Response Types
 export interface ApiResponse<T> {
   data?: T;
@@ -231,6 +201,33 @@ export interface ApiResponse<T> {
     hasMore: boolean;
     total: number;
   };
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AppNotification {
+  id: string;
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  priority: 'info' | 'success' | 'warning' | 'error' | string;
+  status: 'unread' | 'read' | 'archived' | string;
+  entityType?: string | null;
+  entityId?: string | null;
+  dedupeKey: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  readAt?: string | null;
+  archivedAt?: string | null;
 }
 
 // Admin Analytics Types

@@ -1,20 +1,24 @@
-import { prisma } from "./prisma";
-import * as crypto from "crypto";
-import type { Certificate, Order, User, CarbonCredit, Forest } from "../types";
-import { OrderStatus } from "@prisma/client";
+import { prisma } from './prisma';
+import * as crypto from 'crypto';
+import type { Certificate, Order, User, CarbonCredit, Forest } from '../types';
+import { OrderStatus } from '@prisma/client';
 
 // Helper function to convert Prisma Date to string
-function convertPrismaDates(obj: any): any {
-  if (!obj || typeof obj !== "object") return obj;
+function convertPrismaDates(obj: Record<string, unknown>): Record<string, unknown> {
+  if (!obj || typeof obj !== 'object') return obj as Record<string, unknown>;
 
   const converted = { ...obj };
   for (const [key, value] of Object.entries(converted)) {
     if (value instanceof Date) {
       converted[key] = value.toISOString();
-    } else if (value && typeof value === "object" && !Array.isArray(value)) {
-      converted[key] = convertPrismaDates(value);
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      converted[key] = convertPrismaDates(value as Record<string, unknown>);
     } else if (Array.isArray(value)) {
-      converted[key] = value.map((item) => (typeof item === "object" && item !== null ? convertPrismaDates(item) : item));
+      converted[key] = value.map((item) =>
+        typeof item === 'object' && item !== null
+          ? convertPrismaDates(item as Record<string, unknown>)
+          : item,
+      );
     }
   }
   return converted;
@@ -28,6 +32,7 @@ export interface CertificateData {
   userEmail: string;
   forestName: string;
   forestType: string;
+  forestNames?: string[];
   totalCredits: number;
   totalValue: number;
   purchaseDate: string;
@@ -45,7 +50,7 @@ export class CertificateService {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    this.baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
   }
 
   /**
@@ -84,7 +89,7 @@ export class CertificateService {
     });
 
     if (existingCertificate) {
-      return convertPrismaDates(existingCertificate);
+      return convertPrismaDates(existingCertificate) as unknown as Certificate;
     }
 
     // Prepare certificate data
@@ -98,19 +103,36 @@ export class CertificateService {
       data: {
         orderId,
         certificateHash,
-        metadata: certificateData as any,
-        status: "active",
+        metadata: certificateData as object,
+        status: 'active',
       },
     });
 
-    return convertPrismaDates(certificate);
+    return convertPrismaDates(certificate) as unknown as Certificate;
   }
 
   /**
    * Prepare certificate data from order
    */
-  private prepareCertificateData(order: any): CertificateData {
-    const items = order.items.map((item: any) => ({
+  private prepareCertificateData(order: {
+    id: number;
+    userId: number;
+    totalCredits?: number;
+    totalPrice: number;
+    createdAt: Date;
+    user: { firstName: string; lastName: string; email: string };
+    items: Array<{
+      quantity: number;
+      pricePerCredit: number;
+      subtotal: number;
+      carbonCredit: {
+        certification: string;
+        vintage: number;
+        forest: { name: string; type: string } | null;
+      };
+    }>;
+  }): CertificateData {
+    const items = order.items.map((item) => ({
       certification: item.carbonCredit.certification,
       vintage: item.carbonCredit.vintage,
       quantity: item.quantity,
@@ -118,7 +140,16 @@ export class CertificateService {
       subtotal: item.subtotal,
     }));
 
+    const uniqueForestNames = Array.from(
+      new Set(
+        order.items
+          .map((item) => item.carbonCredit?.forest?.name)
+          .filter((name): name is string => Boolean(name && name.trim())),
+      ),
+    );
+
     const certificateId = `CC-${order.id}-${Date.now()}`;
+    const computedTotalCredits = items.reduce((sum, item) => sum + item.quantity, 0);
 
     return {
       certificateId,
@@ -126,12 +157,13 @@ export class CertificateService {
       userId: order.userId,
       userName: `${order.user.firstName} ${order.user.lastName}`,
       userEmail: order.user.email,
-      forestName: order.items[0]?.carbonCredit?.forest?.name || "Unknown Forest",
-      forestType: order.items[0]?.carbonCredit?.forest?.type || "Unknown Type",
-      totalCredits: order.totalCredits,
+      forestName: uniqueForestNames[0] || 'Unknown Forest',
+      forestType: order.items[0]?.carbonCredit?.forest?.type || 'Unknown Type',
+      forestNames: uniqueForestNames,
+      totalCredits: computedTotalCredits,
       totalValue: order.totalPrice,
       purchaseDate: order.createdAt.toISOString(),
-      certificateHash: "", // Will be set after generation
+      certificateHash: '', // Will be set after generation
       items,
     };
   }
@@ -149,7 +181,7 @@ export class CertificateService {
       purchaseDate: data.purchaseDate,
     });
 
-    return crypto.createHash("sha256").update(dataString).digest("hex");
+    return crypto.createHash('sha256').update(dataString).digest('hex');
   }
 
   /**
@@ -175,7 +207,7 @@ export class CertificateService {
         },
       },
     });
-    return certificate ? convertPrismaDates(certificate) : null;
+    return certificate ? (convertPrismaDates(certificate) as unknown as Certificate) : null;
   }
 
   /**
@@ -201,7 +233,7 @@ export class CertificateService {
         },
       },
     });
-    return certificate ? convertPrismaDates(certificate) : null;
+    return certificate ? (convertPrismaDates(certificate) as unknown as Certificate) : null;
   }
 
   /**
@@ -231,10 +263,12 @@ export class CertificateService {
         },
       },
       orderBy: {
-        createdAt: "desc",
+        createdAt: 'desc',
       },
     });
-    return certificates.map(convertPrismaDates);
+    return certificates.map(
+      (c: Record<string, unknown>) => convertPrismaDates(c) as unknown as Certificate,
+    );
   }
 }
 

@@ -1,253 +1,256 @@
-import { headers } from "next/headers";
-import { NextResponse } from "next/server";
-import Stripe from "stripe";
-import { prisma } from "@/lib/prisma";
-import { certificateService } from "@/lib/certificate-service";
-import { notificationService } from "@/lib/notification-service";
-import { orderAuditService } from "@/lib/order-audit-service";
-import { orderAuditMiddleware } from "@/lib/order-audit-middleware";
-import { carbonMovementService } from "@/lib/carbon-movement-service";
-import { env } from "@/lib/env";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { certificateService } from '@/lib/certificate-service';
+import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
+import { carbonMovementService } from '@/lib/carbon-movement-service';
+import { paymentService } from '@/lib/payment-service';
+import { getPayOSService, type PayOSWebhookData } from '@/lib/payos-service';
+import { emailService } from '@/lib/email-service';
+import {
+  notifyCertificateIssued,
+  notifyOrderFailed,
+  notifyOrderPaid,
+  notifyWebhookFailed,
+} from '@/lib/notification-emitter';
+import crypto from 'crypto';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY);
-
-const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
-
-export async function POST(req: Request) {
-  const body = await req.text();
-  const sig = headers().get("stripe-signature");
-
-  if (!sig) {
-    console.error("No signature found in webhook");
-    return new NextResponse("No signature found", { status: 400 });
-  }
-
-  let event: Stripe.Event;
+function getPayosService() {
   try {
-    event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-  } catch (err: any) {
-    console.error("Webhook signature verification failed.", err.message);
-    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+    return getPayOSService();
+  } catch (error) {
+    console.error('Failed to load PayOS service', error);
+    return null;
   }
+}
 
-  console.log(
-    `🔔 Webhook received: ${event.type} at ${new Date().toISOString()}`,
-  );
+export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+  let orderCodeForError = 0;
 
-  // Handle the event
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      console.log(`💳 Checkout session completed: ${session.id}`);
+  try {
+    const rawBody = await req.text();
 
-      // Find the payment by stripeSessionId in paymentData
-      const payment = await prisma.payment.findFirst({
-        where: {
-          paymentData: {
-            path: ["stripeSessionId"],
-            equals: session.id,
-          },
-        },
-      });
-      console.log(
-        `🔍 Payment found:`,
-        payment ? `Order ${payment.orderId}` : "None",
+    if (!rawBody || rawBody.trim().length === 0) {
+      return NextResponse.json({ message: 'Webhook endpoint is active', received: true });
+    }
+
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const payosServiceInstance = getPayosService();
+    if (!payosServiceInstance) {
+      return NextResponse.json(
+        { error: 'PayOS service not configured. Please check environment variables.' },
+        { status: 500 },
       );
-
-      if (payment) {
-        // Mark payment as paid
-        await prisma.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: "PAID",
-            paidAt: new Date(),
-            amount: session.amount_total
-              ? session.amount_total / 100
-              : payment.amount,
-            currency: session.currency
-              ? session.currency.toUpperCase()
-              : payment.currency,
-            paymentData: {
-              ...((payment.paymentData as any) || {}),
-              stripePaymentIntentId: session.payment_intent
-                ? String(session.payment_intent)
-                : undefined,
-            },
-          },
-        });
-
-        // Mark order as completed and set paidAt
-        const order = await prisma.order.update({
-          where: { id: payment.orderId },
-          data: {
-            status: "COMPLETED",
-            paidAt: new Date(),
-          },
-          include: {
-            items: {
-              include: {
-                carbonCredit: true,
-              },
-            },
-          },
-        });
-
-        // Calculate total credits from order items
-        const totalCredits = order.items.reduce(
-          (sum, item) => sum + item.quantity,
-          0,
-        );
-
-        console.log(
-          `Processing webhook for order ${order.id}: ${totalCredits} credits, $${order.totalPrice}, paid at ${order.paidAt}`,
-        );
-
-        // Run independent post-payment tasks concurrently
-        await Promise.all([
-          // Add OrderHistory event
-          prisma.orderHistory.create({
-            data: {
-              orderId: payment.orderId,
-              event: "paid",
-              message: `Order paid via Stripe session ${session.id}`,
-            },
-          }),
-
-          // Store immutable audit trail in ImmuDB using middleware
-          orderAuditMiddleware.ensureOrderAudit(order.id).then((auditResult) => {
-            if (auditResult.created) {
-              console.log(`✅ New audit trail created for order ${order.id}`);
-            } else if (auditResult.exists) {
-              console.log(`ℹ️ Audit trail already exists for order ${order.id}`);
-            } else if (auditResult.error) {
-              console.error(
-                `❌ Failed to create audit trail for order ${order.id}: ${auditResult.error}`,
-              );
-            }
-          }).catch((auditError: any) => {
-            console.error(
-              `❌ Error in audit middleware for order ${order.id}:`,
-              auditError.message,
-            );
-          }),
-
-          // Track carbon credit movement in Neo4j
-          carbonMovementService.trackOrderMovement(order.id).then(() => {
-            console.log(
-              `✅ Carbon credit movement tracked for order ${order.id}`,
-            );
-          }).catch((movementError: any) => {
-            console.error(
-              `❌ Error tracking movement for order ${order.id}:`,
-              movementError.message,
-            );
-          }),
-
-          // Create order update notification
-          notificationService.createOrderNotification(
-            order.userId,
-            order.id,
-            "Payment Completed",
-            `Your order #${order.id} has been paid successfully.`,
-          ).catch((notifError: any) => {
-            console.error(
-              "Error creating order notification:",
-              notifError.message,
-            );
-          }),
-
-          // Clear the user's cart after successful payment
-          order.userId
-            ? prisma.cartItem.deleteMany({ where: { userId: order.userId } })
-            : Promise.resolve(),
-
-          // Generate certificate and send payment notification
-          certificateService.generateCertificate(order.id).then(() => {
-            return notificationService.createPaymentNotification(
-              order.userId,
-              order.id,
-              "Successful",
-              `Payment received for order #${order.id}. Your certificate is ready!`,
-            ).catch((notifError: any) => {
-              console.error(
-                "Error creating payment notification:",
-                notifError.message,
-              );
-            });
-          }).catch((certError: any) => {
-            console.error(
-              "Error generating certificate for order:",
-              order.id,
-              certError.message,
-            );
-          }),
-        ]);
-      } else {
-        console.error("No payment found for session:", session.id);
-      }
-      break;
     }
-    case "payment_intent.payment_failed": {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      // Find the payment by stripePaymentIntentId in paymentData
-      const payment = await prisma.payment.findFirst({
-        where: {
-          paymentData: {
-            path: ["stripePaymentIntentId"],
-            equals: paymentIntent.id,
-          },
+
+    let webhookData: PayOSWebhookData;
+    try {
+      const verifiedData = await payosServiceInstance.verifyWebhookSignature(body);
+      webhookData = {
+        code: body.code,
+        desc: body.desc,
+        data: verifiedData,
+        signature: body.signature,
+      } as PayOSWebhookData;
+    } catch (error: any) {
+      console.error('PayOS webhook signature verification failed', error?.message);
+      return NextResponse.json(
+        {
+          error: 'Invalid signature',
+          message: error?.message || 'Webhook signature verification failed',
+        },
+        { status: 401 },
+      );
+    }
+
+    if (!webhookData.data || !webhookData.data.orderCode) {
+      return NextResponse.json({ error: 'Invalid webhook data' }, { status: 400 });
+    }
+
+    const orderCode = Number(webhookData.data.orderCode);
+    orderCodeForError = orderCode;
+
+    const order = await prisma.order.findUnique({
+      where: { orderCode },
+      include: {
+        items: { include: { carbonCredit: true } },
+      },
+    });
+
+    if (!order) {
+      return NextResponse.json({
+        success: true,
+        message: 'Webhook received but order not found',
+        orderCode,
+      });
+    }
+
+    const { processed } = await paymentService.processPayOSWebhook(webhookData, orderCode);
+
+    if (!processed) {
+      return NextResponse.json({ success: true, message: 'Webhook already processed' });
+    }
+
+    if (webhookData.code === '00' && webhookData.data.code === '00') {
+      await prisma.order.update({
+        where: { orderCode },
+        data: { status: 'COMPLETED', paidAt: new Date() },
+      });
+
+      await prisma.orderHistory.create({
+        data: {
+          orderId: order.id,
+          event: 'paid',
+          message: `Order paid via PayOS webhook (orderCode: ${orderCode})`,
         },
       });
-      if (payment) {
-        const failureMessage = paymentIntent.last_payment_error?.message || "Unknown error";
 
-        // Mark payment and order as failed concurrently
-        const [, order] = await Promise.all([
-          prisma.payment.update({
-            where: { id: payment.id },
-            data: {
-              status: "FAILED",
-              failureReason: failureMessage,
-            },
-          }),
-          prisma.order.update({
-            where: { id: payment.orderId },
-            data: {
-              status: "FAILED",
-            },
-          }),
-        ]);
-
-        // Add history and notification concurrently
-        await Promise.all([
-          prisma.orderHistory.create({
-            data: {
-              orderId: payment.orderId,
-              event: "failed",
-              message: `Payment failed: ${failureMessage}`,
-            },
-          }),
-          notificationService.createPaymentNotification(
-            order.userId,
-            order.id,
-            "Failed",
-            `Payment failed for order #${order.id}. Please try again.`,
-          ).catch((notifError: any) => {
-            console.error(
-              "Error creating payment failure notification:",
-              notifError.message,
-            );
-          }),
-        ]);
+      try {
+        await notifyOrderPaid(order.userId, order.id, orderCode);
+      } catch (notificationError) {
+        console.error('Failed to create order paid notification:', notificationError);
       }
-      break;
+
+      try {
+        const auditResult = await orderAuditMiddleware.ensureOrderAudit(order.id);
+        if (auditResult.created) {
+          console.log(`Audit trail created for order ${order.id}`);
+        }
+      } catch (auditError) {
+        console.error(`Failed to create audit trail for order ${order.id}:`, auditError);
+      }
+
+      try {
+        await carbonMovementService.trackOrderMovement(order.id);
+      } catch (movementError) {
+        console.error(`Failed to track movement for order ${order.id}:`, movementError);
+      }
+
+      if (order.userId) {
+        await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
+      }
+
+      try {
+        const cert = await certificateService.generateCertificate(order.id);
+
+        if (cert && typeof cert === 'object' && 'id' in cert) {
+          try {
+            await notifyCertificateIssued(order.userId, order.id, String(cert.id), orderCode);
+          } catch (notificationError) {
+            console.error('Failed to create certificate notification:', notificationError);
+          }
+        }
+
+        if (cert && emailService.isEnabled()) {
+          try {
+            const fullOrder = await prisma.order.findUnique({
+              where: { id: order.id },
+              include: {
+                user: true,
+                items: {
+                  include: {
+                    carbonCredit: { include: { forest: { select: { name: true } } } },
+                  },
+                },
+              },
+            });
+
+            if (fullOrder?.user) {
+              const userName = `${fullOrder.user.firstName} ${fullOrder.user.lastName}`.trim();
+
+              await emailService.sendOrderConfirmation({
+                userName,
+                userEmail: fullOrder.user.email,
+                orderId: fullOrder.id,
+                orderCode: fullOrder.orderCode,
+                totalPrice: fullOrder.totalPrice,
+                items: fullOrder.items.map((item) => ({
+                  certification: item.carbonCredit?.certification ?? '',
+                  vintage: item.carbonCredit?.vintage ?? 0,
+                  quantity: item.quantity,
+                  pricePerCredit: item.pricePerCredit,
+                  subtotal: item.subtotal,
+                  forestName: item.carbonCredit?.forest?.name,
+                })),
+              });
+
+              const certData = cert as unknown as {
+                id?: string;
+                metadata?: { totalCredits?: number; forestName?: string };
+              };
+              if (certData.id) {
+                await emailService.sendCertificateIssued({
+                  userName,
+                  userEmail: fullOrder.user.email,
+                  certificateId: certData.id,
+                  orderId: fullOrder.id,
+                  totalCredits: certData.metadata?.totalCredits ?? 0,
+                  forestName: certData.metadata?.forestName ?? 'Forest',
+                });
+              }
+            }
+          } catch (emailErr) {
+            console.error(`Failed to send emails for order ${order.id}:`, emailErr);
+          }
+        }
+      } catch (certError) {
+        console.error('Error generating certificate for order:', order.id, certError);
+      }
+    } else {
+      await prisma.order.update({
+        where: { orderCode },
+        data: { status: 'FAILED' },
+      });
+
+      await prisma.orderHistory.create({
+        data: {
+          orderId: order.id,
+          event: 'failed',
+          message: `Payment failed via PayOS webhook (orderCode: ${orderCode})`,
+        },
+      });
+
+      try {
+        await notifyOrderFailed(order.userId, order.id, orderCode);
+      } catch (notificationError) {
+        console.error('Failed to create order failed notification:', notificationError);
+      }
     }
-    // Add more event types as needed
-    default:
-      // Unhandled event type - log for debugging if needed
-      break;
+
+    return NextResponse.json({
+      success: true,
+      message: 'Webhook processed successfully',
+      orderCode,
+    });
+  } catch (error) {
+    console.error(`PayOS webhook processing error [${requestId}]:`, error);
+    if (orderCodeForError) {
+      try {
+        await notifyWebhookFailed(orderCodeForError, 'Unhandled webhook processing error');
+      } catch (notificationError) {
+        console.error('Failed to create webhook failure notification:', notificationError);
+      }
+    }
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
-  return new NextResponse(null, { status: 200 });
+}
+
+export async function GET() {
+  const payosServiceInstance = getPayosService();
+  return NextResponse.json({
+    message: 'PayOS webhook endpoint is active',
+    url: '/api/webhook',
+    configured: !!payosServiceInstance,
+    note: payosServiceInstance
+      ? 'PayOS service is configured and ready'
+      : 'PayOS service not configured. Please set PAYOS_CLIENT_ID, PAYOS_API_KEY, and PAYOS_CHECKSUM_KEY in .env',
+  });
 }

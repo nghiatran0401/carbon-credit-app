@@ -1,324 +1,249 @@
-import { prisma } from "./prisma";
-import { Notification } from "@/types";
+import { prisma } from '@/lib/prisma';
+import type {
+  NotificationEvent,
+  NotificationPriority,
+  NotificationType,
+} from '@/lib/notification-events';
+import { Prisma } from '@prisma/client';
 
-export interface CreateNotificationData {
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+type NotificationStatusFilter = 'unread' | 'read' | 'archived' | 'all';
+
+type ListUserNotificationsParams = {
   userId: number;
-  type: "order" | "credit" | "system" | "payment";
+  page?: number;
+  limit?: number;
+  status?: NotificationStatusFilter;
+  type?: NotificationType;
+};
+
+type CreateNotificationInput = {
+  userIds: number[];
+  type: NotificationType;
   title: string;
   message: string;
-  data?: any;
+  priority?: NotificationPriority;
+  entityType?: string;
+  entityId?: string;
+  dedupeKey: string;
+  metadata?: Record<string, unknown>;
+};
+
+function toPositiveInt(value: number | undefined, fallback: number) {
+  if (!value || Number.isNaN(value) || value < 1) return fallback;
+  return Math.floor(value);
 }
 
-export class NotificationService {
-  private prisma = prisma;
-
-  private validateNotificationData(data: CreateNotificationData): void {
-    if (!data.userId || data.userId <= 0) {
-      throw new Error("Invalid user ID");
-    }
-    if (
-      !data.type ||
-      !["order", "credit", "system", "payment"].includes(data.type)
-    ) {
-      throw new Error("Invalid notification type");
-    }
-    if (!data.title || data.title.trim().length === 0) {
-      throw new Error("Title is required");
-    }
-    if (!data.message || data.message.trim().length === 0) {
-      throw new Error("Message is required");
-    }
-    if (data.title.length > 200) {
-      throw new Error("Title too long (max 200 characters)");
-    }
-    if (data.message.length > 1000) {
-      throw new Error("Message too long (max 1000 characters)");
-    }
-  }
-
-  private convertPrismaNotification(notification: any): Notification {
-    return {
-      id: notification.id,
-      userId: notification.userId,
-      type: notification.type as "order" | "credit" | "system" | "payment",
-      title: notification.title,
-      message: notification.message,
-      data: notification.metadata,
-      read: notification.status === "read",
-      readAt: notification.readAt?.toISOString(),
-      createdAt:
-        notification.createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt:
-        notification.createdAt?.toISOString() || new Date().toISOString(),
-      user: notification.user
-        ? {
-            ...notification.user,
-            createdAt:
-              notification.user.createdAt?.toISOString() ||
-              new Date().toISOString(),
-            updatedAt:
-              notification.user.updatedAt?.toISOString() ||
-              new Date().toISOString(),
-          }
-        : undefined,
-    };
-  }
-
-  async createNotification(
-    data: CreateNotificationData,
-  ): Promise<Notification> {
-    try {
-      this.validateNotificationData(data);
-
-      const notification = await this.prisma.notification.create({
-        data: {
-          userId: data.userId,
-          type: data.type,
-          title: data.title.trim(),
-          message: data.message.trim(),
-          metadata: data.data || {},
-          dedupeKey: `${data.type}-${Date.now()}`,
-          priority: "info",
-          status: "unread",
-        },
-        include: {
-          user: true,
-        },
-      });
-
-      const notificationData = this.convertPrismaNotification(notification);
-
-      // Send real-time notification via WebSocket (non-blocking)
-      this.sendWebSocketNotification(data.userId, notificationData).catch(
-        (error) => {
-          console.error("Failed to send WebSocket notification:", error);
-        },
-      );
-
-      return notificationData;
-    } catch (error) {
-      console.error("Error creating notification:", error);
-      throw error;
-    }
-  }
-
-  private async sendWebSocketNotification(
-    userId: number,
-    notification: Notification,
-  ): Promise<void> {
-    // WebSocket notifications handled by polling - no action needed
-  }
-
-  async getUserNotifications(
-    userId: number,
-    limit = 50,
-    offset = 0,
-  ): Promise<Notification[]> {
-    try {
-      if (!userId || userId <= 0) {
-        throw new Error("Invalid user ID");
-      }
-      if (limit < 1 || limit > 100) {
-        throw new Error("Invalid limit (must be between 1 and 100)");
-      }
-      if (offset < 0) {
-        throw new Error("Invalid offset (must be non-negative)");
-      }
-
-      const notifications = await this.prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: limit,
-        skip: offset,
-        include: {
-          user: true,
-        },
-      });
-
-      return notifications.map((notification) =>
-        this.convertPrismaNotification(notification),
-      );
-    } catch (error) {
-      console.error("Error fetching user notifications:", error);
-      throw error;
-    }
-  }
-
-  async getUnreadCount(userId: number): Promise<number> {
-    try {
-      if (!userId || userId <= 0) {
-        throw new Error("Invalid user ID");
-      }
-
-      return await this.prisma.notification.count({
-        where: {
-          userId,
-          status: "unread",
-        },
-      });
-    } catch (error) {
-      console.error("Error getting unread count:", error);
-      throw error;
-    }
-  }
-
-  async markAsRead(notificationId: string): Promise<Notification> {
-    try {
-      if (!notificationId || notificationId.trim().length === 0) {
-        throw new Error("Invalid notification ID");
-      }
-
-      const notification = await this.prisma.notification.update({
-        where: { id: notificationId },
-        data: {
-          status: "read",
-          readAt: new Date(),
-        },
-        include: {
-          user: true,
-        },
-      });
-
-      return this.convertPrismaNotification(notification);
-    } catch (error) {
-      console.error("Error marking notification as read:", error);
-      throw error;
-    }
-  }
-
-  async markAllAsRead(userId: number): Promise<void> {
-    try {
-      if (!userId || userId <= 0) {
-        throw new Error("Invalid user ID");
-      }
-
-      await this.prisma.notification.updateMany({
-        where: {
-          userId,
-          status: "unread",
-        },
-        data: {
-          status: "read",
-          readAt: new Date(),
-        },
-      });
-    } catch (error) {
-      console.error("Error marking all notifications as read:", error);
-      throw error;
-    }
-  }
-
-  // Helper methods for creating specific types of notifications
-  async createOrderNotification(
-    userId: number,
-    orderId: number,
-    event: string,
-    message: string,
-  ): Promise<Notification> {
-    return await this.createNotification({
-      userId,
-      type: "order",
-      title: `Order Update - #${orderId}`,
-      message,
-      data: { orderId, event },
-    });
-  }
-
-  async createCreditNotification(
-    userId: number,
-    creditId: number,
-    forestName: string,
-    event: string,
-  ): Promise<Notification> {
-    return await this.createNotification({
-      userId,
-      type: "credit",
-      title: `New Credits Available`,
-      message: `${event} in ${forestName}`,
-      data: { creditId, forestName, event },
-    });
-  }
-
-  async createPaymentNotification(
-    userId: number,
-    orderId: number,
-    status: string,
-    message: string,
-  ): Promise<Notification> {
-    return await this.createNotification({
-      userId,
-      type: "payment",
-      title: `Payment ${status}`,
-      message,
-      data: { orderId, status },
-    });
-  }
-
-  async createSystemNotification(
-    userId: number,
-    title: string,
-    message: string,
-  ): Promise<Notification> {
-    return await this.createNotification({
-      userId,
-      type: "system",
-      title,
-      message,
-    });
-  }
-
-  // Batch operations for better performance
-  async createBatchNotifications(
-    notifications: CreateNotificationData[],
-  ): Promise<Notification[]> {
-    try {
-      const settledResults = await Promise.allSettled(
-        notifications.map((notificationData) =>
-          this.createNotification(notificationData),
-        ),
-      );
-
-      const results: Notification[] = [];
-      for (let i = 0; i < settledResults.length; i++) {
-        const result = settledResults[i];
-        if (result.status === "fulfilled") {
-          results.push(result.value);
-        } else {
-          console.error(
-            `Failed to create notification for user ${notifications[i].userId}:`,
-            result.reason,
-          );
-        }
-      }
-
-      return results;
-    } catch (error) {
-      console.error("Error creating batch notifications:", error);
-      throw error;
-    }
-  }
-
-  // Cleanup old notifications (for maintenance)
-  async cleanupOldNotifications(daysOld: number = 90): Promise<number> {
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-
-      const result = await this.prisma.notification.deleteMany({
-        where: {
-          createdAt: {
-            lt: cutoffDate,
-          },
-          status: "read", // Only delete read notifications
-        },
-      });
-
-      return result.count;
-    } catch (error) {
-      console.error("Error cleaning up old notifications:", error);
-      throw error;
-    }
-  }
+function normalizeUserIds(userIds: number[]) {
+  return Array.from(new Set(userIds.filter((id) => Number.isInteger(id) && id > 0)));
 }
 
-export const notificationService = new NotificationService();
+async function createSingleNotification(input: {
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  priority: string;
+  entityType?: string;
+  entityId?: string;
+  dedupeKey: string;
+  metadata?: Record<string, unknown>;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.notification.findFirst({
+      where: {
+        userId: input.userId,
+        type: input.type,
+        dedupeKey: input.dedupeKey,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const notification = await tx.notification.create({
+      data: {
+        userId: input.userId,
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        priority: input.priority,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        dedupeKey: input.dedupeKey,
+        metadata: (input.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+      },
+    });
+
+    await tx.notificationDelivery.create({
+      data: {
+        notificationId: notification.id,
+        channel: 'in_app',
+        deliveryState: 'delivered',
+      },
+    });
+
+    return notification;
+  });
+}
+
+async function createNotificationForUsers(input: CreateNotificationInput) {
+  const userIds = normalizeUserIds(input.userIds);
+  if (!userIds.length) return [];
+
+  const created = await Promise.all(
+    userIds.map((userId) =>
+      createSingleNotification({
+        userId,
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        priority: input.priority ?? 'info',
+        entityType: input.entityType,
+        entityId: input.entityId,
+        dedupeKey: input.dedupeKey,
+        metadata: input.metadata,
+      }),
+    ),
+  );
+
+  return created;
+}
+
+async function publishEvent(event: NotificationEvent) {
+  return createNotificationForUsers({
+    userIds: event.payload.recipients,
+    type: event.type,
+    title: event.payload.title,
+    message: event.payload.message,
+    priority: event.payload.priority,
+    entityType: event.payload.entityType,
+    entityId: event.payload.entityId,
+    dedupeKey: event.dedupeKey,
+    metadata: {
+      ...event.payload.metadata,
+      emittedAt: event.emittedAt,
+    },
+  });
+}
+
+async function listUserNotifications({
+  userId,
+  page = 1,
+  limit = DEFAULT_PAGE_SIZE,
+  status = 'all',
+  type,
+}: ListUserNotificationsParams) {
+  const safePage = toPositiveInt(page, 1);
+  const safeLimit = Math.min(toPositiveInt(limit, DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE);
+  const skip = (safePage - 1) * safeLimit;
+
+  const where: Record<string, unknown> = { userId };
+  if (status !== 'all') {
+    where.status = status;
+  }
+  if (type) {
+    where.type = type;
+  }
+
+  const [items, total] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: safeLimit,
+    }),
+    prisma.notification.count({ where }),
+  ]);
+
+  return {
+    data: items,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
+    },
+  };
+}
+
+async function markRead(userId: number, notificationId: string) {
+  const existing = await prisma.notification.findUnique({
+    where: { id: notificationId },
+    select: { id: true, userId: true, status: true },
+  });
+
+  if (!existing || existing.userId !== userId) {
+    return null;
+  }
+
+  if (existing.status === 'read') {
+    return prisma.notification.findUnique({ where: { id: notificationId } });
+  }
+
+  return prisma.notification.update({
+    where: { id: notificationId },
+    data: {
+      status: 'read',
+      readAt: new Date(),
+      archivedAt: null,
+    },
+  });
+}
+
+async function markAllRead(userId: number) {
+  const now = new Date();
+  const result = await prisma.notification.updateMany({
+    where: {
+      userId,
+      status: 'unread',
+    },
+    data: {
+      status: 'read',
+      readAt: now,
+    },
+  });
+
+  return result.count;
+}
+
+async function archive(userId: number, notificationId: string) {
+  const existing = await prisma.notification.findUnique({
+    where: { id: notificationId },
+    select: { id: true, userId: true },
+  });
+
+  if (!existing || existing.userId !== userId) {
+    return null;
+  }
+
+  return prisma.notification.update({
+    where: { id: notificationId },
+    data: {
+      status: 'archived',
+      archivedAt: new Date(),
+    },
+  });
+}
+
+async function getUnreadCount(userId: number) {
+  return prisma.notification.count({
+    where: {
+      userId,
+      status: 'unread',
+    },
+  });
+}
+
+export const notificationService = {
+  publishEvent,
+  createNotificationForUsers,
+  listUserNotifications,
+  markRead,
+  markAllRead,
+  archive,
+  getUnreadCount,
+};

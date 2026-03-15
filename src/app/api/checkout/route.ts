@@ -1,112 +1,103 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
-import Stripe from "stripe";
+export const dynamic = 'force-dynamic';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { env } from '@/lib/env';
+import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
+import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { paymentService } from '@/lib/payment-service';
+import { getPayOSService } from '@/lib/payos-service';
 
 const baseUrl = env.NEXT_PUBLIC_BASE_URL;
-const stripe = new Stripe(env.STRIPE_SECRET_KEY);
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { userId, cartItems } = body;
-  if (!userId)
-    return NextResponse.json({ error: "Missing userId" }, { status: 400 });
-  if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
-    return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
-  }
+  const rateLimited = checkRateLimit(req, RATE_LIMITS.checkout, 'checkout');
+  if (rateLimited) return rateLimited;
 
-  // Calculate totals
-  let total = 0;
-  let totalCredits = 0;
-  for (const item of cartItems) {
-    const price = item.carbonCredit?.pricePerCredit || item.price || 0;
-    total += price * item.quantity;
-    totalCredits += item.quantity;
-  }
+  try {
+    const auth = await requireAuth(req);
+    if (isAuthError(auth)) return auth;
 
-  // Create Stripe Checkout Session
-  const line_items = cartItems.map((item: any) => {
-    const price = item.carbonCredit?.pricePerCredit || item.price || 0;
-    const name =
-      item.carbonCredit?.forest?.name || item.name || "Carbon Credit";
+    const userId = auth.id;
 
-    if (!price || price <= 0) {
-      throw new Error(`Invalid price for item: ${name}`);
+    const cartItems = await prisma.cartItem.findMany({
+      where: { userId },
+      include: {
+        carbonCredit: {
+          include: { forest: true },
+        },
+      },
+    });
+
+    if (!cartItems || cartItems.length === 0) {
+      return NextResponse.json({ error: 'Cart is empty' }, { status: 400 });
     }
 
-    return {
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: name,
-          metadata: {
-            seller: item.seller || name,
-          },
-        },
-        unit_amount: Math.round(price * 100),
-      },
-      quantity: item.quantity,
-    };
-  });
+    let total = 0;
+    let totalCredits = 0;
+    for (const item of cartItems) {
+      const price = item.carbonCredit.pricePerCredit;
+      if (!price || price <= 0) {
+        return NextResponse.json(
+          { error: `Invalid price for credit #${item.carbonCreditId}` },
+          { status: 400 },
+        );
+      }
+      total += price * item.quantity;
+      totalCredits += item.quantity;
+    }
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    line_items,
-    mode: "payment",
-    success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/cart`,
-    metadata: { userId: String(userId) },
-  });
+    const orderCode = await paymentService.generateUniqueOrderCode();
+    const sellerName = cartItems[0]?.carbonCredit?.forest?.name || 'Platform';
 
-  // Generate unique order code (use last 9 digits of timestamp to fit in INT4)
-  const orderCode = Date.now() % 1000000000;
-
-  // Create Order (pending)
-  const order = await prisma.order.create({
-    data: {
-      userId,
+    const order = await paymentService.createPayOSOrder({
       orderCode,
-      status: "PENDING",
+      userId,
       totalPrice: total,
       totalCredits,
-      currency: "USD",
-      buyer: String(userId), // <- added
-      seller: cartItems[0]?.seller || "Platform", // <- added (fallback)
-      items: {
-        create: cartItems.map((item: any) => {
-          const price = item.carbonCredit?.pricePerCredit || item.price || 0;
-          return {
-            carbonCreditId: item.carbonCreditId || 1, // fallback for demo
-            quantity: item.quantity,
-            pricePerCredit: price,
-            subtotal: price * item.quantity,
-          };
-        }),
-      },
-    },
-  });
+      currency: 'USD',
+      seller: sellerName,
+      buyer: String(userId),
+      cartItems: cartItems.map((item) => ({
+        carbonCreditId: item.carbonCreditId,
+        quantity: item.quantity,
+        pricePerCredit: item.carbonCredit.pricePerCredit,
+        subtotal: item.carbonCredit.pricePerCredit * item.quantity,
+      })),
+    });
 
-  // Create Payment and OrderHistory concurrently (both depend on order.id but not each other)
-  await Promise.all([
-    prisma.payment.create({
-      data: {
-        orderId: order.id,
-        orderCode,
-        amount: total,
-        currency: "USD",
-        status: "PENDING",
-        method: "card",
-        paymentData: { stripeSessionId: session.id },
-      },
-    }),
-    prisma.orderHistory.create({
-      data: {
-        orderId: order.id,
-        event: "created",
-        message: `Order created and awaiting payment via Stripe session ${session.id}`,
-      },
-    }),
-  ]);
+    // Fixed 2000 VND for testing — replace with real conversion in production
+    const payosAmount = 2000;
 
-  return NextResponse.json({ sessionId: session.id, checkoutUrl: session.url });
+    const returnUrl = `${baseUrl}/api/payment/return?orderCode=${orderCode}`;
+    const cancelUrl = `${baseUrl}/api/payment/cancel?orderCode=${orderCode}`;
+
+    const payosService = getPayOSService();
+    const paymentLink = await payosService.createPaymentLink({
+      orderCode,
+      amount: payosAmount,
+      description: `Carbon Credits Order #${order.id}`,
+      returnUrl,
+      cancelUrl,
+      buyerEmail: auth.email || undefined,
+      items: cartItems.map((item) => ({
+        name: item.carbonCredit.forest?.name || 'Carbon Credit',
+        quantity: item.quantity,
+        price: payosAmount,
+      })),
+    });
+
+    await paymentService.updatePaymentWithPayOSInfo(orderCode, {
+      payosPaymentLinkId: paymentLink.data.paymentLinkId,
+      payosOrderCode: orderCode,
+    });
+
+    return NextResponse.json({
+      orderCode,
+      checkoutUrl: paymentLink.data.checkoutUrl,
+      paymentLinkId: paymentLink.data.paymentLinkId,
+    });
+  } catch (error) {
+    return handleRouteError(error, 'Failed to create checkout session');
+  }
 }

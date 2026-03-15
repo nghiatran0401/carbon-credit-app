@@ -1,93 +1,115 @@
-import { describe, it, expect } from "vitest";
-import { GET, POST, PUT, DELETE } from "@/app/api/cart/route";
-import { NextRequest } from "next/server";
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
-const mockNextRequest = (body: any, method = "POST", searchParams?: Record<string, string>) => {
-  const url = new URL("http://localhost/api/cart");
-  if (searchParams) {
-    Object.entries(searchParams).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
-    });
-  }
+const { mockUser, mockCartItem } = vi.hoisted(() => ({
+  mockUser: {
+    id: 1,
+    email: 'user@test.com',
+    role: 'USER',
+    emailVerified: true,
+    supabaseUserId: 'user-123',
+  },
+  mockCartItem: {
+    id: 1,
+    userId: 1,
+    carbonCreditId: 1,
+    quantity: 2,
+    carbonCredit: { id: 1, forest: { name: 'Test Forest' } },
+  },
+}));
 
-  return new NextRequest(url, {
-    method,
-    headers: new Headers({
-      "Content-Type": "application/json",
+vi.mock('@/lib/auth', () => {
+  const { NextResponse } = require('next/server');
+  return {
+    requireAuth: vi.fn().mockResolvedValue(mockUser),
+    isAuthError: (r: unknown) => r instanceof NextResponse,
+    handleRouteError: vi.fn().mockImplementation((_err: unknown, msg: string) => {
+      return NextResponse.json({ error: msg }, { status: 500 });
     }),
-    body: method !== "GET" ? JSON.stringify(body) : undefined,
+  };
+});
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    cartItem: {
+      findMany: vi.fn().mockResolvedValue([mockCartItem]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ ...mockCartItem, ...data, id: 10 }),
+        ),
+      update: vi.fn().mockResolvedValue({ ...mockCartItem, quantity: 5 }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+  },
+}));
+
+vi.mock('@/lib/validation', async (importOriginal) => {
+  const { NextResponse } = require('next/server');
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isValidationError: (r: unknown) => r instanceof NextResponse,
+  };
+});
+
+import { GET, POST, PUT, DELETE } from '@/app/api/cart/route';
+
+const mockNextRequest = (body: Record<string, unknown>, method = 'POST') => {
+  return new NextRequest('http://localhost/api/cart', {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: method !== 'GET' ? JSON.stringify(body) : undefined,
   });
 };
 
-describe("Cart API", () => {
-  const userId = 1;
-  const carbonCreditId = 1;
-  let quantity = 2;
+describe('Cart API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-  it("GET /api/cart returns cart items", async () => {
-    const req = mockNextRequest({}, "GET", { userId: userId.toString() });
+  it('GET /api/cart returns cart items', async () => {
+    const req = new NextRequest('http://localhost/api/cart');
     const res = await GET(req);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(Array.isArray(data)).toBe(true);
   });
 
-  it("GET /api/cart returns 401 for missing userId", async () => {
-    const req = mockNextRequest({}, "GET");
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-    const data = await res.json();
-    expect(data.error).toBe("Unauthorized");
-  });
-
-  it("POST /api/cart adds an item", async () => {
-    const req = mockNextRequest({ userId, carbonCreditId, quantity }, "POST");
+  it('POST /api/cart adds an item', async () => {
+    const req = mockNextRequest({ carbonCreditId: 1, quantity: 2 });
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data).toHaveProperty("id");
-    expect(data.userId).toBe(userId);
-    expect(data.carbonCreditId).toBe(carbonCreditId);
+    expect(data).toHaveProperty('id');
+    expect(data.userId).toBe(mockUser.id);
   });
 
-  it("POST /api/cart returns 400 for missing fields", async () => {
-    const req = mockNextRequest({ userId }, "POST");
+  it('POST /api/cart returns 400 for invalid data', async () => {
+    const req = mockNextRequest({ carbonCreditId: 1, quantity: -1 });
     const res = await POST(req);
     expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Missing fields");
   });
 
-  it("PUT /api/cart updates item quantity", async () => {
-    quantity = 5;
-    const req = mockNextRequest({ userId, carbonCreditId, quantity }, "PUT");
+  it('PUT /api/cart updates item quantity', async () => {
+    const req = mockNextRequest({ carbonCreditId: 1, quantity: 5 }, 'PUT');
     const res = await PUT(req);
     expect(res.status).toBe(200);
-    const data = await res.json();
-    expect(data.count).toBeGreaterThan(0);
   });
 
-  it("PUT /api/cart returns 400 for missing fields", async () => {
-    const req = mockNextRequest({ userId }, "PUT");
-    const res = await PUT(req);
-    expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Missing fields");
-  });
-
-  it("DELETE /api/cart removes an item", async () => {
-    const req = mockNextRequest({ userId, carbonCreditId }, "DELETE");
+  it('DELETE /api/cart removes an item', async () => {
+    const req = mockNextRequest({ carbonCreditId: 1 }, 'DELETE');
     const res = await DELETE(req);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
   });
 
-  it("DELETE /api/cart returns 400 for missing fields", async () => {
-    const req = mockNextRequest({ userId }, "DELETE");
+  it('DELETE /api/cart returns 400 for missing carbonCreditId', async () => {
+    const req = mockNextRequest({}, 'DELETE');
     const res = await DELETE(req);
     expect(res.status).toBe(400);
-    const data = await res.json();
-    expect(data.error).toBe("Missing fields");
   });
 });

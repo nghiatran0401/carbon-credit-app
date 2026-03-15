@@ -1,3 +1,4 @@
+import neo4j from 'neo4j-driver';
 import { neo4jService } from './neo4j-service';
 import { prisma } from './prisma';
 import { OrderStatus } from '@prisma/client';
@@ -22,63 +23,104 @@ export interface CarbonCreditMovement {
 }
 
 class CarbonMovementService {
-  /**
-   * Sync a user to Neo4j
-   */
+  /* ------------------------------------------------------------------ */
+  /* Public single-entity methods (used by webhook for real-time sync)   */
+  /* These fetch from DB, then delegate to the write helpers.            */
+  /* ------------------------------------------------------------------ */
+
   async syncUser(userId: number): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return;
+      await this.writeUser(user);
+      console.log(`✅ Synced user ${userId} to Neo4j`);
+    } catch (error) {
+      console.error(`❌ Failed to sync user ${userId}:`, error);
+    }
+  }
+
+  async syncForest(forestId: number): Promise<void> {
+    try {
+      const forest = await prisma.forest.findUnique({ where: { id: forestId } });
+      if (!forest) return;
+      await this.writeForest(forest);
+      console.log(`✅ Synced forest ${forestId} to Neo4j`);
+    } catch (error) {
+      console.error(`❌ Failed to sync forest ${forestId}:`, error);
+    }
+  }
+
+  async syncCarbonCredit(creditId: number): Promise<void> {
+    try {
+      const credit = await prisma.carbonCredit.findUnique({
+        where: { id: creditId },
+        include: { forest: true },
+      });
+      if (!credit) return;
+      await this.writeCarbonCredit(credit);
+      console.log(`✅ Synced carbon credit ${creditId} to Neo4j`);
+    } catch (error) {
+      console.error(`❌ Failed to sync carbon credit ${creditId}:`, error);
+    }
+  }
+
+  async trackOrderMovement(orderId: number): Promise<void> {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          user: true,
+          items: { include: { carbonCredit: { include: { forest: true } } } },
+        },
+      });
+      if (!order) return;
+
+      await this.writeUser(order.user);
+      await this.writeOrder(order);
+
+      for (const item of order.items) {
+        await this.writeCarbonCredit(item.carbonCredit);
+        await this.writeOrderItemRelationships(order, item);
+      }
+
+      console.log(`✅ Tracked order movement ${orderId} in Neo4j`);
+    } catch (error) {
+      console.error(`❌ Failed to track order movement ${orderId}:`, error);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Private Neo4j write helpers — accept pre-loaded data, no DB calls  */
+  /* ------------------------------------------------------------------ */
+
+  private async writeUser(user: any): Promise<void> {
     const session = neo4jService.getSession();
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-
-      if (!user) return;
-
       await session.run(
         `MERGE (u:User {id: $id})
-         SET u.email = $email,
-             u.name = $name,
-             u.role = $role,
-             u.createdAt = $createdAt,
-             u.updatedAt = datetime()`,
+         SET u.email = $email, u.name = $name, u.role = $role,
+             u.createdAt = $createdAt, u.updatedAt = datetime()`,
         {
           id: user.id,
           email: user.email,
           name: `${user.firstName} ${user.lastName}`.trim() || 'Unknown',
           role: user.role,
-          createdAt: user.createdAt.toISOString()
-        }
+          createdAt: user.createdAt.toISOString(),
+        },
       );
-
-      console.log(`✅ Synced user ${userId} to Neo4j`);
-    } catch (error) {
-      console.error(`❌ Failed to sync user ${userId}:`, error);
     } finally {
       await session.close();
     }
   }
 
-  /**
-   * Sync a forest to Neo4j
-   */
-  async syncForest(forestId: number): Promise<void> {
+  private async writeForest(forest: any): Promise<void> {
     const session = neo4jService.getSession();
     try {
-      const forest = await prisma.forest.findUnique({
-        where: { id: forestId }
-      });
-
-      if (!forest) return;
-
       await session.run(
         `MERGE (f:Forest {id: $id})
-         SET f.name = $name,
-             f.location = $location,
-             f.area = $area,
-             f.type = $type,
-             f.status = $status,
-             f.lastUpdated = $lastUpdated,
-             f.updatedAt = datetime()`,
+         SET f.name = $name, f.location = $location, f.area = $area,
+             f.type = $type, f.status = $status,
+             f.lastUpdated = $lastUpdated, f.updatedAt = datetime()`,
         {
           id: forest.id,
           name: forest.name,
@@ -86,44 +128,23 @@ class CarbonMovementService {
           area: forest.area,
           type: forest.type,
           status: forest.status,
-          lastUpdated: forest.lastUpdated.toISOString()
-        }
+          lastUpdated: forest.lastUpdated.toISOString(),
+        },
       );
-
-      console.log(`✅ Synced forest ${forestId} to Neo4j`);
-    } catch (error) {
-      console.error(`❌ Failed to sync forest ${forestId}:`, error);
     } finally {
       await session.close();
     }
   }
 
-  /**
-   * Sync carbon credits to Neo4j
-   */
-  async syncCarbonCredit(creditId: number): Promise<void> {
+  private async writeCarbonCredit(credit: any): Promise<void> {
     const session = neo4jService.getSession();
     try {
-      const credit = await prisma.carbonCredit.findUnique({
-        where: { id: creditId },
-        include: {
-          forest: true
-        }
-      });
-
-      if (!credit) return;
-
-      // Create carbon credit node
       await session.run(
         `MERGE (c:CarbonCredit {id: $id})
-         SET c.serialNumber = $serialNumber,
-             c.totalCredits = $totalCredits,
-             c.availableCredits = $availableCredits,
-             c.retiredCredits = $retiredCredits,
-             c.pricePerCredit = $pricePerCredit,
-             c.vintage = $vintage,
-             c.certification = $certification,
-             c.createdAt = $createdAt,
+         SET c.serialNumber = $serialNumber, c.totalCredits = $totalCredits,
+             c.availableCredits = $availableCredits, c.retiredCredits = $retiredCredits,
+             c.pricePerCredit = $pricePerCredit, c.vintage = $vintage,
+             c.certification = $certification, c.createdAt = $createdAt,
              c.updatedAt = datetime()`,
         {
           id: credit.id,
@@ -134,14 +155,12 @@ class CarbonMovementService {
           pricePerCredit: credit.pricePerCredit,
           vintage: credit.vintage,
           certification: credit.certification,
-          createdAt: credit.createdAt.toISOString()
-        }
+          createdAt: credit.createdAt.toISOString(),
+        },
       );
 
-      // Create relationship to forest
       if (credit.forest) {
-        await this.syncForest(credit.forest.id);
-        
+        await this.writeForest(credit.forest);
         await session.run(
           `MATCH (c:CarbonCredit {id: $creditId})
            MATCH (f:Forest {id: $forestId})
@@ -150,66 +169,33 @@ class CarbonMovementService {
           {
             creditId: credit.id,
             forestId: credit.forest.id,
-            createdAt: credit.createdAt.toISOString()
-          }
+            createdAt: credit.createdAt.toISOString(),
+          },
         );
       }
-
-      console.log(`✅ Synced carbon credit ${creditId} to Neo4j`);
-    } catch (error) {
-      console.error(`❌ Failed to sync carbon credit ${creditId}:`, error);
     } finally {
       await session.close();
     }
   }
 
-  /**
-   * Track order and its carbon credit movements
-   */
-  async trackOrderMovement(orderId: number): Promise<void> {
+  private async writeOrder(order: any): Promise<void> {
     const session = neo4jService.getSession();
     try {
-      const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: {
-          user: true,
-          items: {
-            include: {
-              carbonCredit: {
-                include: {
-                  forest: true
-                }
-              }
-            }
-          }
-        }
-      });
-
-      if (!order) return;
-
-      // Sync user
-      await this.syncUser(order.userId);
-
-      // Create order node
       await session.run(
         `MERGE (o:Order {id: $id})
-         SET o.status = $status,
-             o.totalPrice = $totalPrice,
-             o.totalCredits = $totalCredits,
-             o.createdAt = $createdAt,
-             o.paidAt = $paidAt,
-             o.updatedAt = datetime()`,
+         SET o.status = $status, o.totalPrice = $totalPrice,
+             o.totalCredits = $totalCredits, o.createdAt = $createdAt,
+             o.paidAt = $paidAt, o.updatedAt = datetime()`,
         {
           id: order.id,
           status: order.status,
           totalPrice: order.totalPrice,
           totalCredits: order.totalCredits,
           createdAt: order.createdAt.toISOString(),
-          paidAt: order.paidAt?.toISOString() || null
-        }
+          paidAt: order.paidAt?.toISOString() || null,
+        },
       );
 
-      // Create relationship between user and order
       await session.run(
         `MATCH (u:User {id: $userId})
          MATCH (o:Order {id: $orderId})
@@ -218,57 +204,48 @@ class CarbonMovementService {
         {
           userId: order.userId,
           orderId: order.id,
-          createdAt: order.createdAt.toISOString()
-        }
+          createdAt: order.createdAt.toISOString(),
+        },
+      );
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async writeOrderItemRelationships(order: any, item: any): Promise<void> {
+    const session = neo4jService.getSession();
+    try {
+      await session.run(
+        `MATCH (o:Order {id: $orderId})
+         MATCH (c:CarbonCredit {id: $creditId})
+         MERGE (o)-[r:PURCHASES]->(c)
+         SET r.quantity = $quantity, r.pricePerCredit = $pricePerCredit,
+             r.subtotal = $subtotal, r.createdAt = $createdAt`,
+        {
+          orderId: order.id,
+          creditId: item.carbonCreditId,
+          quantity: item.quantity,
+          pricePerCredit: item.pricePerCredit,
+          subtotal: item.subtotal,
+          createdAt: order.createdAt.toISOString(),
+        },
       );
 
-      // Track each carbon credit purchase
-      for (const item of order.items) {
-        // Sync carbon credit
-        await this.syncCarbonCredit(item.carbonCreditId);
-
-        // Create purchase relationship
+      if (order.status === OrderStatus.COMPLETED && order.paidAt) {
         await session.run(
-          `MATCH (o:Order {id: $orderId})
+          `MATCH (u:User {id: $userId})
            MATCH (c:CarbonCredit {id: $creditId})
-           MERGE (o)-[r:PURCHASES]->(c)
-           SET r.quantity = $quantity,
-               r.pricePerCredit = $pricePerCredit,
-               r.subtotal = $subtotal,
-               r.createdAt = $createdAt`,
+           MERGE (u)-[r:OWNS]->(c)
+           SET r.quantity = $quantity, r.acquiredAt = $acquiredAt, r.orderId = $orderId`,
           {
-            orderId: order.id,
+            userId: order.userId,
             creditId: item.carbonCreditId,
             quantity: item.quantity,
-            pricePerCredit: item.pricePerCredit,
-            subtotal: item.subtotal,
-            createdAt: order.createdAt.toISOString()
-          }
+            acquiredAt: order.paidAt.toISOString(),
+            orderId: order.id,
+          },
         );
-
-        // If order is completed, create ownership transfer
-        if (order.status === OrderStatus.COMPLETED && order.paidAt) {
-          await session.run(
-            `MATCH (u:User {id: $userId})
-             MATCH (c:CarbonCredit {id: $creditId})
-             MERGE (u)-[r:OWNS]->(c)
-             SET r.quantity = $quantity,
-                 r.acquiredAt = $acquiredAt,
-                 r.orderId = $orderId`,
-            {
-              userId: order.userId,
-              creditId: item.carbonCreditId,
-              quantity: item.quantity,
-              acquiredAt: order.paidAt.toISOString(),
-              orderId: order.id
-            }
-          );
-        }
       }
-
-      console.log(`✅ Tracked order movement ${orderId} in Neo4j`);
-    } catch (error) {
-      console.error(`❌ Failed to track order movement ${orderId}:`, error);
     } finally {
       await session.close();
     }
@@ -277,6 +254,24 @@ class CarbonMovementService {
   /**
    * Get carbon credit movement graph for visualization
    */
+  /**
+   * Convert Neo4j-specific types (Integer, DateTime, etc.) to plain JS values
+   * so they serialize correctly to JSON.
+   */
+  private toPlainProps(props: Record<string, any>): Record<string, any> {
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(props)) {
+      if (neo4j.isInt(val)) {
+        result[key] = val.toNumber();
+      } else if (val && typeof val === 'object' && typeof val.toString === 'function' && val.year) {
+        result[key] = val.toString();
+      } else {
+        result[key] = val;
+      }
+    }
+    return result;
+  }
+
   async getCarbonCreditMovementGraph(limit: number = 50): Promise<CarbonCreditMovement> {
     const session = neo4jService.getSession();
     try {
@@ -285,7 +280,7 @@ class CarbonMovementService {
          WHERE n:User OR n:Forest OR n:CarbonCredit OR n:Order
          RETURN n, r, m
          LIMIT $limit`,
-        { limit }
+        { limit: neo4j.int(limit) },
       );
 
       const nodes: MovementNode[] = [];
@@ -297,35 +292,34 @@ class CarbonMovementService {
         const relationship = record.get('r');
         const endNode = record.get('m');
 
-        // Add start node
-        const startNodeId = `${startNode.labels[0]}_${startNode.properties.id}`;
+        const startProps = this.toPlainProps(startNode.properties);
+        const startNodeId = `${startNode.labels[0]}_${startProps.id}`;
         if (!nodeIds.has(startNodeId)) {
           nodes.push({
             id: startNodeId,
             type: startNode.labels[0] as any,
-            properties: startNode.properties
+            properties: startProps,
           });
           nodeIds.add(startNodeId);
         }
 
-        // Add end node
-        const endNodeId = `${endNode.labels[0]}_${endNode.properties.id}`;
+        const endProps = this.toPlainProps(endNode.properties);
+        const endNodeId = `${endNode.labels[0]}_${endProps.id}`;
         if (!nodeIds.has(endNodeId)) {
           nodes.push({
             id: endNodeId,
             type: endNode.labels[0] as any,
-            properties: endNode.properties
+            properties: endProps,
           });
           nodeIds.add(endNodeId);
         }
 
-        // Add relationship
         relationships.push({
           id: `${startNodeId}_${relationship.type}_${endNodeId}`,
           type: relationship.type,
-          properties: relationship.properties,
+          properties: this.toPlainProps(relationship.properties),
           startNode: startNodeId,
-          endNode: endNodeId
+          endNode: endNodeId,
         });
       }
 
@@ -339,38 +333,47 @@ class CarbonMovementService {
   }
 
   /**
-   * Sync all existing data to Neo4j
+   * Sync all existing data to Neo4j.
+   * Batch-fetches everything from Postgres in 4 queries, then writes to Neo4j
+   * without any additional DB round-trips.
    */
   async syncAllData(): Promise<void> {
     console.log('🔄 Starting full data sync to Neo4j...');
-    
+
     try {
-      // Initialize schema first
       await neo4jService.initializeSchema();
 
-      // Fetch all data concurrently
       const [users, forests, credits, orders] = await Promise.all([
         prisma.user.findMany(),
         prisma.forest.findMany(),
-        prisma.carbonCredit.findMany(),
-        prisma.order.findMany(),
+        prisma.carbonCredit.findMany({ include: { forest: true } }),
+        prisma.order.findMany({
+          include: {
+            user: true,
+            items: { include: { carbonCredit: { include: { forest: true } } } },
+          },
+        }),
       ]);
 
-      // Sync users and forests concurrently (no dependencies between them)
-      await Promise.all([
-        ...users.map((user) => this.syncUser(user.id)),
-        ...forests.map((forest) => this.syncForest(forest.id)),
-      ]);
+      for (const user of users) {
+        await this.writeUser(user);
+      }
 
-      // Sync carbon credits (depend on forests being synced)
-      await Promise.all(
-        credits.map((credit) => this.syncCarbonCredit(credit.id)),
-      );
+      for (const forest of forests) {
+        await this.writeForest(forest);
+      }
 
-      // Track order movements (depend on users and credits being synced)
-      await Promise.all(
-        orders.map((order) => this.trackOrderMovement(order.id)),
-      );
+      for (const credit of credits) {
+        await this.writeCarbonCredit(credit);
+      }
+
+      for (const order of orders) {
+        await this.writeOrder(order);
+        for (const item of order.items) {
+          await this.writeCarbonCredit(item.carbonCredit);
+          await this.writeOrderItemRelationships(order, item);
+        }
+      }
 
       console.log('✅ Full data sync to Neo4j completed');
     } catch (error) {
