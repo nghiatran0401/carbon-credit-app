@@ -1,12 +1,17 @@
+# Base image with OpenSSL for Prisma engines
+FROM node:20-bookworm-slim AS base
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends openssl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 # Stage 1: Install dependencies
-FROM node:20-alpine AS deps
+FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
-RUN npm install sharp
+RUN npm ci --no-audit --no-fund
 
 # Stage 2: Build the application
-FROM node:20-alpine AS builder
+FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -14,7 +19,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Stage 3: Production image
-FROM node:20-alpine AS runner
+FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \

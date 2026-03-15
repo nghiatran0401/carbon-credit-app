@@ -10,6 +10,7 @@ A full-stack marketplace for exploring, analyzing, and trading carbon credits â€
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
+- [Docker Quick Start](#docker-quick-start)
 - [Project Structure](#project-structure)
 - [Scripts](#scripts)
 - [Environment Variables](#environment-variables)
@@ -117,6 +118,50 @@ npm run dev
 ```
 
 The app will be available at [http://localhost:3000](http://localhost:3000).
+
+## Docker Quick Start
+
+### 1. Create env file
+
+```bash
+cp .env.docker.example .env
+```
+
+This Docker-specific env file is preconfigured for local `postgres`, `neo4j`, and `immudb`.
+Replace Supabase and PayOS placeholders with real credentials if you want auth/payment features.
+
+### 2. Start everything with one command
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- `app` (Next.js on `http://localhost:3000`)
+- `postgres` (local PostgreSQL)
+- `neo4j` (graph DB)
+- `immudb` (immutable audit DB)
+
+`migrate` runs automatically before `app` starts to apply Prisma migrations.
+
+### 3. Team image build (Mac + Windows/Linux)
+
+Use Docker Buildx to publish a multi-arch image:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t <your-org>/carbon-credit-app:latest \
+  --push .
+```
+
+Then teammates can run:
+
+```bash
+docker pull <your-org>/carbon-credit-app:latest
+docker compose up
+```
 
 ## Project Structure
 
