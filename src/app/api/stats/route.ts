@@ -1,7 +1,43 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+
+async function getSupabaseAuthUserCount(): Promise<number | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const perPage = 1000;
+  let page = 1;
+  let total = 0;
+
+  // Supabase Admin API is paginated; aggregate to avoid truncating user counts.
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      throw error;
+    }
+
+    const users = data?.users ?? [];
+    total += users.length;
+
+    if (users.length < perPage) {
+      break;
+    }
+    page += 1;
+  }
+
+  return total;
+}
 
 export async function GET() {
   try {
@@ -42,6 +78,16 @@ export async function GET() {
       0,
     );
 
+    let totalUsers = userCount;
+    try {
+      const authUserCount = await getSupabaseAuthUserCount();
+      if (authUserCount !== null) {
+        totalUsers = authUserCount;
+      }
+    } catch (error) {
+      console.error('Failed to fetch Supabase auth user count, using app user count fallback:', error);
+    }
+
     return NextResponse.json({
       totalCredits,
       availableCredits,
@@ -50,7 +96,7 @@ export async function GET() {
       totalAreaKm2,
       totalForests: forests.length,
       activeForests,
-      totalUsers: userCount,
+      totalUsers,
       completedOrders: completedOrderAgg._count,
       totalRevenue: completedOrderAgg._sum.totalUsd || 0,
       creditsSold: completedOrderAgg._sum.totalCredits || 0,

@@ -1,0 +1,106 @@
+services:
+  migrate:
+    profiles: ["migrate"]
+    build:
+      context: .
+      target: builder
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/carbon_credit_app?schema=public}
+      DIRECT_URL: ${DIRECT_URL:-postgresql://postgres:postgres@postgres:5432/carbon_credit_app?schema=public}
+    command: sh -c "npx prisma migrate deploy"
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/carbon_credit_app?schema=public}
+      DIRECT_URL: ${DIRECT_URL:-postgresql://postgres:postgres@postgres:5432/carbon_credit_app?schema=public}
+      # Force container-internal service discovery for Docker runtime.
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password123}
+      IMMUDB_HOST: immudb
+      IMMUDB_PORT: "3322"
+      IMMUDB_USERNAME: ${IMMUDB_USERNAME:-immudb}
+      IMMUDB_PASSWORD: ${IMMUDB_PASSWORD:-immudb}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-https://example.supabase.co}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-dev-anon-key}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-dev-service-role-key}
+      PAYOS_CLIENT_ID: ${PAYOS_CLIENT_ID:-dev-client-id}
+      PAYOS_API_KEY: ${PAYOS_API_KEY:-dev-api-key}
+      PAYOS_CHECKSUM_KEY: ${PAYOS_CHECKSUM_KEY:-dev-checksum-key}
+    depends_on:
+      immudb:
+        condition: service_started
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: carbon_credit_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d carbon_credit_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  immudb:
+    image: codenotary/immudb:latest
+    platform: linux/amd64
+    ports:
+      - "3322:3322"
+      - "9497:9497"
+    volumes:
+      - immudb_data:/var/lib/immudb
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/password123
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  immudb_data:
+  neo4j_data:
