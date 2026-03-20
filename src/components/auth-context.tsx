@@ -138,6 +138,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setIsAuthenticated(true);
 
+      // Create the Prisma user row and assign a custodial wallet address.
+      // We do this explicitly rather than relying on a Supabase DB trigger,
+      // so we have a reliable hook point for wallet generation.
+      try {
+        const registerRes = await fetch('/api/users/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supabaseUserId: data.user.id,
+            email: data.user.email,
+            firstName,
+            lastName,
+            company,
+          }),
+        });
+
+        if (!registerRes.ok) {
+          const errorBody = await registerRes.text().catch(() => '');
+          console.error('Failed to register user record:', {
+            status: registerRes.status,
+            body: errorBody,
+          });
+        }
+      } catch (registerError) {
+        // Non-fatal: the polling loop below will still try to fetch the user.
+        // Log the error so it doesn't fail silently during debugging.
+        console.error('Failed to call /api/users/register:', registerError);
+      }
+
       let retries = 0;
       const maxRetries = 5;
       const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

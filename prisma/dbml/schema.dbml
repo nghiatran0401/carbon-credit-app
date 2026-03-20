@@ -5,19 +5,20 @@
 Table User {
   id Int [pk, increment]
   email String [unique, not null]
-  supabaseUserId String [unique]
   firstName String [not null]
   lastName String [not null]
   company String
   role UserRole [not null, default: 'USER']
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  emailVerified Boolean [not null, default: false]
+  supabaseUserId String [unique]
   deletedAt DateTime
-  orders Order [not null]
+  walletAddress String [unique]
   cartItems CartItem [not null]
   notifications Notification [not null]
   notificationPreference NotificationPreference
-  emailVerified Boolean [not null, default: false]
+  orders Order [not null]
 }
 
 Table Forest {
@@ -31,6 +32,7 @@ Table Forest {
   lastUpdated DateTime [not null]
   createdAt DateTime [default: `now()`, not null]
   deletedAt DateTime
+  contractAddress String [unique]
   credits CarbonCredit [not null]
 }
 
@@ -44,29 +46,30 @@ Table CarbonCredit {
   pricePerCredit Float [not null]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
-  deletedAt DateTime
-  forest Forest [not null]
-  orderItems OrderItem [not null]
-  cartItems CartItem [not null]
   symbol String [not null, default: 'tCO₂']
   retiredCredits Int [not null, default: 0]
+  deletedAt DateTime
+  onChainId String
+  metadataURI String
+  forest Forest [not null]
+  cartItems CartItem [not null]
   exchangeRates ExchangeRate [not null]
+  orderItems OrderItem [not null]
 }
 
 Table ExchangeRate {
   id Int [pk, increment]
-  carbonCredit CarbonCredit [not null]
   carbonCreditId Int [not null]
   rate Float [not null]
   currency String [not null, default: 'USD']
   effectiveFrom DateTime [not null]
   effectiveTo DateTime
+  carbonCredit CarbonCredit [not null]
   orderItems OrderItem [not null]
 }
 
 Table Order {
   id Int [pk, increment]
-  orderCode Int [unique, not null]
   userId Int [not null]
   createdAt DateTime [default: `now()`, not null]
   status OrderStatus [not null, default: 'PENDING']
@@ -74,18 +77,20 @@ Table Order {
   totalCredits Int [not null, default: 0]
   currency String [not null, default: 'USD']
   totalUsd Float [not null, default: 0]
-  deletedAt DateTime
-  user User [not null]
-  items OrderItem [not null]
   seller String [not null]
   buyer String [not null]
   paidAt DateTime
   shippingAddress String
   failureReason String
+  deletedAt DateTime
+  orderCode Int [unique, not null]
   paymentProvider String [not null, default: 'PAYOS']
-  payments Payment [not null]
-  orderHistory OrderHistory [not null]
+  transactionHash String
   certificate Certificate
+  user User [not null]
+  orderHistory OrderHistory [not null]
+  items OrderItem [not null]
+  payments Payment [not null]
 }
 
 Table OrderItem {
@@ -96,23 +101,23 @@ Table OrderItem {
   pricePerCredit Float [not null]
   subtotal Float [not null]
   usdAmount Float [not null, default: 0]
-  exchangeRate ExchangeRate
   exchangeRateId Int
-  order Order [not null]
-  carbonCredit CarbonCredit [not null]
   retired Boolean [not null, default: false]
+  carbonCredit CarbonCredit [not null]
+  exchangeRate ExchangeRate
+  order Order [not null]
 }
 
 Table CartItem {
   id Int [pk, increment]
-  user User [not null]
   userId Int [not null]
-  carbonCredit CarbonCredit [not null]
   carbonCreditId Int [not null]
   quantity Int [not null]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
   addedAt DateTime [default: `now()`, not null]
+  carbonCredit CarbonCredit [not null]
+  user User [not null]
 
   indexes {
     (userId, carbonCreditId) [unique]
@@ -122,41 +127,41 @@ Table CartItem {
 Table Payment {
   id Int [pk, increment]
   orderId Int [not null]
-  order Order [not null]
-  orderCode Int [not null]
   amount Float [not null]
   currency String [not null, default: 'USD']
   status PaymentStatus [not null, default: 'PENDING']
   failureReason String
   method String
-  paidAt DateTime
-  paymentData Json
-  payosPaymentLinkId String
-  payosOrderCode Int
-  payosReference String
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  orderCode Int [not null]
+  paidAt DateTime
+  paymentData Json
+  payosOrderCode Int
+  payosPaymentLinkId String
+  payosReference String
+  order Order [not null]
 }
 
 Table OrderHistory {
   id Int [pk, increment]
-  order Order [not null]
   orderId Int [not null]
   event String [not null]
   message String
   createdAt DateTime [default: `now()`, not null]
+  order Order [not null]
 }
 
 Table Certificate {
   id String [pk]
   orderId Int [unique, not null]
-  order Order [not null]
   certificateHash String [unique, not null]
   issuedAt DateTime [default: `now()`, not null]
   status CertificateStatus [not null, default: 'active']
   metadata Json
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  order Order [not null]
 }
 
 Table BlockchainAnchor {
@@ -188,7 +193,6 @@ Table WebhookEvent {
 Table Notification {
   id String [pk]
   userId Int [not null]
-  user User [not null]
   type String [not null]
   title String [not null]
   message String [not null]
@@ -201,6 +205,7 @@ Table Notification {
   createdAt DateTime [default: `now()`, not null]
   readAt DateTime
   archivedAt DateTime
+  user User [not null]
   deliveries NotificationDelivery [not null]
 
   indexes {
@@ -211,32 +216,32 @@ Table Notification {
 Table NotificationDelivery {
   id String [pk]
   notificationId String [not null]
-  notification Notification [not null]
   channel String [not null, default: 'in_app']
   deliveryState String [not null, default: 'delivered']
   deliveredAt DateTime [default: `now()`, not null]
   providerMessageId String
+  notification Notification [not null]
 }
 
 Table NotificationPreference {
   id String [pk]
   userId Int [unique, not null]
-  user User [not null]
   orders Boolean [not null, default: true]
   certificates Boolean [not null, default: true]
   credits Boolean [not null, default: true]
   adminOps Boolean [not null, default: true]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  user User [not null]
 }
 
 Enum OrderStatus {
   PENDING
-  PAID
   PROCESSING
   COMPLETED
   CANCELLED
   FAILED
+  PAID
   EXPIRED
 }
 
@@ -269,17 +274,17 @@ Ref: CarbonCredit.forestId > Forest.id [delete: Cascade]
 
 Ref: ExchangeRate.carbonCreditId > CarbonCredit.id [delete: Cascade]
 
-Ref: Order.userId > User.id [delete: Restrict]
+Ref: Order.userId > User.id
+
+Ref: OrderItem.carbonCreditId > CarbonCredit.id
 
 Ref: OrderItem.exchangeRateId > ExchangeRate.id
 
 Ref: OrderItem.orderId > Order.id [delete: Cascade]
 
-Ref: OrderItem.carbonCreditId > CarbonCredit.id [delete: Restrict]
+Ref: CartItem.carbonCreditId > CarbonCredit.id [delete: Cascade]
 
 Ref: CartItem.userId > User.id [delete: Cascade]
-
-Ref: CartItem.carbonCreditId > CarbonCredit.id [delete: Cascade]
 
 Ref: Payment.orderId > Order.id [delete: Cascade]
 

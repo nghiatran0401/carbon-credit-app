@@ -22,6 +22,7 @@ export const PUBLIC_USER_SELECT = {
   lastName: true,
   company: true,
   role: true,
+  walletAddress: true,
   createdAt: true,
   updatedAt: true,
   emailVerified: true,
