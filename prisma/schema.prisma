@@ -24,6 +24,7 @@ model User {
   emailVerified          Boolean                 @default(false)
   supabaseUserId         String?                 @unique
   deletedAt              DateTime?
+  walletAddress          String?                 @unique
   cartItems              CartItem[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
@@ -35,17 +36,18 @@ model User {
 }
 
 model Forest {
-  id          Int            @id @default(autoincrement())
-  name        String
-  location    String
-  type        String
-  area        Float
-  description String
-  status      ForestStatus   @default(ACTIVE)
-  lastUpdated DateTime
-  createdAt   DateTime       @default(now())
-  deletedAt   DateTime?
-  credits     CarbonCredit[]
+  id              Int            @id @default(autoincrement())
+  name            String
+  location        String
+  type            String
+  area            Float
+  description     String
+  status          ForestStatus   @default(ACTIVE)
+  lastUpdated     DateTime
+  createdAt       DateTime       @default(now())
+  deletedAt       DateTime?
+  contractAddress String?        @unique
+  credits         CarbonCredit[]
 
   @@index([status])
 }
@@ -63,6 +65,8 @@ model CarbonCredit {
   symbol           String         @default("tCO₂")
   retiredCredits   Int            @default(0)
   deletedAt        DateTime?
+  onChainId        String?
+  metadataURI      String?
   forest           Forest         @relation(fields: [forestId], references: [id], onDelete: Cascade)
   cartItems        CartItem[]
   exchangeRates    ExchangeRate[]
@@ -104,6 +108,7 @@ model Order {
   deletedAt       DateTime?
   orderCode       Int            @unique
   paymentProvider String         @default("PAYOS")
+  transactionHash String?
   certificate     Certificate?
   user            User           @relation(fields: [userId], references: [id])
   orderHistory    OrderHistory[]
