@@ -11,7 +11,7 @@ import { getPayOSService } from '@/lib/payos-service';
 const baseUrl = env.NEXT_PUBLIC_BASE_URL;
 
 export async function POST(req: NextRequest) {
-  const rateLimited = checkRateLimit(req, RATE_LIMITS.checkout, 'checkout');
+  const rateLimited = await checkRateLimit(req, RATE_LIMITS.checkout, 'checkout');
   if (rateLimited) return rateLimited;
 
   try {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       currency: 'USD',
       seller: sellerName,
       buyer: String(userId),
-      cartItems: cartItems.map((item) => ({
+      cartItems: cartItems.map((item: any) => ({
         carbonCreditId: item.carbonCreditId,
         quantity: item.quantity,
         pricePerCredit: item.carbonCredit.pricePerCredit,
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       returnUrl,
       cancelUrl,
       buyerEmail: auth.email || undefined,
-      items: cartItems.map((item) => ({
+      items: cartItems.map((item: any) => ({
         name: item.carbonCredit.forest?.name || 'Carbon Credit',
         quantity: item.quantity,
         price: payosAmount,

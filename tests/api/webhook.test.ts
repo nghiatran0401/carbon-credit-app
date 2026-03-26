@@ -151,6 +151,7 @@ describe('Webhook API', () => {
   });
 
   it('returns 401 when webhook signature verification fails', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockVerifyWebhookSignature.mockRejectedValueOnce(new Error('Invalid signature'));
 
     const req = webhookRequest(JSON.stringify(payosWebhookPayload));
@@ -158,6 +159,7 @@ describe('Webhook API', () => {
     expect(res.status).toBe(401);
     const data = await res.json();
     expect(data.error).toBe('Invalid signature');
+    consoleSpy.mockRestore();
   });
 
   it('returns 200 when order is not found (prevents retries)', async () => {

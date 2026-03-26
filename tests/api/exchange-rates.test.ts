@@ -48,6 +48,7 @@ describe('Exchange Rates API', () => {
     });
 
     it('handles errors gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const { prisma } = await import('@/lib/prisma');
       vi.mocked(prisma.exchangeRate.findMany).mockRejectedValueOnce(new Error('Database error'));
 
@@ -55,6 +56,7 @@ describe('Exchange Rates API', () => {
       expect(res.status).toBe(500);
       const data = await res.json();
       expect(data).toEqual({ error: 'Failed to fetch exchange rates' });
+      consoleSpy.mockRestore();
     });
   });
 });
