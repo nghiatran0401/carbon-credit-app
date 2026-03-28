@@ -24,10 +24,8 @@ function createRatelimit(config: RateLimitConfig) {
 
 export const RATE_LIMITS = {
   global: { limit: 60, windowSeconds: 60 } as RateLimitConfig,
-  auth: { limit: 10, windowSeconds: 60 } as RateLimitConfig,
-  register: { limit: 5, windowSeconds: 60 } as RateLimitConfig,
+  auth: { limit: 5, windowSeconds: 60 } as RateLimitConfig,
   checkout: { limit: 10, windowSeconds: 60 } as RateLimitConfig,
-  api: { limit: 100, windowSeconds: 60 } as RateLimitConfig,
 } as const;
 
 const ratelimiters = new Map<string, Ratelimit>();

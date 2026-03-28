@@ -41,7 +41,7 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com *.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' *.supabase.co *.payos.vn *.trycloudflare.com *.ngrok-free.dev; frame-src *.payos.vn; object-src 'none'; base-uri 'self';",
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: *.openstreetmap.org *.arcgisonline.com *.basemaps.cartocdn.com; font-src 'self'; connect-src 'self' *.supabase.co *.payos.vn *.trycloudflare.com *.ngrok-free.dev https://challenges.cloudflare.com; frame-src *.payos.vn https://challenges.cloudflare.com; object-src 'none'; base-uri 'self';",
           },
         ],
       },
