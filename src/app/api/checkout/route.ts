@@ -7,6 +7,7 @@ import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { paymentService } from '@/lib/payment-service';
 import { getPayOSService } from '@/lib/payos-service';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 
 const baseUrl = env.NEXT_PUBLIC_BASE_URL;
 
@@ -17,6 +18,17 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth(req);
     if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const { turnstileToken } = body;
+    if (!turnstileToken) {
+      return NextResponse.json({ error: 'Security verification required' }, { status: 400 });
+    }
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    const turnstileValid = await verifyTurnstileToken(turnstileToken, ip);
+    if (!turnstileValid) {
+      return NextResponse.json({ error: 'Security verification failed' }, { status: 403 });
+    }
 
     const userId = auth.id;
 
