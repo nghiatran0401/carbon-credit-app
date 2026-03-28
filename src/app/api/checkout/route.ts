@@ -7,16 +7,28 @@ import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 import { paymentService } from '@/lib/payment-service';
 import { getPayOSService } from '@/lib/payos-service';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 
 const baseUrl = env.NEXT_PUBLIC_BASE_URL;
 
 export async function POST(req: NextRequest) {
-  const rateLimited = checkRateLimit(req, RATE_LIMITS.checkout, 'checkout');
+  const rateLimited = await checkRateLimit(req, RATE_LIMITS.checkout, 'checkout');
   if (rateLimited) return rateLimited;
 
   try {
     const auth = await requireAuth(req);
     if (isAuthError(auth)) return auth;
+
+    const body = await req.json();
+    const { turnstileToken } = body;
+    if (!turnstileToken) {
+      return NextResponse.json({ error: 'Security verification required' }, { status: 400 });
+    }
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
+    const turnstileValid = await verifyTurnstileToken(turnstileToken, ip);
+    if (!turnstileValid) {
+      return NextResponse.json({ error: 'Security verification failed' }, { status: 403 });
+    }
 
     const userId = auth.id;
 
@@ -58,7 +70,7 @@ export async function POST(req: NextRequest) {
       currency: 'USD',
       seller: sellerName,
       buyer: String(userId),
-      cartItems: cartItems.map((item) => ({
+      cartItems: cartItems.map((item: any) => ({
         carbonCreditId: item.carbonCreditId,
         quantity: item.quantity,
         pricePerCredit: item.carbonCredit.pricePerCredit,
@@ -80,7 +92,7 @@ export async function POST(req: NextRequest) {
       returnUrl,
       cancelUrl,
       buyerEmail: auth.email || undefined,
-      items: cartItems.map((item) => ({
+      items: cartItems.map((item: any) => ({
         name: item.carbonCredit.forest?.name || 'Carbon Credit',
         quantity: item.quantity,
         price: payosAmount,

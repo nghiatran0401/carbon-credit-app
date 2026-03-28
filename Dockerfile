@@ -8,7 +8,7 @@ RUN apt-get update -y && \
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --no-audit --no-fund --legacy-peer-deps
 
 # Stage 2: Build the application
 FROM base AS builder

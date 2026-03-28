@@ -8,5 +8,6 @@ export default defineConfig({
       '@': '/src',
     },
     include: ['tests/**/*.test.ts'],
+    setupFiles: ['tests/setup.ts'],
   },
 });

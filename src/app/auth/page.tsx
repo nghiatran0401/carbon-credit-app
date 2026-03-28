@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -37,8 +38,36 @@ export default function AuthPage() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
   const { isAuthenticated, login, signup, resetPassword, loading } = useAuth();
   const router = useRouter();
+
+  const verifyTurnstile = async (): Promise<boolean> => {
+    if (!turnstileToken) {
+      setError('Please complete the security check.');
+      return false;
+    }
+    try {
+      const res = await fetch('/api/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+      if (!res.ok) {
+        setError('Security verification failed. Please try again.');
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        return false;
+      }
+      return true;
+    } catch {
+      setError('Security verification failed. Please try again.');
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
+      return false;
+    }
+  };
 
   // Password strength calculation
   const getPasswordStrength = (pwd: string) => {
@@ -105,11 +134,17 @@ export default function AuthPage() {
 
     setIsLoading(true);
     try {
+      const verified = await verifyTurnstile();
+      if (!verified) {
+        setIsLoading(false);
+        return;
+      }
       await login(email, password);
-      // Refresh the page to trigger auth context re-check and redirect
       window.location.href = '/dashboard';
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid email or password. Please try again.');
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       setIsLoading(false);
     }
   };
@@ -134,6 +169,11 @@ export default function AuthPage() {
 
     setIsLoading(true);
     try {
+      const verified = await verifyTurnstile();
+      if (!verified) {
+        setIsLoading(false);
+        return;
+      }
       if (signup) {
         // For simple signup, generate default names from email (can be updated in profile later)
         const emailParts = email.split('@')[0].split('.');
@@ -155,6 +195,8 @@ export default function AuthPage() {
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
       setIsLoading(false);
     }
   };
@@ -323,10 +365,18 @@ export default function AuthPage() {
                     </button>
                   </div>
 
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={setTurnstileToken}
+                    onExpire={() => setTurnstileToken(null)}
+                    options={{ theme: 'light', size: 'flexible' }}
+                  />
+
                   <Button
                     type="submit"
                     className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
-                    disabled={isLoading}
+                    disabled={isLoading || !turnstileToken}
                   >
                     {isLoading ? (
                       <>
@@ -509,10 +559,18 @@ export default function AuthPage() {
                     </Label>
                   </div>
 
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={setTurnstileToken}
+                    onExpire={() => setTurnstileToken(null)}
+                    options={{ theme: 'light', size: 'flexible' }}
+                  />
+
                   <Button
                     type="submit"
                     className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
-                    disabled={isLoading}
+                    disabled={isLoading || !turnstileToken}
                   >
                     {isLoading ? (
                       <>
@@ -592,19 +650,34 @@ export default function AuthPage() {
                       />
                     </div>
                   </div>
+                  <Turnstile
+                    ref={turnstileRef}
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={setTurnstileToken}
+                    onExpire={() => setTurnstileToken(null)}
+                    options={{ theme: 'light', size: 'flexible' }}
+                  />
+
                   <Button
                     className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium"
-                    disabled={resetLoading || !resetEmail}
+                    disabled={resetLoading || !resetEmail || !turnstileToken}
                     onClick={async () => {
                       setResetLoading(true);
                       setError(null);
                       try {
+                        const verified = await verifyTurnstile();
+                        if (!verified) {
+                          setResetLoading(false);
+                          return;
+                        }
                         await resetPassword(resetEmail);
                         setResetSent(true);
                       } catch (err: unknown) {
                         setError(
                           err instanceof Error ? err.message : 'Failed to send reset email.',
                         );
+                        turnstileRef.current?.reset();
+                        setTurnstileToken(null);
                       }
                       setResetLoading(false);
                     }}

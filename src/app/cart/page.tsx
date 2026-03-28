@@ -3,7 +3,7 @@ import { useAuth } from '@/components/auth-context';
 import useSWR from 'swr';
 import { apiGet, apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ShoppingCart, Leaf, Shield } from 'lucide-react';
 import { CartItem } from '@/types';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 
 export default function CartPage() {
   return (
@@ -34,6 +35,8 @@ function CartPageContent() {
   const cart: CartItem[] = Array.isArray(cartData) ? cartData : cartData ? [cartData] : [];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
 
   const handleRemove = async (carbonCreditId: number) => {
     if (!userId) return;
@@ -49,12 +52,17 @@ function CartPageContent() {
   };
 
   const handleCheckout = async () => {
+    if (!turnstileToken) {
+      setError('Please complete the security check before checking out.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const res = await apiPost<{ checkoutUrl?: string }>('/api/checkout', {
         userId,
         cartItems: cart,
+        turnstileToken,
       });
       if (res.checkoutUrl) {
         router.push(res.checkoutUrl);
@@ -63,6 +71,8 @@ function CartPageContent() {
       setError('Checkout URL not returned.');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Checkout failed');
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
     setLoading(false);
   };
@@ -74,12 +84,18 @@ function CartPageContent() {
   const [autoCheckoutDone, setAutoCheckoutDone] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('checkout') === '1' && cart.length > 0 && !autoCheckoutDone && !loading) {
+    if (
+      searchParams.get('checkout') === '1' &&
+      cart.length > 0 &&
+      !autoCheckoutDone &&
+      !loading &&
+      turnstileToken
+    ) {
       setAutoCheckoutDone(true);
       handleCheckout();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, cart.length, autoCheckoutDone, loading]);
+  }, [searchParams, cart.length, autoCheckoutDone, loading, turnstileToken]);
 
   if (!userId) return <div className="p-8">Please log in to view your cart.</div>;
   if (isLoading) return <CartSkeleton />;
@@ -201,11 +217,18 @@ function CartPageContent() {
                   <span className="font-bold text-green-700 text-2xl">${total.toFixed(2)}</span>
                 </div>
                 <Separator />
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                  onSuccess={setTurnstileToken}
+                  onExpire={() => setTurnstileToken(null)}
+                  options={{ theme: 'light', size: 'flexible' }}
+                />
                 <Button
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 text-white font-semibold"
                   onClick={handleCheckout}
-                  disabled={loading || cart.length === 0}
+                  disabled={loading || cart.length === 0 || !turnstileToken}
                 >
                   {loading ? 'Processing...' : 'Checkout'}
                 </Button>

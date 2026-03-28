@@ -29,6 +29,10 @@ const envSchema = z.object({
   IMMUDB_PASSWORD: z.string().optional(),
   IMMUDB_DATABASE: z.string().optional(),
 
+  // Upstash Redis (rate limiting)
+  UPSTASH_REDIS_REST_URL: z.string().url(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+
   // Node Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 });
