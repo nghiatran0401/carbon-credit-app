@@ -39,7 +39,6 @@
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.4.2",
-    "@next/swc-darwin-arm64": "^16.2.1",
     "@openzeppelin/merkle-tree": "^1.0.8",
     "@payos/node": "^2.0.4",
     "@prisma/adapter-pg": "^7.3.0",
