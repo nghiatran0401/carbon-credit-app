@@ -72,6 +72,10 @@ vi.mock('@/lib/payment-service', () => ({
   },
 }));
 
+vi.mock('@/lib/turnstile', () => ({
+  verifyTurnstileToken: vi.fn().mockResolvedValue(true),
+}));
+
 vi.mock('@/lib/payos-service', () => ({
   getPayOSService: vi.fn().mockReturnValue({
     createPaymentLink: vi.fn().mockResolvedValue({
@@ -104,7 +108,11 @@ describe('Checkout API', () => {
   });
 
   it('successfully creates a payOS checkout session', async () => {
-    const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ turnstileToken: 'test-token' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
     const res = await POST(req);
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -119,7 +127,11 @@ describe('Checkout API', () => {
     const errResponse = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     vi.mocked(requireAuth).mockResolvedValueOnce(errResponse);
 
-    const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ turnstileToken: 'test-token' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
     const res = await POST(req);
     expect(res.status).toBe(401);
   });
@@ -127,7 +139,11 @@ describe('Checkout API', () => {
   it('returns 400 when cart is empty', async () => {
     vi.mocked(prisma.cartItem.findMany).mockResolvedValueOnce([]);
 
-    const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ turnstileToken: 'test-token' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
     const res = await POST(req);
     expect(res.status).toBe(400);
     const data = await res.json();
@@ -141,7 +157,11 @@ describe('Checkout API', () => {
     };
     vi.mocked(prisma.cartItem.findMany).mockResolvedValueOnce([invalidItem]);
 
-    const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ turnstileToken: 'test-token' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
     const res = await POST(req);
     expect(res.status).toBe(400);
     const data = await res.json();
@@ -152,7 +172,11 @@ describe('Checkout API', () => {
     const rateLimitResponse = NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     vi.mocked(checkRateLimit).mockResolvedValueOnce(rateLimitResponse);
 
-    const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ turnstileToken: 'test-token' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
     const res = await POST(req);
     expect(res.status).toBe(429);
     expect(requireAuth).not.toHaveBeenCalled();
@@ -161,7 +185,11 @@ describe('Checkout API', () => {
   it('handles errors gracefully and returns 500', async () => {
     vi.mocked(prisma.cartItem.findMany).mockRejectedValueOnce(new Error('DB error'));
 
-    const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
+    const req = new NextRequest('http://localhost/api/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ turnstileToken: 'test-token' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
     const res = await POST(req);
     expect(res.status).toBe(500);
     const data = await res.json();

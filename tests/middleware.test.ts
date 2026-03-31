@@ -7,6 +7,10 @@ vi.mock('@/lib/supabase/middleware', () => ({
   updateSession: (request: NextRequest) => mockUpdateSession(request),
 }));
 
+vi.mock('@/lib/rate-limit', () => ({
+  checkGlobalRateLimit: vi.fn().mockResolvedValue(null),
+}));
+
 import { middleware, config } from '@/middleware';
 
 describe('Middleware', () => {
