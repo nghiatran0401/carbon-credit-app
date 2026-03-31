@@ -36,16 +36,13 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-vi.mock('@/lib/auth', () => {
-  const { NextResponse } = require('next/server');
-  return {
-    requireAuth: vi.fn().mockResolvedValue(mockUser),
-    isAuthError: (r: unknown) => r instanceof NextResponse,
-    handleRouteError: vi.fn().mockImplementation((_err: unknown, msg: string) => {
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }),
-  };
-});
+vi.mock('@/lib/auth', () => ({
+  requireAuth: vi.fn().mockResolvedValue(mockUser),
+  isAuthError: (r: unknown) => r instanceof NextResponse,
+  handleRouteError: vi.fn().mockImplementation((_err: unknown, msg: string) => {
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }),
+}));
 
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn().mockReturnValue(null),
@@ -97,7 +94,7 @@ import { prisma } from '@/lib/prisma';
 describe('Checkout API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(checkRateLimit).mockReturnValue(null);
+    vi.mocked(checkRateLimit).mockResolvedValue(null);
     vi.mocked(requireAuth).mockResolvedValue(mockUser);
     vi.mocked(prisma.cartItem.findMany).mockResolvedValue([mockCartItem]);
   });
@@ -119,7 +116,6 @@ describe('Checkout API', () => {
   });
 
   it('returns 401 when not authenticated', async () => {
-    const { NextResponse } = await import('next/server');
     const errResponse = NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     vi.mocked(requireAuth).mockResolvedValueOnce(errResponse);
 
@@ -153,9 +149,8 @@ describe('Checkout API', () => {
   });
 
   it('rate limiting returns 429', async () => {
-    const { NextResponse } = await import('next/server');
     const rateLimitResponse = NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-    vi.mocked(checkRateLimit).mockReturnValueOnce(rateLimitResponse);
+    vi.mocked(checkRateLimit).mockResolvedValueOnce(rateLimitResponse);
 
     const req = new NextRequest('http://localhost/api/checkout', { method: 'POST' });
     const res = await POST(req);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Leaf, Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
@@ -17,6 +18,8 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -43,12 +46,32 @@ export default function ResetPasswordPage() {
 
     setIsLoading(true);
     try {
+      if (!turnstileToken) {
+        setError('Please complete the security check.');
+        setIsLoading(false);
+        return;
+      }
+      const verifyRes = await fetch('/api/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+      if (!verifyRes.ok) {
+        setError('Security verification failed. Please try again.');
+        turnstileRef.current?.reset();
+        setTurnstileToken(null);
+        setIsLoading(false);
+        return;
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
       setSuccess(true);
       setTimeout(() => router.replace('/dashboard'), 2000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to update password.');
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     }
     setIsLoading(false);
   };
@@ -139,10 +162,18 @@ export default function ResetPasswordPage() {
                     />
                   </div>
                 </div>
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                  onSuccess={setTurnstileToken}
+                  onExpire={() => setTurnstileToken(null)}
+                  options={{ theme: 'light', size: 'flexible' }}
+                />
+
                 <Button
                   type="submit"
                   className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-medium"
-                  disabled={isLoading || !sessionReady}
+                  disabled={isLoading || !sessionReady || !turnstileToken}
                 >
                   {isLoading ? (
                     <>
