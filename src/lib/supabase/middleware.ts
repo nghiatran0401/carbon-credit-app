@@ -45,6 +45,7 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/api/stats') &&
     !request.nextUrl.pathname.startsWith('/api/webhook') &&
     !request.nextUrl.pathname.startsWith('/api/public') &&
+    !request.nextUrl.pathname.startsWith('/api/verify-turnstile') &&
     request.nextUrl.pathname !== '/'
   ) {
     // no user, potentially respond by redirecting the user to the login page
