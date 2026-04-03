@@ -99,6 +99,7 @@ export default function MarketplacePage() {
   const [sortBy, setSortBy] = useState('price-low');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [availability, setAvailability] = useState('all');
+  const [forestType, setForestType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const addToCart = useCallback(
@@ -168,6 +169,11 @@ export default function MarketplacePage() {
         (availability === 'available' && isAvailable) ||
         (availability === 'unavailable' && !isAvailable);
 
+      const typeMatch =
+        forestType === 'all' ||
+        (forestType === 'tokenized' && !!credit.forest?.contractAddress) ||
+        (forestType === 'traditional' && !credit.forest?.contractAddress);
+
       const nameMatch =
         !searchQuery ||
         (credit.forest?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -175,7 +181,7 @@ export default function MarketplacePage() {
         credit.certification.toLowerCase().includes(searchQuery.toLowerCase()) ||
         String(credit.vintage).includes(searchQuery);
 
-      return availabilityMatch && nameMatch;
+      return availabilityMatch && typeMatch && nameMatch;
     });
 
     const sorted = [...filtered];
@@ -195,7 +201,7 @@ export default function MarketplacePage() {
       sorted.sort((a, b) => (b.totalCredits ?? 0) - (a.totalCredits ?? 0));
     }
     return sorted;
-  }, [credits, sortBy, availability, searchQuery]);
+  }, [credits, sortBy, availability, forestType, searchQuery]);
 
   const stats = useMemo(() => {
     if (!credits) return { total: 0, available: 0, totalCredits: 0, minPrice: 0 };
@@ -276,7 +282,7 @@ export default function MarketplacePage() {
     );
   }
 
-  const hasActiveFilters = availability !== 'all' || searchQuery !== '';
+  const hasActiveFilters = availability !== 'all' || searchQuery !== '' || forestType !== 'all';
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -339,6 +345,7 @@ export default function MarketplacePage() {
             <button
               onClick={() => {
                 setAvailability('all');
+                setForestType('all');
                 setSearchQuery('');
               }}
               className="text-xs text-emerald-600 hover:text-emerald-700 ml-auto underline underline-offset-2"
@@ -347,7 +354,7 @@ export default function MarketplacePage() {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="relative lg:col-span-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -357,6 +364,16 @@ export default function MarketplacePage() {
               className="pl-9"
             />
           </div>
+          <Select value={forestType} onValueChange={setForestType}>
+            <SelectTrigger aria-label="Filter by type">
+              <SelectValue placeholder="Project Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="tokenized">On-Chain</SelectItem>
+              <SelectItem value="traditional">Traditional</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={availability} onValueChange={setAvailability}>
             <SelectTrigger aria-label="Filter by availability">
               <SelectValue placeholder="Availability" />
@@ -410,6 +427,7 @@ export default function MarketplacePage() {
             size="sm"
             onClick={() => {
               setAvailability('all');
+              setForestType('all');
               setSearchQuery('');
             }}
           >
