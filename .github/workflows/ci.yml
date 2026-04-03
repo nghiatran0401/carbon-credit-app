@@ -60,3 +60,5 @@ jobs:
           PAYOS_CLIENT_ID: ci-placeholder
           PAYOS_API_KEY: ci-placeholder
           PAYOS_CHECKSUM_KEY: ci-placeholder
+          UPSTASH_REDIS_REST_URL: https://ci-placeholder.upstash.io
+          UPSTASH_REDIS_REST_TOKEN: ci-placeholder
