@@ -37,6 +37,11 @@ function CartPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const [mockLoading, setMockLoading] = useState(false);
+  const [mockResult, setMockResult] = useState<{
+    transactionHash: string | null;
+    explorerUrl: string | null;
+  } | null>(null);
 
   const handleRemove = async (carbonCreditId: number) => {
     if (!userId) return;
@@ -79,6 +84,29 @@ function CartPageContent() {
 
   const handleError = (msg: string) => {
     setError(msg);
+  };
+
+  const handleMockPayment = async () => {
+    setMockLoading(true);
+    setError(null);
+    setMockResult(null);
+    try {
+      const res = await fetch('/api/mock-payment', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Mock payment failed');
+        setMockLoading(false);
+        return;
+      }
+      setMockResult({
+        transactionHash: data.transactionHash ?? null,
+        explorerUrl: data.explorerUrl ?? null,
+      });
+      router.push(`/success?orderCode=${data.orderCode}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Mock payment failed');
+      setMockLoading(false);
+    }
   };
 
   const [autoCheckoutDone, setAutoCheckoutDone] = useState(false);
@@ -228,10 +256,47 @@ function CartPageContent() {
                   size="lg"
                   className="bg-green-600 hover:bg-green-700 text-white font-semibold"
                   onClick={handleCheckout}
-                  disabled={loading || cart.length === 0 || !turnstileToken}
+                  disabled={loading || cart.length === 0 || !turnstileToken || mockLoading}
                 >
-                  {loading ? 'Processing...' : 'Checkout'}
+                  {loading ? 'Processing...' : 'Checkout (PayOS)'}
                 </Button>
+
+                {/* ── Mock Payment ─────────────────────────────────────── */}
+                <div className="border border-dashed border-amber-300 rounded-lg p-3 bg-amber-50">
+                  <p className="text-xs font-semibold text-amber-700 mb-2 flex items-center gap-1">
+                    <span>🧪</span> Dev / Demo only
+                  </p>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full border-amber-400 text-amber-700 hover:bg-amber-100 font-semibold"
+                    onClick={handleMockPayment}
+                    disabled={loading || mockLoading || cart.length === 0}
+                  >
+                    {mockLoading ? '⛓ Transferring on-chain…' : '⚡ Mock Pay + Transfer Credits'}
+                  </Button>
+
+                  {mockLoading && (
+                    <p className="text-xs text-amber-600 mt-2 text-center">
+                      Minting &amp; transferring ERC-1155 tokens on Base…
+                      <br />
+                      This may take 30–60 s for block confirmation.
+                    </p>
+                  )}
+
+                  {mockResult?.transactionHash && (
+                    <div className="mt-2 text-center">
+                      <a
+                        href={mockResult.explorerUrl ?? '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-700 font-mono break-all hover:underline"
+                      >
+                        ✅ {mockResult.transactionHash}
+                      </a>
+                    </div>
+                  )}
+                </div>
                 <Link
                   href="/marketplace"
                   className="text-center text-green-700 hover:underline text-sm mt-2"

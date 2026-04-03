@@ -48,6 +48,14 @@ function formatLocation(bounds?: AnalysisEntry['bounds']): string {
   return `${lat}°N, ${lng}°E`;
 }
 
+function deriveDefaultCreditsFromArea(areaHa: number): number {
+  if (!Number.isFinite(areaHa) || areaHa <= 0) {
+    return 1000;
+  }
+
+  return Math.max(100, Math.round(areaHa * 10));
+}
+
 /**
  * Returns carbon credits derived from calculated forest analyses.
  * Lazily creates Prisma Forest + CarbonCredit records for analyses
@@ -123,12 +131,49 @@ export async function GET() {
       await writeIndex(analyses);
     }
 
-    const forestIds = valid
-      .map((a) => a.prismaForestId)
-      .filter((id): id is number => typeof id === 'number');
+    // Keep marketplace usable for admin-created ACTIVE forests that do not yet
+    // have a CarbonCredit row.
+    const activeForestsWithoutCredits = await prisma.forest.findMany({
+      where: {
+        status: 'ACTIVE',
+        credits: {
+          none: {},
+        },
+      },
+      select: {
+        id: true,
+        area: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    for (const forest of activeForestsWithoutCredits) {
+      const totalCredits = deriveDefaultCreditsFromArea(forest.area);
+
+      try {
+        await prisma.carbonCredit.create({
+          data: {
+            forestId: forest.id,
+            vintage: new Date().getFullYear(),
+            certification: 'Forest Registry',
+            totalCredits,
+            availableCredits: totalCredits,
+            pricePerCredit: DEFAULT_PRICE_PER_CREDIT,
+            symbol: 'tCO₂',
+            retiredCredits: 0,
+          },
+        });
+      } catch (createError) {
+        console.warn(`Skipping marketplace credit backfill for forest ${forest.id}:`, createError);
+      }
+    }
 
     const credits = await prisma.carbonCredit.findMany({
-      where: { forestId: { in: forestIds } },
+      where: {
+        forest: {
+          status: 'ACTIVE',
+        },
+      },
       include: { forest: true },
       orderBy: { id: 'asc' },
     });

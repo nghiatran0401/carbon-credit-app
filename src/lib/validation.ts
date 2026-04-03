@@ -31,6 +31,7 @@ export const forestCreateSchema = z.object({
   description: z.string().min(1).max(2000),
   status: z.enum(['ACTIVE', 'MONITORING', 'INACTIVE', 'Active', 'Monitoring', 'Inactive']),
   lastUpdated: z.string().or(z.date()),
+  initialCreditsToMint: z.number().int().positive().optional(),
 });
 
 export const forestUpdateSchema = forestCreateSchema.partial().merge(idSchema);

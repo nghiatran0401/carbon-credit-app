@@ -25,6 +25,9 @@
     "db:studio": "prisma studio",
     "contract:compile": "node scripts/compile-contract.js",
     "contract:deploy": "npx tsx scripts/deploy-contract.ts",
+    "contract:deploy:audit": "cross-env CONTRACT_NAME=AuditAnchor npx tsx scripts/deploy-contract.ts",
+    "contract:deploy:forest": "cross-env CONTRACT_NAME=ForestCredit1155 npx tsx scripts/deploy-contract.ts",
+    "contract:grant:forest:minter": "npx tsx scripts/grant-forest-minter-role.ts",
     "validate": "npm run type-check && npm run lint && npm run test",
     "prepare": "husky"
   },
@@ -40,6 +43,7 @@
   "dependencies": {
     "@marsidev/react-turnstile": "^1.4.2",
     "@openzeppelin/merkle-tree": "^1.0.8",
+    "@openzeppelin/contracts": "^5.4.0",
     "@payos/node": "^2.0.4",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^6.18.0",
@@ -103,6 +107,7 @@
     "@types/supertest": "^6.0.3",
     "@vitest/ui": "^3.2.4",
     "autoprefixer": "^10.0.1",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.3.1",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.0.0",

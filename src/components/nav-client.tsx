@@ -7,6 +7,13 @@ import useSWR from 'swr';
 import { apiGet } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { NotificationCenter } from '@/components/notification-center';
+
+function shortenWallet(address?: string | null): string {
+  if (!address) return 'No wallet';
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 export function DesktopNav() {
   const { isAuthenticated, user, logout } = useAuth();
   const router = useRouter();
@@ -54,6 +61,15 @@ export function DesktopNav() {
               {cartCount}
             </span>
           )}
+        </Link>
+      )}
+      {isAuthenticated && (
+        <Link
+          href="/profile#wallet-address"
+          className="max-w-[180px] truncate rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+          title={user?.walletAddress ?? 'No wallet address'}
+        >
+          {shortenWallet(user?.walletAddress)}
         </Link>
       )}
       {isAuthenticated ? (

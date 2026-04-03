@@ -7,8 +7,8 @@ const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_MAINNET_CHAIN_ID = 8453;
 
 const EXPLORER_URLS: Record<number, string> = {
-  [BASE_SEPOLIA_CHAIN_ID]: 'https://sepolia.basescan.org',
-  [BASE_MAINNET_CHAIN_ID]: 'https://basescan.org',
+  [BASE_SEPOLIA_CHAIN_ID]: 'https://sepolia.etherscan.io',
+  [BASE_MAINNET_CHAIN_ID]: 'https://etherscan.io',
 };
 
 function getConfig() {

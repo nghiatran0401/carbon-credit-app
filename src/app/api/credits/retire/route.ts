@@ -5,6 +5,7 @@ import { emailService } from '@/lib/email-service';
 import { z } from 'zod';
 import { validateBody, isValidationError } from '@/lib/validation';
 import { notifyCreditsRetired } from '@/lib/notification-emitter';
+import { isBlockchainReady, retireForestTokens } from '@/services/blockchainService';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,85 @@ export async function POST(req: NextRequest) {
 
     const { orderItemId, quantity } = validated;
 
+    const orderItem = await prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: {
+        order: { select: { userId: true, status: true } },
+        carbonCredit: { select: { id: true, forestId: true, onChainId: true } },
+      },
+    });
+
+    if (!orderItem) {
+      return NextResponse.json({ error: 'Order item not found' }, { status: 404 });
+    }
+
+    if (orderItem.order.userId !== auth.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (orderItem.order.status !== 'COMPLETED') {
+      return NextResponse.json({ error: 'Only completed orders can be retired' }, { status: 400 });
+    }
+
+    const alreadyRetired = orderItem.retired ? orderItem.quantity : 0;
+    const available = orderItem.quantity - alreadyRetired;
+
+    if (quantity > available) {
+      return NextResponse.json(
+        {
+          error: `Cannot retire ${quantity} credits. Only ${available} available for retirement.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const blockchainEnabled = isBlockchainReady();
+
+    // When blockchain is enabled, validate wallet address and compute on-chain token ID.
+    let user: { walletAddress: string | null } | null = null;
+    let onChainTokenId: number | null = null;
+
+    if (blockchainEnabled) {
+      user = await prisma.user.findUnique({
+        where: { id: auth.id },
+        select: { walletAddress: true },
+      });
+
+      if (!user?.walletAddress) {
+        return NextResponse.json(
+          {
+            error: 'Your account does not have a walletAddress for on-chain retirement.',
+          },
+          { status: 400 },
+        );
+      }
+
+      onChainTokenId = Number(orderItem.carbonCredit.onChainId ?? orderItem.carbonCredit.forestId);
+      if (!Number.isInteger(onChainTokenId) || onChainTokenId <= 0) {
+        return NextResponse.json(
+          {
+            error: `Invalid on-chain token id for carbon credit ${orderItem.carbonCredit.id}.`,
+          },
+          { status: 400 },
+        );
+      }
+    } else {
+      console.warn(
+        `[credits/retire] Blockchain not configured — retiring ${quantity} credits for order item ${orderItemId} in DB only (no on-chain burn).`,
+      );
+    }
+
+    const retireTx =
+      blockchainEnabled && user?.walletAddress && onChainTokenId
+        ? await retireForestTokens({
+            fromAddress: user.walletAddress,
+            forestId: onChainTokenId,
+            amount: quantity,
+          })
+        : null;
+
     const result = await prisma.$transaction(async (tx) => {
-      const orderItem = await tx.orderItem.findUnique({
+      const currentOrderItem = await tx.orderItem.findUnique({
         where: { id: orderItemId },
         include: {
           order: { select: { userId: true, status: true } },
@@ -33,29 +111,29 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      if (!orderItem) {
+      if (!currentOrderItem) {
         return { error: 'Order item not found', status: 404 };
       }
 
-      if (orderItem.order.userId !== auth.id) {
+      if (currentOrderItem.order.userId !== auth.id) {
         return { error: 'Forbidden', status: 403 };
       }
 
-      if (orderItem.order.status !== 'COMPLETED') {
+      if (currentOrderItem.order.status !== 'COMPLETED') {
         return { error: 'Only completed orders can be retired', status: 400 };
       }
 
-      const alreadyRetired = orderItem.retired ? orderItem.quantity : 0;
-      const available = orderItem.quantity - alreadyRetired;
+      const currentAlreadyRetired = currentOrderItem.retired ? currentOrderItem.quantity : 0;
+      const currentAvailable = currentOrderItem.quantity - currentAlreadyRetired;
 
-      if (quantity > available) {
+      if (quantity > currentAvailable) {
         return {
-          error: `Cannot retire ${quantity} credits. Only ${available} available for retirement.`,
+          error: `Cannot retire ${quantity} credits. Only ${currentAvailable} available for retirement.`,
           status: 400,
         };
       }
 
-      if (quantity === orderItem.quantity) {
+      if (quantity === currentOrderItem.quantity) {
         await tx.orderItem.update({
           where: { id: orderItemId },
           data: { retired: true },
@@ -63,7 +141,7 @@ export async function POST(req: NextRequest) {
       }
 
       await tx.carbonCredit.update({
-        where: { id: orderItem.carbonCredit.id },
+        where: { id: currentOrderItem.carbonCredit.id },
         data: {
           retiredCredits: { increment: quantity },
         },
@@ -71,19 +149,23 @@ export async function POST(req: NextRequest) {
 
       await tx.orderHistory.create({
         data: {
-          orderId: orderItem.orderId,
+          orderId: currentOrderItem.orderId,
           event: 'CREDITS_RETIRED',
-          message: `${quantity} credits retired from order item #${orderItemId}`,
+          message: retireTx
+            ? `${quantity} credits retired from order item #${orderItemId}. Tx: ${retireTx.txHash}`
+            : `${quantity} credits retired from order item #${orderItemId} (DB only — no on-chain burn).`,
         },
       });
 
       return {
         data: {
           orderItemId,
-          orderId: orderItem.orderId,
+          orderId: currentOrderItem.orderId,
           retiredQuantity: quantity,
-          totalRetired: alreadyRetired + quantity,
-          remaining: available - quantity,
+          totalRetired: currentAlreadyRetired + quantity,
+          remaining: currentAvailable - quantity,
+          transactionHash: retireTx?.txHash ?? null,
+          blockchainEnabled,
         },
         status: 200,
       };
@@ -101,8 +183,8 @@ export async function POST(req: NextRequest) {
 
     if (emailService.isEnabled()) {
       try {
-        const user = await prisma.user.findUnique({ where: { id: auth.id } });
-        const orderItem = await prisma.orderItem.findUnique({
+        const emailUser = await prisma.user.findUnique({ where: { id: auth.id } });
+        const emailOrderItem = await prisma.orderItem.findUnique({
           where: { id: orderItemId },
           include: {
             carbonCredit: {
@@ -115,14 +197,14 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        if (user && orderItem?.carbonCredit) {
+        if (emailUser && emailOrderItem?.carbonCredit) {
           await emailService.sendCreditsRetired({
-            userName: `${user.firstName} ${user.lastName}`.trim(),
-            userEmail: user.email,
+            userName: `${emailUser.firstName} ${emailUser.lastName}`.trim(),
+            userEmail: emailUser.email,
             quantity,
-            certification: orderItem.carbonCredit.certification,
-            vintage: orderItem.carbonCredit.vintage,
-            forestName: orderItem.carbonCredit.forest?.name ?? 'Forest',
+            certification: emailOrderItem.carbonCredit.certification,
+            vintage: emailOrderItem.carbonCredit.vintage,
+            forestName: emailOrderItem.carbonCredit.forest?.name ?? 'Forest',
           });
         }
       } catch (emailErr) {

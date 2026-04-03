@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Sparkles,
   Save,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
@@ -30,10 +31,12 @@ export default function ProfilePage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [company, setCompany] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [initialProfile, setInitialProfile] = useState({
     firstName: '',
     lastName: '',
     company: '',
+    walletAddress: '',
   });
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -50,10 +53,12 @@ export default function ProfilePage() {
         firstName: user.firstName ?? '',
         lastName: user.lastName ?? '',
         company: user.company ?? '',
+        walletAddress: user.walletAddress ?? '',
       };
       setFirstName(profile.firstName);
       setLastName(profile.lastName);
       setCompany(profile.company);
+      setWalletAddress(profile.walletAddress);
       setInitialProfile(profile);
       setDirty(false);
     }
@@ -63,14 +68,17 @@ export default function ProfilePage() {
     setDirty(
       firstName !== initialProfile.firstName ||
         lastName !== initialProfile.lastName ||
-        company !== initialProfile.company,
+        company !== initialProfile.company ||
+        walletAddress !== initialProfile.walletAddress,
     );
   }, [
     company,
     firstName,
+    walletAddress,
     initialProfile.company,
     initialProfile.firstName,
     initialProfile.lastName,
+    initialProfile.walletAddress,
     lastName,
   ]);
 
@@ -80,14 +88,19 @@ export default function ProfilePage() {
       const res = await fetch('/api/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, company: company || null }),
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          company: company || null,
+          walletAddress: walletAddress || null,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to update profile');
       }
       toast({ title: 'Profile updated', description: 'Your changes have been saved.' });
-      setInitialProfile({ firstName, lastName, company });
+      setInitialProfile({ firstName, lastName, company, walletAddress });
       setDirty(false);
       router.refresh();
     } catch (err: unknown) {
@@ -272,6 +285,21 @@ export default function ProfilePage() {
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="walletAddress" className="flex items-center gap-2">
+                Wallet address (optional)
+              </Label>
+              <div className="relative">
+                <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="walletAddress"
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
+                  className="pl-10 font-mono text-sm"
+                  placeholder="0x..."
+                />
+              </div>
+            </div>
             <div className="flex flex-wrap justify-end gap-2 pt-2">
               <Button
                 variant="outline"
@@ -279,6 +307,7 @@ export default function ProfilePage() {
                   setFirstName(initialProfile.firstName);
                   setLastName(initialProfile.lastName);
                   setCompany(initialProfile.company);
+                  setWalletAddress(initialProfile.walletAddress);
                 }}
                 disabled={!dirty || saving}
               >

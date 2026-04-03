@@ -14,7 +14,7 @@ export function ConditionalNav() {
   }
 
   return (
-    <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-[10000]">
+    <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-40">
       <div className="container py-4 flex items-center justify-between">
         <div className="flex items-center space-x-6">
           <Link href="/">

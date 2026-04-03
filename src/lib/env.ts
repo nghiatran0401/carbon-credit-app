@@ -35,6 +35,9 @@ const envSchema = z.object({
 
   // Node Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+
+  // Blockchain transfer override (optional)
+  BUYER_WALLET_ADDRESS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

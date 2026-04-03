@@ -6,6 +6,7 @@ export interface User {
   id: number;
   email: string;
   supabaseUserId?: string | null;
+  walletAddress?: string | null;
   firstName: string;
   lastName: string;
   company?: string | null;
@@ -42,6 +43,12 @@ export interface Forest {
   description: string;
   status: string;
   lastUpdated: string;
+  contractAddress?: string | null;
+  onChainTokenId?: number | null;
+  mintTxHash?: string | null;
+  mintBlockNumber?: number | null;
+  mintChainId?: number | null;
+  mintedAt?: string | null;
   credits?: CarbonCredit[];
 }
 
@@ -137,6 +144,7 @@ export interface Order {
   status: string;
   totalPrice: number;
   paymentProvider?: string;
+  transactionHash?: string | null;
   user?: User;
   items?: OrderItem[];
   payments?: Payment[];

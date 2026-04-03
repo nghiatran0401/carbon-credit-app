@@ -3,6 +3,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import confetti from 'canvas-confetti';
 import { useEffect, useState, useRef, Suspense } from 'react';
+import useSWR from 'swr';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/auth-context';
@@ -38,6 +39,32 @@ interface PublicVerificationResponse {
       proofValid?: boolean;
     };
   };
+}
+
+interface TxStatus {
+  orderId: number;
+  status: string;
+  transactionHash: string | null;
+  explorerUrl: string | null;
+}
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+function useTxStatus(orderCode: string | null) {
+  const shouldPoll = Boolean(orderCode);
+  const { data, error } = useSWR<TxStatus>(
+    shouldPoll ? `/api/orders/tx-status?orderCode=${orderCode}` : null,
+    fetcher,
+    {
+      refreshInterval: (txData) => {
+        // Stop polling once confirmed (tx hash exists and status is not PROCESSING)
+        if (txData?.transactionHash && txData?.status !== 'PROCESSING') return 0;
+        return 4000;
+      },
+      revalidateOnFocus: false,
+    },
+  );
+  return { txStatus: data ?? null, txError: error ?? null };
 }
 
 function normalizeStatus(status?: string) {
@@ -118,6 +145,7 @@ function SuccessPageContent() {
   );
   const [auditLoading, setAuditLoading] = useState(false);
   const [certificateActionLoading, setCertificateActionLoading] = useState(false);
+  const { txStatus } = useTxStatus(orderCode);
 
   const confettiFired = useRef(false);
   const confettiTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -343,7 +371,7 @@ function SuccessPageContent() {
   const anchorBlock = publicVerification?.verification?.blockchain?.blockNumber;
   const anchorExplorerUrl =
     publicVerification?.verification?.blockchain?.explorerUrl ||
-    (anchorTxHash ? `https://sepolia.basescan.org/tx/${anchorTxHash}` : null);
+    (anchorTxHash ? `https://sepolia.etherscan.io/tx/${anchorTxHash}` : null);
 
   return (
     <div className="max-w-5xl mx-auto w-full px-4 py-12 space-y-8">
@@ -603,6 +631,96 @@ function SuccessPageContent() {
                 </div>
               </>
             )}
+
+            {/* Blockchain Transfer */}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 shrink-0">
+                  <svg
+                    className="h-5 w-5 text-emerald-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-emerald-900">
+                    Base L1 — ERC-1155 Transfer
+                  </h3>
+                  <p className="text-xs text-emerald-600">On-chain carbon credit ownership</p>
+                </div>
+                <div className="ml-auto shrink-0">
+                  {!txStatus ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Checking…
+                    </span>
+                  ) : txStatus.transactionHash ? (
+                    <a
+                      href={txStatus.explorerUrl ?? '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-900 transition"
+                    >
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      Confirmed
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
+                      </svg>
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-amber-600">
+                      <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                      Processing…
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {txStatus?.transactionHash && (
+                <div className="mt-3">
+                  <div className="bg-white/80 rounded-lg p-3 border border-emerald-100">
+                    <p className="text-[10px] font-medium text-emerald-500 uppercase tracking-wider mb-1">
+                      Transaction Hash
+                    </p>
+                    <a
+                      href={txStatus.explorerUrl ?? '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-gray-800 break-all leading-relaxed hover:text-emerald-700 transition"
+                    >
+                      {txStatus.transactionHash}
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {txStatus && !txStatus.transactionHash && (
+                <div className="mt-3">
+                  <p className="text-xs text-amber-700">
+                    Your carbon credits are being transferred on Base L1. This usually takes under a
+                    minute. This page will update automatically.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

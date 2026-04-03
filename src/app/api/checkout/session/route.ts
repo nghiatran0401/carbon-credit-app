@@ -7,6 +7,7 @@ import { orderAuditMiddleware } from '@/lib/order-audit-middleware';
 import { requireAuth, isAuthError, handleRouteError } from '@/lib/auth';
 import { emailService } from '@/lib/email-service';
 import { notifyOrderPaid } from '@/lib/notification-emitter';
+import { CreditInventoryError, decrementAvailableCreditsForOrder } from '@/lib/credit-inventory';
 
 async function runBestEffortSideEffects(orderId: number) {
   try {
@@ -68,6 +69,8 @@ export async function GET(req: NextRequest) {
         if (currentOrder?.status !== 'PENDING') {
           return;
         }
+
+        await decrementAvailableCreditsForOrder(tx, payment.order.id);
 
         await tx.payment.update({
           where: { id: payment.id },
@@ -162,6 +165,9 @@ export async function GET(req: NextRequest) {
       order: payment.order,
     });
   } catch (error) {
+    if (error instanceof CreditInventoryError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return handleRouteError(error, 'Failed to fetch checkout session');
   }
 }

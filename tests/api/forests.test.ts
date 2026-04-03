@@ -38,6 +38,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     forest: {
       findMany: vi.fn().mockResolvedValue([mockForest]),
+      findUnique: vi.fn().mockResolvedValue(mockForest),
       create: vi
         .fn()
         .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
@@ -49,6 +50,12 @@ vi.mock('@/lib/prisma', () => ({
           Promise.resolve({ ...mockForest, ...data }),
         ),
       delete: vi.fn().mockResolvedValue(mockForest),
+      count: vi.fn().mockResolvedValue(1),
+    },
+    carbonCredit: {
+      create: vi.fn().mockResolvedValue({}),
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn().mockResolvedValue({}),
     },
   },
 }));
@@ -94,7 +101,7 @@ describe('Forests API', () => {
       type: 'Mangrove',
       area: 100,
       description: 'A mangrove forest.',
-      status: 'ACTIVE',
+      status: 'MONITORING', // Use MONITORING to avoid requiring initialCreditsToMint & blockchain
       lastUpdated: new Date().toISOString(),
     });
     const res = await POST(req);

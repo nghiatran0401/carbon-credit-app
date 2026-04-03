@@ -46,10 +46,17 @@ model Forest {
   lastUpdated     DateTime
   createdAt       DateTime       @default(now())
   deletedAt       DateTime?
-  contractAddress String?        @unique
+  contractAddress String?
+  onChainTokenId  Int?           @unique
+  mintTxHash      String?        @unique
+  mintBlockNumber Int?
+  mintChainId     Int?
+  mintedAt        DateTime?
   credits         CarbonCredit[]
 
   @@index([status])
+  @@index([contractAddress])
+  @@index([onChainTokenId])
 }
 
 model CarbonCredit {

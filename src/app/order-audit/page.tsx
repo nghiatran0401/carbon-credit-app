@@ -67,8 +67,8 @@ const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
 const EXPLORER_URLS: Record<number, string> = {
-  84532: 'https://sepolia.basescan.org',
-  8453: 'https://basescan.org',
+  84532: 'https://sepolia.etherscan.io',
+  8453: 'https://etherscan.io',
 };
 
 export default function OrderAuditPage() {

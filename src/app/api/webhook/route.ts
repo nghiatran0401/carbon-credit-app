@@ -6,12 +6,16 @@ import { carbonMovementService } from '@/lib/carbon-movement-service';
 import { paymentService } from '@/lib/payment-service';
 import { getPayOSService, type PayOSWebhookData } from '@/lib/payos-service';
 import { emailService } from '@/lib/email-service';
+import { CreditInventoryError, decrementAvailableCreditsForOrder } from '@/lib/credit-inventory';
 import {
   notifyCertificateIssued,
   notifyOrderFailed,
   notifyOrderPaid,
   notifyWebhookFailed,
 } from '@/lib/notification-emitter';
+import { enqueueBlockchainTransfer } from '@/lib/blockchain-queue';
+import { isBlockchainReady } from '@/services/blockchainService';
+import { ethers } from 'ethers';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +47,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
+    // ── 1. Validate PayOS signature ──────────────────────────────────────────
     const payosServiceInstance = getPayosService();
     if (!payosServiceInstance) {
       return NextResponse.json(
@@ -78,9 +83,15 @@ export async function POST(req: NextRequest) {
     const orderCode = Number(webhookData.data.orderCode);
     orderCodeForError = orderCode;
 
+    // ── 2. Load the order ────────────────────────────────────────────────────
     const order = await prisma.order.findUnique({
       where: { orderCode },
       include: {
+        user: {
+          select: {
+            walletAddress: true,
+          },
+        },
         items: { include: { carbonCredit: true } },
       },
     });
@@ -93,6 +104,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // ── 3. Idempotency check ─────────────────────────────────────────────────
     const { processed } = await paymentService.processPayOSWebhook(webhookData, orderCode);
 
     if (!processed) {
@@ -100,18 +112,58 @@ export async function POST(req: NextRequest) {
     }
 
     if (webhookData.code === '00' && webhookData.data.code === '00') {
-      await prisma.order.update({
-        where: { orderCode },
-        data: { status: 'COMPLETED', paidAt: new Date() },
+      // ── 4a. Payment succeeded ────────────────────────────────────────────
+      // Set PROCESSING so the success page knows blockchain transfer is pending.
+      // The blockchain-queue worker will flip it to COMPLETED once the tx mines.
+      const paymentFinalized = await prisma.$transaction(async (tx) => {
+        const currentOrder = await tx.order.findUnique({
+          where: { id: order.id },
+          select: { status: true },
+        });
+
+        if (!currentOrder) {
+          throw new Error(`Order not found for webhook finalization: ${order.id}`);
+        }
+
+        if (currentOrder.status === 'COMPLETED' || currentOrder.status === 'PROCESSING') {
+          return false;
+        }
+
+        if (
+          currentOrder.status !== 'PENDING' &&
+          currentOrder.status !== 'PAID' &&
+          currentOrder.status !== 'EXPIRED'
+        ) {
+          throw new CreditInventoryError(
+            `Order ${order.id} cannot be finalized from status ${currentOrder.status}.`,
+          );
+        }
+
+        await decrementAvailableCreditsForOrder(tx, order.id);
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: 'PROCESSING', paidAt: new Date() },
+        });
+
+        await tx.orderHistory.create({
+          data: {
+            orderId: order.id,
+            event: 'paid',
+            message: `Order paid via PayOS webhook (orderCode: ${orderCode})`,
+          },
+        });
+
+        return true;
       });
 
-      await prisma.orderHistory.create({
-        data: {
-          orderId: order.id,
-          event: 'paid',
-          message: `Order paid via PayOS webhook (orderCode: ${orderCode})`,
-        },
-      });
+      if (!paymentFinalized) {
+        return NextResponse.json({
+          success: true,
+          message: 'Order already finalized',
+          orderCode,
+        });
+      }
 
       try {
         await notifyOrderPaid(order.userId, order.id, orderCode);
@@ -134,10 +186,38 @@ export async function POST(req: NextRequest) {
         console.error(`Failed to track movement for order ${order.id}:`, movementError);
       }
 
+      // ── 5. Async blockchain transfer ─────────────────────────────────────
+      // Resolve buyer wallet address (env override takes priority over user DB value).
+      const configuredBuyerAddress = process.env.BUYER_WALLET_ADDRESS?.trim();
+      const buyerAddress = configuredBuyerAddress || order.user?.walletAddress;
+
+      if (!isBlockchainReady()) {
+        console.warn(
+          `[webhook] Blockchain not configured — skipping on-chain transfer for order ${order.id}`,
+        );
+      } else if (!buyerAddress) {
+        console.warn(
+          `[webhook] Order ${order.id} has no buyer walletAddress and BUYER_WALLET_ADDRESS is not set. Skipping on-chain credit transfer.`,
+        );
+      } else if (!ethers.isAddress(buyerAddress)) {
+        console.error(
+          `[webhook] Invalid buyer wallet address for order ${order.id}: "${buyerAddress}". Skipping.`,
+        );
+      } else {
+        // Fire-and-forget — returns immediately so PayOS gets its 200 right away.
+        enqueueBlockchainTransfer({
+          orderId: order.id,
+          buyerAddress,
+          items: order.items,
+        });
+      }
+
+      // ── 6. Clear cart ────────────────────────────────────────────────────
       if (order.userId) {
         await prisma.cartItem.deleteMany({ where: { userId: order.userId } });
       }
 
+      // ── 7. Generate certificate + send emails ────────────────────────────
       try {
         const cert = await certificateService.generateCertificate(order.id);
 
@@ -205,6 +285,7 @@ export async function POST(req: NextRequest) {
         console.error('Error generating certificate for order:', order.id, certError);
       }
     } else {
+      // ── 4b. Payment failed ───────────────────────────────────────────────
       await prisma.order.update({
         where: { orderCode },
         data: { status: 'FAILED' },
@@ -225,6 +306,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── 8. Immediate 200 to PayOS ────────────────────────────────────────────
     return NextResponse.json({
       success: true,
       message: 'Webhook processed successfully',
@@ -232,6 +314,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error(`PayOS webhook processing error [${requestId}]:`, error);
+    if (error instanceof CreditInventoryError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     if (orderCodeForError) {
       try {
         await notifyWebhookFailed(orderCodeForError, 'Unhandled webhook processing error');

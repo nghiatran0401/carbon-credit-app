@@ -448,8 +448,24 @@ export default function HistoryPage() {
                   </div>
                 )}
 
+                {/* Blockchain transaction hash */}
+                {order.transactionHash && (
+                  <div className="mt-3 pt-3 border-t text-sm">
+                    <span className="font-medium text-gray-700">Blockchain Tx:</span>{' '}
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${order.transactionHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 hover:underline break-all inline-flex items-center gap-1"
+                      title="View on Etherscan"
+                    >
+                      {order.transactionHash}
+                    </a>
+                  </div>
+                )}
+
                 {/* Certificate button for completed orders */}
-                {isCompletedStatus(order.status) && (
+                {isCompletedStatus(order.status) && order.items?.some((item) => item.retired) && (
                   <div className="mt-3 pt-3 border-t flex flex-wrap items-center gap-3">
                     <Button
                       variant="outline"

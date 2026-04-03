@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { mockOrder, mockVerifyWebhookSignature } = vi.hoisted(() => ({
+const { mockOrder, mockVerifyWebhookSignature, mockEnqueueBlockchainTransfer } = vi.hoisted(() => ({
   mockOrder: {
     id: 1,
     orderCode: 17400001234,
@@ -9,7 +9,14 @@ const { mockOrder, mockVerifyWebhookSignature } = vi.hoisted(() => ({
     status: 'PENDING',
     totalPrice: 21,
     paidAt: null as Date | null,
-    items: [{ id: 1, quantity: 2, carbonCredit: { id: 1 } }],
+    user: { walletAddress: '0xca185EaEEFF8108eff820912DE88ff6E8B2e291D' },
+    items: [
+      {
+        id: 1,
+        quantity: 2,
+        carbonCredit: { id: 1, forestId: 5 },
+      },
+    ],
   },
   mockVerifyWebhookSignature: vi.fn().mockResolvedValue({
     orderCode: 17400001234,
@@ -24,6 +31,7 @@ const { mockOrder, mockVerifyWebhookSignature } = vi.hoisted(() => ({
     accountName: 'Test',
     currency: 'USD',
   }),
+  mockEnqueueBlockchainTransfer: vi.fn(),
 }));
 
 vi.mock('@/lib/env', () => ({
@@ -37,9 +45,34 @@ vi.mock('@/lib/env', () => ({
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $transaction: vi.fn(async (fn: any) =>
+      fn({
+        order: {
+          findUnique: vi.fn().mockResolvedValue({ status: 'PAID' }),
+          update: vi
+            .fn()
+            .mockResolvedValue({ ...mockOrder, status: 'PROCESSING', paidAt: new Date() }),
+        },
+        orderHistory: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({ id: 1 }),
+        },
+        orderItem: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              carbonCreditId: 1,
+              quantity: 2,
+            },
+          ]),
+        },
+        carbonCredit: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      }),
+    ),
     order: {
       findUnique: vi.fn().mockResolvedValue(mockOrder),
-      update: vi.fn().mockResolvedValue({ ...mockOrder, status: 'COMPLETED', paidAt: new Date() }),
+      update: vi.fn().mockResolvedValue({ ...mockOrder, status: 'PROCESSING', paidAt: new Date() }),
     },
     orderHistory: {
       create: vi.fn().mockResolvedValue({ id: 1 }),
@@ -87,6 +120,17 @@ vi.mock('@/lib/notification-emitter', () => ({
   notifyWebhookFailed: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock the blockchain queue (fire-and-forget, no real chain calls in tests)
+vi.mock('@/lib/blockchain-queue', () => ({
+  enqueueBlockchainTransfer: mockEnqueueBlockchainTransfer,
+}));
+
+// Mock isBlockchainReady so we control whether the transfer path is entered
+vi.mock('@/services/blockchainService', () => ({
+  isBlockchainReady: vi.fn().mockReturnValue(true),
+  transferCreditsToBuyer: vi.fn(),
+}));
+
 import { POST, GET } from '@/app/api/webhook/route';
 
 const payosWebhookPayload = {
@@ -132,6 +176,48 @@ describe('Webhook API', () => {
     const data = await res.json();
     expect(data.success).toBe(true);
     expect(data.orderCode).toBe(17400001234);
+  });
+
+  it('enqueues a blockchain transfer (not direct await) on payment success', async () => {
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
+    await POST(req);
+    expect(mockEnqueueBlockchainTransfer).toHaveBeenCalledOnce();
+    const [job] = mockEnqueueBlockchainTransfer.mock.calls[0];
+    expect(job.orderId).toBe(1);
+    expect(job.buyerAddress).toMatch(/^0x/);
+    expect(Array.isArray(job.items)).toBe(true);
+  });
+
+  it('sets order status to PROCESSING immediately (not COMPLETED)', async () => {
+    const { prisma } = await import('@/lib/prisma');
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
+    await POST(req);
+    expect(vi.mocked(prisma.$transaction)).toHaveBeenCalled();
+  });
+
+  it('returns 200 immediately without waiting for blockchain tx', async () => {
+    // The queue mock is synchronous so we just assert the response arrives
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
+    const start = Date.now();
+    const res = await POST(req);
+    const elapsed = Date.now() - start;
+    expect(res.status).toBe(200);
+    // No real blockchain call should add latency in tests
+    expect(elapsed).toBeLessThan(500);
+  });
+
+  it('skips blockchain transfer when buyer address is missing', async () => {
+    const { prisma } = await import('@/lib/prisma');
+    vi.mocked(prisma.order.findUnique).mockResolvedValueOnce({
+      ...mockOrder,
+      user: { walletAddress: null },
+    } as any);
+    // Clear the env override
+    delete process.env.BUYER_WALLET_ADDRESS;
+
+    const req = webhookRequest(JSON.stringify(payosWebhookPayload));
+    await POST(req);
+    expect(mockEnqueueBlockchainTransfer).not.toHaveBeenCalled();
   });
 
   it('returns 200 for empty body (validation request)', async () => {

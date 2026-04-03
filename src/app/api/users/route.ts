@@ -14,6 +14,7 @@ const profileUpdateSchema = z.object({
   firstName: z.string().min(1).max(100).optional(),
   lastName: z.string().min(1).max(100).optional(),
   company: z.string().max(200).optional().nullable(),
+  walletAddress: z.string().optional().nullable(),
 });
 
 export const dynamic = 'force-dynamic';
@@ -153,6 +154,8 @@ export async function PATCH(req: NextRequest) {
     if (validated.firstName !== undefined) updateData.firstName = validated.firstName;
     if (validated.lastName !== undefined) updateData.lastName = validated.lastName;
     if (validated.company !== undefined) updateData.company = validated.company;
+    if (validated.walletAddress !== undefined)
+      updateData.walletAddress = validated.walletAddress || null;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
