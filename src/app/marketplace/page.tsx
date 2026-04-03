@@ -30,6 +30,7 @@ import {
   ChevronRight,
   AlertCircle,
   Plus,
+  Hexagon,
 } from 'lucide-react';
 import { useAuth } from '@/components/auth-context';
 import { useRouter } from 'next/navigation';
@@ -618,20 +619,34 @@ const CreditCardItem = React.memo(function CreditCardItem({
 }) {
   const isAvailable = typeof credit.availableCredits === 'number' && credit.availableCredits > 0;
   const forest = credit.forest;
+  const isOnChain = !!forest?.contractAddress;
 
   return (
     <div
-      className={`group bg-white rounded-xl border transition-all ${
-        isAvailable
-          ? 'border-gray-200 hover:border-emerald-300 hover:shadow-lg'
-          : 'border-gray-100 opacity-60'
+      className={`group bg-white rounded-xl border transition-all relative overflow-hidden ${
+        isOnChain
+          ? isAvailable
+            ? 'border-indigo-200 hover:border-indigo-400 hover:shadow-xl hover:shadow-indigo-100/50'
+            : 'border-indigo-100 opacity-70'
+          : isAvailable
+            ? 'border-gray-200 hover:border-emerald-300 hover:shadow-lg'
+            : 'border-gray-100 opacity-60'
       }`}
     >
+      {isOnChain && (
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500" />
+      )}
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="shrink-0 rounded-lg bg-emerald-50 p-2">
-              <Leaf className="h-5 w-5 text-emerald-600" />
+            <div
+              className={`shrink-0 rounded-lg p-2 ${isOnChain ? 'bg-indigo-50' : 'bg-emerald-50'}`}
+            >
+              {isOnChain ? (
+                <Hexagon className="h-5 w-5 text-indigo-600" />
+              ) : (
+                <Leaf className="h-5 w-5 text-emerald-600" />
+              )}
             </div>
             <div className="min-w-0">
               <h3
@@ -672,6 +687,15 @@ const CreditCardItem = React.memo(function CreditCardItem({
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
+          {isOnChain && (
+            <Badge
+              variant="secondary"
+              className="text-xs font-normal bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm"
+            >
+              <Hexagon className="h-3 w-3 mr-1" />
+              Tokenized
+            </Badge>
+          )}
           <Badge variant="secondary" className="text-xs font-normal bg-gray-100 text-gray-600">
             <Shield className="h-3 w-3 mr-1" />
             {credit.certification}
@@ -703,7 +727,9 @@ const CreditCardItem = React.memo(function CreditCardItem({
         />
 
         <Button
-          className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+          className={`w-full mt-4 text-white ${
+            isOnChain ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-emerald-600 hover:bg-emerald-700'
+          }`}
           disabled={!isAvailable}
           onClick={() => onSelect(credit)}
         >
