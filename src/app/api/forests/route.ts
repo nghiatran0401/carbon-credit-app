@@ -22,8 +22,16 @@ export async function GET(req: NextRequest) {
       'Cache-Control': 'public, max-age=30, s-maxage=60, stale-while-revalidate=120',
     };
 
+    const whereClause = {
+      OR: [
+        { contractAddress: process.env.FOREST_1155_CONTRACT_ADDRESS },
+        { contractAddress: null },
+      ],
+    };
+
     if (!page) {
       const forests = await prisma.forest.findMany({
+        where: whereClause,
         include: { credits: true },
         orderBy: { id: 'asc' },
       });
@@ -33,12 +41,15 @@ export async function GET(req: NextRequest) {
     const pageNum = Math.max(1, Number(page));
     const [forests, total] = await Promise.all([
       prisma.forest.findMany({
+        where: whereClause,
         include: { credits: true },
         orderBy: { id: 'asc' },
         skip: (pageNum - 1) * limit,
         take: limit,
       }),
-      prisma.forest.count(),
+      prisma.forest.count({
+        where: whereClause,
+      }),
     ]);
 
     return NextResponse.json(

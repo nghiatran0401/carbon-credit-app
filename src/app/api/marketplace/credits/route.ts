@@ -172,6 +172,14 @@ export async function GET() {
       where: {
         forest: {
           status: 'ACTIVE',
+          OR: [
+            {
+              contractAddress: process.env.FOREST_1155_CONTRACT_ADDRESS,
+            },
+            {
+              contractAddress: null,
+            },
+          ],
         },
       },
       include: { forest: true },
