@@ -40,7 +40,10 @@ const localSourceNames = Object.keys(buildSources());
 const input = {
   language: 'Solidity',
   sources: Object.fromEntries(
-    localSourceNames.map((name) => [name, { content: fs.readFileSync(path.join(contractsDir, name), 'utf8') }])
+    localSourceNames.map((name) => [
+      name,
+      { content: fs.readFileSync(path.join(contractsDir, name), 'utf8') },
+    ]),
   ),
   settings: {
     optimizer: { enabled: true, runs: 200 },
